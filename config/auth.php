@@ -114,14 +114,15 @@ return [
     | Platform Admin Account
     |--------------------------------------------------------------------------
     |
-    | Credentials the AdminSeeder uses to create the platform owner account.
+    | The AdminSeeder links this Clerk user to admin access. Admins sign in
+    | through Clerk, so no password is stored.
     |
     */
 
     'platform_admin' => [
         'name' => env('ADMIN_NAME', 'Platform Admin'),
         'email' => env('ADMIN_EMAIL'),
-        'password' => env('ADMIN_PASSWORD'),
+        'clerk_user_id' => env('ADMIN_CLERK_USER_ID'),
     ],
 
 ];

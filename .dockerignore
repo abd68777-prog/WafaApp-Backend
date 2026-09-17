@@ -1,0 +1,31 @@
+# Installed inside the image instead.
+vendor
+node_modules
+
+# Local environment and secrets never go into the image.
+.env
+.env.*
+!.env.example
+
+# Version control and editor/agent state.
+.git
+.github
+.idea
+.vscode
+.claude
+.cursor
+.phpunit.cache
+.phpunit.result.cache
+
+# Generated at runtime; keep the .gitignore files that hold the folders.
+bootstrap/cache/*.php
+storage/logs/*
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/public/*
+!**/.gitignore
+
+# Docker's own files do not belong in the build context.
+compose.yaml
+compose.override.yaml

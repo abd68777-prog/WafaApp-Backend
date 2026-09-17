@@ -17,7 +17,9 @@ use Illuminate\Database\Seeder;
  * Local demo data covering the PRD 7.1 scenarios: returning customers, a
  * completed card with a reward ready, and a pending phone-only customer.
  *
- * Demo merchant login: merchant@example.com / password.
+ * The demo merchant is linked to the Clerk user id `user_demo_merchant`, which
+ * only matches tokens from a test Clerk instance; with a real Clerk app, sign
+ * up in the merchant app and register a business instead.
  */
 class DemoSeeder extends Seeder
 {
@@ -29,6 +31,7 @@ class DemoSeeder extends Seeder
         $premium = Package::query()->where('code', 'premium')->firstOrFail();
 
         $merchant = Merchant::factory()->for($premium)->create([
+            'clerk_user_id' => 'user_demo_merchant',
             'business_name' => 'كافيه الياسمين',
             'phone' => '+963900000001',
             'email' => 'merchant@example.com',

@@ -4,21 +4,21 @@ namespace App\Models;
 
 use Database\Factories\AdminFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Laravel\Sanctum\HasApiTokens;
 
 /**
- * The platform owner account that signs in to the admin dashboard.
+ * A platform admin, signed in through Clerk.
+ *
+ * `clerk_user_id` is not mass assignable: linking a Clerk user to admin access
+ * is done deliberately (AdminSeeder), never from request input.
  */
-#[Fillable(['name', 'email', 'password'])]
-#[Hidden(['password', 'remember_token'])]
+#[Fillable(['name', 'email'])]
 class Admin extends Authenticatable
 {
     /** @use HasFactory<AdminFactory> */
-    use HasApiTokens, HasFactory;
+    use HasFactory;
 
     /**
      * Get the attributes that should be cast.
@@ -28,7 +28,6 @@ class Admin extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password' => 'hashed',
             'last_login_at' => 'datetime',
         ];
     }

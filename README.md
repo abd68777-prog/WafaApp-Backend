@@ -1,12 +1,15 @@
 # Loyalty Cards — Backend API
 
-Laravel backend for the Loyalty Cards project. **API only** — the frontend is a
-separate project that talks to this service over HTTP.
+Laravel backend for the Loyalty Cards project. **API only** — the customer app,
+merchant app and admin dashboard are separate projects that talk to this service
+over HTTP.
 
 - Framework: Laravel 13 (PHP 8.3)
-- Auth: Laravel Sanctum, bearer tokens
 - Database: MySQL 8.4
+- Auth: customers by phone + WhatsApp OTP (Sanctum tokens); merchants and admins by Clerk
 - Responses: JSON only, versioned under `/api/v1`
+
+The full endpoint reference for frontend developers is in [api.md](api.md).
 
 ## Requirements
 
@@ -21,15 +24,15 @@ Required PHP extensions: `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`,
 
 ## Setup
 
-```sh
-composer setup
-```
-
-That runs `composer install`, copies `.env.example` to `.env`, generates the app
-key, and runs migrations. Create the database first:
+Create the database, then:
 
 ```sql
 CREATE DATABASE loyalty_cards CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+```sh
+composer setup      # install, copy .env, generate key, migrate
+php artisan db:seed # packages, settings, admin link, and demo data locally
 ```
 
 ## Running
@@ -39,11 +42,48 @@ composer dev          # serve + queue worker together
 php artisan serve     # HTTP only, http://127.0.0.1:8000
 ```
 
-| Command         | Purpose                          |
-| --------------- | -------------------------------- |
-| `composer test` | Run the test suite               |
-| `composer lint` | Format the code with Pint        |
+| Command                  | Purpose                     |
+| ------------------------ | --------------------------- |
+| `composer test`          | Run the test suite          |
+| `composer lint`          | Format the code with Pint   |
 | `php artisan route:list` | List every registered route |
+
+## Running with Docker
+
+For frontend developers who don't want PHP or MySQL installed. Requires Docker
+Desktop.
+
+```sh
+cp .env.example .env        # optional: only needed for Clerk or LightOTP keys
+docker compose up --build -d
+```
+
+| What                           | Where                                 |
+| ------------------------------ | ------------------------------------- |
+| API                            | http://localhost:8000/api/v1/ping     |
+| From a phone on the same Wi-Fi | `http://<your-computer-LAN-IP>:8000` |
+
+The first start builds the images (several minutes), runs the migrations and
+loads demo data. Later starts reuse the existing data.
+
+- **OTP codes** are not sent over WhatsApp; they appear in the logs:
+  `docker compose logs -f app` (look for `OTP code issued`).
+- **Clerk:** put `CLERK_JWT_KEY`, `CLERK_AUTHORIZED_PARTIES`, `ADMIN_EMAIL` and
+  `ADMIN_CLERK_USER_ID` in `.env`, run `docker compose up -d` to apply them, then
+  `docker compose exec app php artisan db:seed --class=AdminSeeder` to link the admin.
+- **After pulling backend changes:** `docker compose up --build -d`.
+
+| Command                                    | Purpose                                         |
+| ------------------------------------------ | ----------------------------------------------- |
+| `docker compose ps`                        | Service status                                  |
+| `docker compose logs -f app`               | Application logs and OTP codes                  |
+| `docker compose exec app php artisan test` | Run the test suite (in-memory database)         |
+| `docker compose down`                      | Stop, keep data                                 |
+| `docker compose down -v`                   | Stop and delete all data; the next start re-seeds |
+
+MySQL runs inside the stack and is not published on the host, so it does not
+clash with a local MySQL on port 3306. Change the API port with `API_PORT=8080`
+in `.env`.
 
 ## Connecting the frontend
 
@@ -53,105 +93,116 @@ trailing slash:
 ```env
 FRONTEND_URL=http://localhost:3000
 FRONTEND_URLS=http://localhost:3000,http://localhost:5173
-SANCTUM_STATEFUL_DOMAINS=localhost:3000,localhost:5173
 ```
-
-Requests from any other origin are rejected by the browser. `supports_credentials`
-is on, so a wildcard origin is deliberately not used.
 
 ## Authentication
 
-Token based (Sanctum). Each account type has its own table: `admins`,
-`merchants` and `customers`. There is no public registration for admins — the
-platform owner account is created by the seeder from `.env`:
+| Who                | Signs in with                      | Sends as `Authorization: Bearer`     |
+| ------------------ | ---------------------------------- | ------------------------------------ |
+| Customer           | Phone number + WhatsApp OTP        | The token returned by `otp/verify`   |
+| Merchant and admin | Clerk (Google and other providers) | A Clerk session token on every request |
 
-```sh
-# .env: ADMIN_EMAIL=... ADMIN_PASSWORD=...
-php artisan db:seed
+### Customer OTP
+
+Codes are generated and verified here; [LightOTP](https://lightotp.com) only
+delivers them over WhatsApp.
+
+```env
+OTP_DRIVER=log          # local: the code is written to storage/logs/laravel.log
+OTP_DRIVER=lightotp     # real delivery, needs the key below
+LIGHTOTP_API_KEY=
 ```
 
-Log in, then send the token on every request:
+### Clerk (merchants and admins)
 
-```
-Authorization: Bearer <token>
-```
+The merchant app and the admin dashboard use **one** Clerk application. Clerk
+proves who the user is; this backend decides what they may do: an admin is a
+Clerk user linked to a row in `admins`, a merchant is one linked to a row in
+`merchants`.
 
-```sh
-curl -X POST http://127.0.0.1:8000/api/v1/admin/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"owner@example.com","password":"your-password","device_name":"dashboard"}'
+1. In the Clerk Dashboard, open **API keys** and copy the **JWT public key**
+   (PEM). Put it in `.env` on one line, replacing each line break with `\n`:
 
-curl http://127.0.0.1:8000/api/v1/admin/auth/me -H "Authorization: Bearer <token>"
-```
+   ```env
+   CLERK_JWT_KEY=-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqh...\n-----END PUBLIC KEY-----
+   ```
 
-Customer (WhatsApp OTP) and merchant authentication come in the next API phase.
+   Tokens are verified locally with this key — no call to Clerk per request.
+
+2. List the web origins allowed to send Clerk tokens (the admin dashboard).
+   Tokens from the native merchant app carry no origin and are accepted:
+
+   ```env
+   CLERK_AUTHORIZED_PARTIES=http://localhost:3000
+   ```
+
+3. Sign in to the admin dashboard once, copy your user id (`user_…`) from
+   **Clerk Dashboard → Users**, and link it to admin access:
+
+   ```env
+   ADMIN_EMAIL=owner@example.com
+   ADMIN_CLERK_USER_ID=user_2abc...
+   ```
+
+   ```sh
+   php artisan db:seed --class=AdminSeeder
+   ```
+
+Merchants need no setup: after signing in with Clerk they register their
+business through `POST /api/v1/merchant/auth/register`, which starts their free
+trial.
 
 ## Endpoints
 
-| Method | Path                            | Auth   | Purpose                        |
-| ------ | ------------------------------- | ------ | ------------------------------ |
-| GET    | `/`                             | –      | Landing page (JSON for API clients) |
-| GET    | `/up`                           | –      | Health check                   |
-| GET    | `/api/v1/ping`                  | –      | Connectivity check             |
-| POST   | `/api/v1/admin/auth/login`      | –      | Exchange admin credentials for a token |
-| GET    | `/api/v1/admin/auth/me`         | token  | Current admin                  |
-| POST   | `/api/v1/admin/auth/logout`     | token  | Revoke the current token       |
-| POST   | `/api/v1/admin/auth/logout-all` | token  | Revoke every token of the admin |
+| Method | Path                                | Auth           | Purpose                             |
+| ------ | ----------------------------------- | -------------- | ----------------------------------- |
+| GET    | `/up`                               | –              | Health check                        |
+| GET    | `/api/v1/ping`                      | –              | Connectivity check                  |
+| POST   | `/api/v1/customer/auth/otp/request` | –              | Send a login code over WhatsApp     |
+| POST   | `/api/v1/customer/auth/otp/verify`  | –              | Verify the code, return a token     |
+| GET    | `/api/v1/customer/auth/me`          | customer token | Current customer                    |
+| POST   | `/api/v1/customer/auth/logout`      | customer token | Revoke the current token            |
+| POST   | `/api/v1/customer/auth/logout-all`  | customer token | Revoke every token of the customer  |
+| GET    | `/api/v1/merchant/auth/me`          | Clerk          | Whether the business is registered  |
+| POST   | `/api/v1/merchant/auth/register`    | Clerk          | Register the business, start trial  |
+| GET    | `/api/v1/admin/auth/me`             | Clerk + admin  | Current admin                       |
+
+Request bodies, responses and every error are documented in [api.md](api.md).
 
 ## Database
 
 The schema, relationships and business rules are documented in
 [docs/database-schema.md](docs/database-schema.md). `php artisan db:seed` loads
-the three packages and default platform settings; in the `local` environment it
-also loads demo data (merchant login `merchant@example.com` / `password`).
-
-## Response shapes
-
-Success — single resource:
-
-```json
-{ "data": { "id": 1, "name": "Sara", "email": "sara@example.com" } }
-```
-
-Validation failure — `422`:
-
-```json
-{ "message": "The email field is required.", "errors": { "email": ["The email field is required."] } }
-```
-
-Other errors return `{"message": "..."}` with the matching status: `401`
-unauthenticated, `404` not found, `429` rate limited.
+the three packages and default platform settings, links the admin from
+`ADMIN_CLERK_USER_ID`, and in the `local` environment also loads demo data.
 
 ## Rate limits
 
-| Limiter | Applies to            | Limit          | Keyed by         |
-| ------- | --------------------- | -------------- | ---------------- |
-| `api`   | every `/api/*` route  | 60 per minute  | user id, else IP |
-| `auth`  | register, login       | 5 per minute   | email + IP       |
+| Limiter      | Applies to                    | Limit                                  |
+| ------------ | ----------------------------- | -------------------------------------- |
+| `api`        | every `/api/*` route          | 60 per minute, per user or IP          |
+| `otp`        | `customer/auth/otp/request`   | 5 per hour per phone, 20 per hour per IP |
+| `otp-verify` | `customer/auth/otp/verify`    | 10 per minute per phone, 30 per IP     |
 
-`X-RateLimit-Limit` and `X-RateLimit-Remaining` are exposed to the frontend.
+A new OTP for the same phone also requires a 60-second wait.
 
 ## Layout
 
 ```
-app/Http/Controllers/Api/V1/   API controllers
+app/Http/Controllers/Api/V1/   API controllers (Customer, Merchant, Admin)
+app/Http/Middleware/           ForceJsonResponse, Clerk session and role checks
 app/Http/Requests/Api/V1/      Validation (form requests)
 app/Http/Resources/            JSON output shaping
-app/Http/Middleware/           ForceJsonResponse
-app/Services/                  Business logic
+app/Services/Otp/              OTP issuing, verification and delivery drivers
+app/Services/Clerk/            Clerk session token verification
+app/Support/                   Phone number normalization
 routes/api.php                 Versioned API routes
-routes/web.php                 Landing page only
 tests/Feature/Api/V1/          Endpoint tests
 ```
 
-Adding a resource: create the migration and model, add a controller under
-`Api/V1`, register it inside the `auth:sanctum` group in `routes/api.php`, and
-cover it with a feature test.
-
 ## Notes
 
-- No `package.json`, no Vite — this project builds no frontend assets. The
-  landing page uses Laravel's built-in fallback styling.
-- Sessions are set to the `array` driver: the API is stateless.
+- No `package.json`, no Vite — this project builds no frontend assets.
+- Sessions use the `array` driver: the API is stateless.
 - Models run in strict mode outside production, so lazy loading and silently
   discarded attributes fail loudly during development.

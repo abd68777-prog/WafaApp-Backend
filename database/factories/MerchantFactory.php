@@ -6,18 +6,13 @@ use App\Enums\MerchantStatus;
 use App\Models\Merchant;
 use App\Models\Package;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Merchant>
  */
 class MerchantFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
-
     /**
      * Define the model's default state: an approved, paying merchant.
      *
@@ -26,11 +21,11 @@ class MerchantFactory extends Factory
     public function definition(): array
     {
         return [
+            'clerk_user_id' => 'user_'.Str::random(27),
             'owner_name' => fake()->name(),
             'business_name' => fake()->company(),
             'phone' => '+9639'.fake()->unique()->numerify('########'),
             'email' => fake()->unique()->safeEmail(),
-            'password' => static::$password ??= Hash::make('password'),
             'city' => fake()->city(),
             'package_id' => Package::factory(),
             'status' => MerchantStatus::Active,
@@ -70,6 +65,15 @@ class MerchantFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'status' => MerchantStatus::Suspended,
             'subscription_ends_at' => now()->subDay(),
+        ]);
+    }
+
+    public function rejected(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => MerchantStatus::Rejected,
+            'approved_at' => null,
+            'subscription_ends_at' => null,
         ]);
     }
 }

@@ -3,53 +3,53 @@
 namespace Tests\Feature\Api\V1\Admin;
 
 use App\Models\Admin;
+use App\Models\Customer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_valid_credentials_return_a_token_and_record_the_login_time(): void
+    public function test_me_returns_the_admin_linked_to_the_clerk_user(): void
     {
-        $this->travelTo('2026-09-15 10:00:00');
-        $admin = Admin::factory()->create([
-            'email' => 'owner@example.com',
-            'password' => Hash::make('password-1234'),
-        ]);
+        $admin = Admin::factory()->create(['clerk_user_id' => 'user_owner']);
 
+        $response = $this->withToken($this->clerkToken('user_owner'))->getJson('/api/v1/admin/auth/me');
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $admin->id)
+            ->assertJsonPath('data.email', $admin->email);
+    }
+
+    public function test_a_clerk_user_without_admin_access_gets_403(): void
+    {
+        Admin::factory()->create(['clerk_user_id' => 'user_owner']);
+
+        // Merchants sign in to the same Clerk application, so a valid Clerk
+        // session alone must not grant admin access.
+        $response = $this->withToken($this->clerkToken('user_some_merchant'))->getJson('/api/v1/admin/auth/me');
+
+        $response->assertForbidden()->assertJsonPath('message', 'This account does not have admin access.');
+    }
+
+    public function test_a_customer_sanctum_token_gets_401(): void
+    {
+        $token = Customer::factory()->create()->createToken('phone', ['customer'])->plainTextToken;
+
+        $response = $this->withToken($token)->getJson('/api/v1/admin/auth/me');
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_password_login_no_longer_exists(): void
+    {
         $response = $this->postJson('/api/v1/admin/auth/login', [
             'email' => 'owner@example.com',
             'password' => 'password-1234',
         ]);
 
-        $response->assertOk()
-            ->assertJsonPath('data.id', $admin->id)
-            ->assertJsonPath('token_type', 'Bearer')
-            ->assertJsonStructure(['data' => ['id', 'name', 'email'], 'token']);
-        $this->assertArrayNotHasKey('password', $response->json('data'));
-
-        $this->assertSame(1, $admin->tokens()->count());
-        $this->assertSame('2026-09-15 10:00:00', $admin->fresh()->last_login_at->toDateTimeString());
-    }
-
-    public function test_wrong_password_returns_422_and_issues_no_token(): void
-    {
-        $admin = Admin::factory()->create([
-            'email' => 'owner@example.com',
-            'password' => Hash::make('password-1234'),
-        ]);
-
-        $response = $this->postJson('/api/v1/admin/auth/login', [
-            'email' => 'owner@example.com',
-            'password' => 'wrong-password',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('email');
-
-        $this->assertSame(0, $admin->tokens()->count());
-        $this->assertNull($admin->fresh()->last_login_at);
+        $response->assertNotFound();
     }
 
     public function test_public_registration_endpoint_returns_404(): void
@@ -57,60 +57,10 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/v1/auth/register', [
             'name' => 'Intruder',
             'email' => 'intruder@example.com',
-            'password' => 'password-1234',
-            'password_confirmation' => 'password-1234',
         ]);
 
         $response->assertNotFound();
 
         $this->assertDatabaseMissing('admins', ['email' => 'intruder@example.com']);
-    }
-
-    public function test_me_returns_401_without_a_token(): void
-    {
-        $response = $this->getJson('/api/v1/admin/auth/me');
-
-        $response->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
-    }
-
-    public function test_me_returns_the_authenticated_admin(): void
-    {
-        $admin = Admin::factory()->create();
-
-        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/v1/admin/auth/me');
-
-        $response->assertOk()->assertJsonPath('data.id', $admin->id);
-    }
-
-    public function test_logout_revokes_only_the_current_token(): void
-    {
-        $admin = Admin::factory()->create();
-        $keptToken = $admin->createToken('laptop')->plainTextToken;
-        $revokedToken = $admin->createToken('phone')->plainTextToken;
-
-        $this->withToken($revokedToken)->postJson('/api/v1/admin/auth/logout')->assertOk();
-
-        $this->assertSame(1, $admin->tokens()->count());
-
-        // These are separate requests sharing one container, so drop the
-        // resolved guard to force each token to be checked again.
-        $this->app['auth']->forgetGuards();
-        $this->withToken($keptToken)->getJson('/api/v1/admin/auth/me')->assertOk();
-
-        $this->app['auth']->forgetGuards();
-        $this->withToken($revokedToken)->getJson('/api/v1/admin/auth/me')->assertUnauthorized();
-    }
-
-    public function test_logout_all_revokes_every_token(): void
-    {
-        $admin = Admin::factory()->create();
-        $admin->createToken('laptop');
-        $token = $admin->createToken('phone')->plainTextToken;
-
-        $response = $this->withToken($token)->postJson('/api/v1/admin/auth/logout-all');
-
-        $response->assertOk();
-
-        $this->assertSame(0, $admin->tokens()->count());
     }
 }

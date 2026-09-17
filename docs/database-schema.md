@@ -15,6 +15,9 @@ in `app/Enums`.
   for Cloudflare R2.
 - Polymorphic columns store short aliases (`admin`, `merchant`, `customer`), set
   by the morph map in `AppServiceProvider`.
+- **No passwords are stored.** Customers sign in with phone + OTP. Merchants and
+  admins sign in through Clerk and are linked by `clerk_user_id` (the Clerk
+  token's `sub`).
 
 ## Entity relationships
 
@@ -40,9 +43,9 @@ erDiagram
     customers ||--o{ notifications : "in-app"
     merchants ||--o{ notifications : "in-app"
 
-    admins { bigint id string email string password timestamp last_login_at }
+    admins { bigint id string clerk_user_id string email timestamp last_login_at }
     packages { bigint id string code tinyint max_cards decimal price_monthly_usd decimal price_yearly_usd }
-    merchants { bigint id string business_name string phone bigint package_id string status timestamp trial_ends_at timestamp subscription_ends_at }
+    merchants { bigint id string clerk_user_id string business_name string phone bigint package_id string status timestamp trial_ends_at timestamp subscription_ends_at }
     subscriptions { bigint id bigint merchant_id bigint package_id string billing_cycle timestamp starts_at timestamp ends_at string status }
     payments { bigint id bigint merchant_id decimal amount_usd decimal amount_syp string method string proof_path string status }
     loyalty_cards { bigint id bigint merchant_id string name tinyint stamps_required string reward_description bool is_active }
@@ -61,9 +64,9 @@ erDiagram
 
 | Table | Purpose | Key constraints |
 |---|---|---|
-| `admins` | Platform owner account (admin dashboard) | `email` unique |
+| `admins` | Platform admins, signed in through Clerk | `email` unique, `clerk_user_id` unique |
 | `packages` | Basic / Standard / Premium, limited by `max_cards` only | `code` unique |
-| `merchants` | One account = one business | `phone`, `email` unique; soft deletes |
+| `merchants` | One account = one business, signed in through Clerk | `phone`, `email`, `clerk_user_id` unique; soft deletes |
 | `subscriptions` | Every trial, paid period and admin plan change | index `(merchant_id, ends_at)` |
 | `payments` | Manual transfers with proof, reviewed by the admin | index `(merchant_id, status)`, `(status, created_at)` |
 | `loyalty_cards` | A merchant's offers (e.g. hot drinks) | index `(merchant_id, is_active)`; soft deletes |
@@ -88,17 +91,25 @@ erDiagram
   only. The row has `status = pending` and no `qr_token`. When the customer
   verifies the same number by OTP, the same row becomes `active` and gets its
   `qr_token`, so all accumulated progress stays attached.
+- **One Clerk user, one business:** `merchants.clerk_user_id` is unique, so a
+  Clerk user can register at most one business even under concurrent requests.
+- **Admin access is explicit:** merchants and admins share one Clerk application,
+  so a Clerk account alone grants nothing — admin access requires a row in
+  `admins` with that `clerk_user_id`.
 - **Birthday gifts (PRD 4.8):** `period_key` stores the year, so the daily job
   can gift a customer at most once per merchant per year. Card rewards leave it
   null and can repeat.
 - **Admin-only plan changes (PRD 4.2):** a merchant's `package_id`, `status`,
-  approval and subscription dates are not mass assignable. Each change is a new
-  `subscriptions` row, which is the audit trail.
+  Clerk link, approval and subscription dates are not mass assignable. Each
+  change is a new `subscriptions` row, which is the audit trail.
 - **Financial history is kept:** `subscriptions` and `payments` block hard
   deletion of their merchant; merchants are soft deleted.
 
 ## Rules enforced in application code
 
+- Registration starts the merchant on a free trial immediately (PRD 4.1):
+  `status = trial`, `trial_ends_at = now + platform_settings.trial_days`, and a
+  `trial` subscription row for the same period.
 - A merchant's number of active cards must not exceed `packages.max_cards`
   (check inside a transaction when creating or activating a card).
 - Stamp flow (PRD 3.3): stamps accumulate on `current_stamps`. Reaching

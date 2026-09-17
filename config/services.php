@@ -35,4 +35,30 @@ return [
         ],
     ],
 
+    /*
+    | LightOTP delivers the customer's login code over WhatsApp. We generate
+    | and verify the code ourselves; LightOTP only carries the message.
+    */
+    'lightotp' => [
+        'key' => env('LIGHTOTP_API_KEY'),
+        'base_url' => env('LIGHTOTP_BASE_URL', 'https://api.lightotp.com'),
+        'language' => env('LIGHTOTP_LANGUAGE', 'ar'),
+        'timeout' => (int) env('LIGHTOTP_TIMEOUT', 15),
+    ],
+
+    /*
+    | Clerk signs merchant-app and admin-dashboard session tokens. They are
+    | verified locally with the instance's PEM public key (Clerk Dashboard →
+    | API keys → "JWT public key"). A .env value is one line, so literal "\n"
+    | sequences are turned back into line breaks.
+    */
+    'clerk' => [
+        'jwt_key' => str_replace('\n', "\n", (string) env('CLERK_JWT_KEY', '')) ?: null,
+        'authorized_parties' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('CLERK_AUTHORIZED_PARTIES', '')),
+        ))),
+        'clock_skew' => (int) env('CLERK_CLOCK_SKEW', 5),
+    ],
+
 ];

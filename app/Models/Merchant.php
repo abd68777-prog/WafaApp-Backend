@@ -5,7 +5,6 @@ namespace App\Models;
 use App\Enums\MerchantStatus;
 use Database\Factories\MerchantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
-use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,31 +12,29 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens;
 
 /**
- * A merchant account — exactly one business (PRD v1.1).
+ * A merchant account — exactly one business (PRD v1.1), signed in through Clerk.
  *
- * Package, status, approval and subscription dates are deliberately not
- * mass assignable: only admin flows may change them (PRD 4.2).
+ * The Clerk link, package, status, approval and subscription dates are
+ * deliberately not mass assignable: only registration and admin flows may set
+ * them (PRD 4.2).
  */
 #[Fillable([
     'owner_name',
     'business_name',
     'phone',
     'email',
-    'password',
     'logo_path',
     'address',
     'city',
     'birthday_gift_enabled',
     'birthday_gift_description',
 ])]
-#[Hidden(['password'])]
 class Merchant extends Authenticatable
 {
     /** @use HasFactory<MerchantFactory> */
-    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes;
 
     /**
      * Get the attributes that should be cast.
@@ -47,7 +44,6 @@ class Merchant extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password' => 'hashed',
             'status' => MerchantStatus::class,
             'approved_at' => 'datetime',
             'trial_ends_at' => 'datetime',

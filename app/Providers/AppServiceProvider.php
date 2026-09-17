@@ -5,6 +5,11 @@ namespace App\Providers;
 use App\Models\Admin;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Services\Clerk\ClerkTokenVerifier;
+use App\Services\Otp\LightOtpSender;
+use App\Services\Otp\LogOtpSender;
+use App\Services\Otp\OtpSender;
+use App\Support\PhoneNumber;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -19,7 +24,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(OtpSender::class, function (): OtpSender {
+            return match (config('otp.driver')) {
+                'lightotp' => new LightOtpSender(
+                    (string) config('services.lightotp.key'),
+                    rtrim((string) config('services.lightotp.base_url'), '/'),
+                    (string) config('services.lightotp.language'),
+                    (int) config('services.lightotp.timeout'),
+                ),
+                default => new LogOtpSender,
+            };
+        });
+
+        $this->app->singleton(ClerkTokenVerifier::class, fn (): ClerkTokenVerifier => new ClerkTokenVerifier(
+            config('services.clerk.jwt_key'),
+            config('services.clerk.authorized_parties', []),
+            (int) config('services.clerk.clock_skew'),
+        ));
     }
 
     /**
@@ -55,8 +76,27 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)
             ->by($request->user()?->id ?: $request->ip()));
 
-        // Credential endpoints: tight, keyed per email + IP to slow brute force.
-        RateLimiter::for('auth', fn (Request $request) => Limit::perMinute(5)
-            ->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()));
+        // Sending a code costs real money, so it is capped per number and per
+        // source. The per-request cooldown lives in OtpService.
+        RateLimiter::for('otp', fn (Request $request) => [
+            Limit::perHour(5)->by('otp-phone:'.$this->phoneKey($request)),
+            Limit::perHour(20)->by('otp-ip:'.$request->ip()),
+        ]);
+
+        // Guessing a code is cheap, so the ceiling is per minute; the code also
+        // dies after `otp.max_attempts` wrong tries.
+        RateLimiter::for('otp-verify', fn (Request $request) => [
+            Limit::perMinute(10)->by('otp-verify-phone:'.$this->phoneKey($request)),
+            Limit::perMinute(30)->by('otp-verify-ip:'.$request->ip()),
+        ]);
+    }
+
+    /**
+     * Rate limits key on the normalized number so `0947…` and `+963947…`
+     * cannot be used as two separate budgets for the same phone.
+     */
+    private function phoneKey(Request $request): string
+    {
+        return PhoneNumber::normalize((string) $request->input('phone')) ?? (string) $request->ip();
     }
 }

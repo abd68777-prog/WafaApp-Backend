@@ -6,7 +6,9 @@ use App\Models\Admin;
 use Illuminate\Database\Seeder;
 
 /**
- * Creates the platform owner account from ADMIN_EMAIL / ADMIN_PASSWORD.
+ * Links the platform owner's Clerk user to admin access, from
+ * ADMIN_CLERK_USER_ID and ADMIN_EMAIL. Safe to run again: it updates the
+ * existing admin row matched by email.
  */
 class AdminSeeder extends Seeder
 {
@@ -15,18 +17,18 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
+        $clerkUserId = config('auth.platform_admin.clerk_user_id');
         $email = config('auth.platform_admin.email');
-        $password = config('auth.platform_admin.password');
 
-        if (blank($email) || blank($password)) {
-            $this->command?->warn('ADMIN_EMAIL or ADMIN_PASSWORD is not set; skipping the platform admin account.');
+        if (blank($clerkUserId) || blank($email)) {
+            $this->command?->warn('ADMIN_CLERK_USER_ID or ADMIN_EMAIL is not set; skipping the platform admin account.');
 
             return;
         }
 
-        Admin::query()->firstOrCreate(['email' => $email], [
-            'name' => config('auth.platform_admin.name'),
-            'password' => $password,
-        ]);
+        $admin = Admin::query()->firstOrNew(['email' => $email]);
+
+        $admin->fill(['name' => config('auth.platform_admin.name')]);
+        $admin->forceFill(['clerk_user_id' => $clerkUserId])->save();
     }
 }
