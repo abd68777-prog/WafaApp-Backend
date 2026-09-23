@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use App\Enums\BillingCycle;
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentRejectionReason;
 use App\Enums\PaymentStatus;
 use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -12,19 +12,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A manual transfer submitted by a merchant. The review fields are not mass
- * assignable so a merchant cannot approve their own payment.
+ * A manual transfer with its proof.
+ *
+ * The package, duration, USD price, exchange rate and SYP amount are copied
+ * into the row when the merchant uploads the proof: the price table says what
+ * the price is now, this row says what this merchant paid then.
+ *
+ * The review decision is not mass assignable — only the reviewer flow sets it.
  */
 #[Fillable([
     'package_id',
-    'billing_cycle',
-    'amount_usd',
-    'amount_syp',
+    'duration_months',
+    'price_usd',
     'exchange_rate',
+    'amount_syp',
     'method',
     'reference',
     'proof_path',
-    'paid_at',
 ])]
 class Payment extends Model
 {
@@ -32,21 +36,19 @@ class Payment extends Model
     use HasFactory;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'billing_cycle' => BillingCycle::class,
+            'duration_months' => 'integer',
+            'price_usd' => 'decimal:2',
+            'exchange_rate' => 'decimal:4',
+            'amount_syp' => 'decimal:2',
             'method' => PaymentMethod::class,
             'status' => PaymentStatus::class,
-            'amount_usd' => 'decimal:2',
-            'amount_syp' => 'decimal:2',
-            'exchange_rate' => 'decimal:4',
+            'rejection_reason' => PaymentRejectionReason::class,
             'reviewed_at' => 'datetime',
-            'paid_at' => 'datetime',
         ];
     }
 
@@ -67,18 +69,18 @@ class Payment extends Model
     }
 
     /**
-     * @return BelongsTo<Subscription, $this>
-     */
-    public function subscription(): BelongsTo
-    {
-        return $this->belongsTo(Subscription::class);
-    }
-
-    /**
-     * @return BelongsTo<Admin, $this>
+     * @return BelongsTo<AdminUser, $this>
      */
     public function reviewedBy(): BelongsTo
     {
-        return $this->belongsTo(Admin::class, 'reviewed_by_admin_id');
+        return $this->belongsTo(AdminUser::class, 'reviewed_by_admin_id');
+    }
+
+    /**
+     * @return BelongsTo<SubscriptionPeriod, $this>
+     */
+    public function subscriptionPeriod(): BelongsTo
+    {
+        return $this->belongsTo(SubscriptionPeriod::class);
     }
 }

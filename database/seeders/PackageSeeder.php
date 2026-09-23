@@ -6,8 +6,10 @@ use App\Models\Package;
 use Illuminate\Database\Seeder;
 
 /**
- * The three packages from PRD 6. Prices are the PRD's placeholder values until
- * the team confirms them; yearly prices are left empty for the same reason.
+ * The three packages and their price matrix.
+ *
+ * Names, prices and campaign limits are placeholders until Deep Code confirms
+ * them; all of it is edited from the dashboard afterwards.
  */
 class PackageSeeder extends Seeder
 {
@@ -17,13 +19,43 @@ class PackageSeeder extends Seeder
     public function run(): void
     {
         $packages = [
-            ['code' => 'basic', 'name' => 'الأساسية', 'max_cards' => 1, 'price_monthly_usd' => '10.00', 'sort_order' => 1],
-            ['code' => 'standard', 'name' => 'المتوسطة', 'max_cards' => 2, 'price_monthly_usd' => '17.00', 'sort_order' => 2],
-            ['code' => 'premium', 'name' => 'الشاملة', 'max_cards' => 5, 'price_monthly_usd' => '35.00', 'sort_order' => 3],
+            [
+                'name' => 'الأساسية',
+                'cards_limit' => 1,
+                'weekly_campaigns_limit' => 1,
+                'prices' => [1 => '10.00', 3 => '27.00', 12 => '96.00'],
+            ],
+            [
+                'name' => 'المتوسطة',
+                'cards_limit' => 2,
+                'weekly_campaigns_limit' => 2,
+                'prices' => [1 => '17.00', 3 => '46.00', 12 => '163.00'],
+            ],
+            [
+                'name' => 'الشاملة',
+                'cards_limit' => 5,
+                'weekly_campaigns_limit' => 3,
+                'prices' => [1 => '35.00', 3 => '95.00', 12 => '336.00'],
+            ],
         ];
 
-        foreach ($packages as $package) {
-            Package::query()->firstOrCreate(['code' => $package['code']], $package);
+        foreach ($packages as $index => $attributes) {
+            $package = Package::query()->updateOrCreate(
+                ['name' => $attributes['name']],
+                [
+                    'cards_limit' => $attributes['cards_limit'],
+                    'weekly_campaigns_limit' => $attributes['weekly_campaigns_limit'],
+                    'is_active' => true,
+                    'sort_order' => $index + 1,
+                ],
+            );
+
+            foreach ($attributes['prices'] as $months => $price) {
+                $package->prices()->updateOrCreate(
+                    ['duration_months' => $months],
+                    ['price_usd' => $price],
+                );
+            }
         }
     }
 }

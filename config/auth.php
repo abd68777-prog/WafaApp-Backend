@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\Admin;
+use App\Models\AdminUser;
 
 return [
 
@@ -10,8 +10,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | This option defines the default authentication "guard" and password
-    | reset "broker" for your application. You may change these values
-    | as required, but they're a perfect start for most applications.
+    | reset "broker" for your application.
     |
     */
 
@@ -25,15 +24,10 @@ return [
     | Authentication Guards
     |--------------------------------------------------------------------------
     |
-    | Next, you may define every authentication guard for your application.
-    | Of course, a great default configuration has been defined for you
-    | which utilizes session storage plus the Eloquent user provider.
-    |
-    | All authentication guards have a user provider, which defines how the
-    | users are actually retrieved out of your database or other storage
-    | system used by the application. Typically, Eloquent is utilized.
-    |
-    | Supported: "session"
+    | Nothing in this API uses the session guard: customers authenticate with
+    | Sanctum tokens, merchants and dashboard users with Clerk session tokens
+    | verified per request. The guard stays defined because the framework
+    | expects one.
     |
     */
 
@@ -48,23 +42,12 @@ return [
     |--------------------------------------------------------------------------
     | User Providers
     |--------------------------------------------------------------------------
-    |
-    | All authentication guards have a user provider, which defines how the
-    | users are actually retrieved out of your database or other storage
-    | system used by the application. Typically, Eloquent is utilized.
-    |
-    | API clients authenticate with Sanctum tokens, which resolve their owner
-    | (Admin, Merchant or Customer) directly; this provider only backs the
-    | session guard, which belongs to the admin account.
-    |
-    | Supported: "database", "eloquent"
-    |
     */
 
     'providers' => [
         'users' => [
             'driver' => 'eloquent',
-            'model' => env('AUTH_MODEL', Admin::class),
+            'model' => env('AUTH_MODEL', AdminUser::class),
         ],
     ],
 
@@ -73,17 +56,8 @@ return [
     | Resetting Passwords
     |--------------------------------------------------------------------------
     |
-    | These configuration options specify the behavior of Laravel's password
-    | reset functionality, including the table utilized for token storage
-    | and the user provider that is invoked to actually retrieve users.
-    |
-    | The expiry time is the number of minutes that each reset token will be
-    | considered valid. This security feature keeps tokens short-lived so
-    | they have less time to be guessed. You may change this as needed.
-    |
-    | The throttle setting is the number of seconds a user must wait before
-    | generating more password reset tokens. This prevents the user from
-    | quickly generating a very large amount of password reset tokens.
+    | No password is stored anywhere in this application; the table is kept
+    | only because the framework's password broker configuration expects it.
     |
     */
 
@@ -96,17 +70,6 @@ return [
         ],
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Password Confirmation Timeout
-    |--------------------------------------------------------------------------
-    |
-    | Here you may define the number of seconds before a password confirmation
-    | window expires and users are asked to re-enter their password via the
-    | confirmation screen. By default, the timeout lasts for three hours.
-    |
-    */
-
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
     /*
@@ -114,8 +77,7 @@ return [
     | Platform Admin Account
     |--------------------------------------------------------------------------
     |
-    | The AdminSeeder links this Clerk user to admin access. Admins sign in
-    | through Clerk, so no password is stored.
+    | The AdminUserSeeder links this Clerk user to a super admin account.
     |
     */
 

@@ -2,56 +2,88 @@
 
 namespace Tests\Feature\Database;
 
-use App\Enums\CustomerStatus;
-use App\Enums\MerchantStatus;
+use App\Enums\CardCycleStatus;
+use App\Models\BirthdayGreeting;
+use App\Models\Card;
+use App\Models\CardCycle;
 use App\Models\Customer;
-use App\Models\CustomerCardProgress;
-use App\Models\LoyaltyCard;
 use App\Models\Merchant;
-use App\Models\Reward;
-use App\Models\StampLog;
+use App\Models\Payment;
+use App\Models\Stamp;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
+/**
+ * The guarantees the database itself makes, whatever the application does.
+ */
 class SchemaTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_stamp_log_factory_keeps_denormalized_owner_columns_consistent(): void
+    public function test_a_customer_can_have_only_one_open_cycle_per_card(): void
     {
-        $stampLog = StampLog::factory()->create();
-
-        $progress = $stampLog->cardProgress;
-        $this->assertSame($progress->customer_id, $stampLog->customer_id);
-        $this->assertSame($progress->loyalty_card_id, $stampLog->loyalty_card_id);
-        $this->assertSame($progress->merchant_id, $stampLog->merchant_id);
-        $this->assertSame($progress->loyaltyCard->merchant_id, $progress->merchant_id);
-    }
-
-    public function test_rejects_enrolling_the_same_customer_twice_on_one_card(): void
-    {
-        $customer = Customer::factory()->create();
-        $card = LoyaltyCard::factory()->create();
-        CustomerCardProgress::factory()->for($customer)->for($card)->create();
+        $cycle = CardCycle::factory()->create();
 
         $this->expectException(UniqueConstraintViolationException::class);
 
-        CustomerCardProgress::factory()->for($customer)->for($card)->create();
+        CardCycle::factory()->create([
+            'card_id' => $cycle->card_id,
+            'customer_id' => $cycle->customer_id,
+            'merchant_id' => $cycle->merchant_id,
+        ]);
     }
 
-    public function test_rejects_a_duplicate_offline_stamp_sync(): void
+    public function test_a_new_cycle_opens_once_the_previous_one_was_redeemed(): void
     {
-        $progress = CustomerCardProgress::factory()->create();
-        StampLog::factory()->for($progress, 'cardProgress')->create(['client_uuid' => '9b2f6f0e-2f4c-4f4a-9a34-2d0f4a7e8c11']);
+        $cycle = CardCycle::factory()->redeemed()->create();
+
+        $next = CardCycle::factory()->create([
+            'card_id' => $cycle->card_id,
+            'customer_id' => $cycle->customer_id,
+            'merchant_id' => $cycle->merchant_id,
+        ]);
+
+        $this->assertSame(CardCycleStatus::Collecting, $next->status);
+        $this->assertSame(2, CardCycle::query()->count());
+    }
+
+    public function test_a_repeated_stamp_request_cannot_add_two_stamps(): void
+    {
+        $cycle = CardCycle::factory()->create();
+        Stamp::factory()->for($cycle)->create(['client_uuid' => '9b2f6f0e-2f4c-4f4a-9a34-2d0f4a7e8c11']);
 
         $this->expectException(UniqueConstraintViolationException::class);
 
-        StampLog::factory()->for($progress, 'cardProgress')->create(['client_uuid' => '9b2f6f0e-2f4c-4f4a-9a34-2d0f4a7e8c11']);
+        Stamp::factory()->for($cycle)->create(['client_uuid' => '9b2f6f0e-2f4c-4f4a-9a34-2d0f4a7e8c11']);
     }
 
-    public function test_rejects_a_second_customer_with_the_same_phone_number(): void
+    public function test_a_merchant_can_have_only_one_payment_awaiting_review(): void
+    {
+        $payment = Payment::factory()->create();
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        Payment::factory()->create([
+            'merchant_id' => $payment->merchant_id,
+            'package_id' => $payment->package_id,
+        ]);
+    }
+
+    public function test_a_new_payment_is_allowed_once_the_previous_one_was_decided(): void
+    {
+        $payment = Payment::factory()->approved()->create();
+
+        Payment::factory()->create([
+            'merchant_id' => $payment->merchant_id,
+            'package_id' => $payment->package_id,
+        ]);
+
+        $this->assertSame(2, Payment::query()->count());
+    }
+
+    public function test_a_phone_number_belongs_to_one_customer_only(): void
     {
         Customer::factory()->pending()->create(['phone' => '+963911111111']);
 
@@ -60,69 +92,52 @@ class SchemaTest extends TestCase
         Customer::factory()->create(['phone' => '+963911111111']);
     }
 
-    public function test_rejects_a_second_birthday_gift_for_the_same_merchant_in_one_year(): void
+    public function test_a_shop_cannot_greet_the_same_customer_twice_in_one_day(): void
     {
-        $customer = Customer::factory()->create();
-        $merchant = Merchant::factory()->create();
-        Reward::factory()->birthday()->for($customer)->for($merchant)->create(['period_key' => '2026']);
+        $greeting = BirthdayGreeting::factory()->create();
 
         $this->expectException(UniqueConstraintViolationException::class);
 
-        Reward::factory()->birthday()->for($customer)->for($merchant)->create(['period_key' => '2026']);
+        BirthdayGreeting::factory()->create([
+            'merchant_id' => $greeting->merchant_id,
+            'customer_id' => $greeting->customer_id,
+            'greeted_on' => $greeting->greeted_on,
+        ]);
     }
 
-    public function test_allows_repeated_card_completion_rewards_for_the_same_customer(): void
-    {
-        $progress = CustomerCardProgress::factory()->create();
-
-        Reward::factory()->redeemed()->for($progress, 'cardProgress')->create();
-        Reward::factory()->for($progress, 'cardProgress')->create();
-
-        $this->assertSame(2, $progress->rewards()->count());
-    }
-
-    public function test_pending_customer_is_stored_without_a_qr_token(): void
+    public function test_a_phone_only_customer_is_stored_without_a_qr_secret(): void
     {
         $customer = Customer::factory()->pending()->create();
 
-        $storedCustomer = $customer->fresh();
-        $this->assertNull($storedCustomer->qr_token);
-        $this->assertSame(CustomerStatus::Pending, $storedCustomer->status);
+        $this->assertNull($customer->qr_secret);
+        $this->assertTrue($customer->isPending());
     }
 
-    public function test_force_deleting_a_card_removes_its_customer_progress(): void
+    public function test_deleting_a_card_removes_its_cycles_and_stamps(): void
     {
-        $progress = CustomerCardProgress::factory()->create();
+        $stamp = Stamp::factory()->create();
+        $card = Card::find($stamp->card_id);
 
-        $progress->loyaltyCard->forceDelete();
+        $card->delete();
 
-        $this->assertModelMissing($progress);
+        $this->assertModelMissing($stamp);
+        $this->assertDatabaseCount('card_cycles', 0);
     }
 
-    public function test_soft_deleting_a_card_keeps_its_customer_progress(): void
+    public function test_a_merchant_cannot_mass_assign_their_own_status(): void
     {
-        $progress = CustomerCardProgress::factory()->create();
-
-        $progress->loyaltyCard->delete();
-
-        $this->assertModelExists($progress);
-        $this->assertSoftDeleted('loyalty_cards', ['id' => $progress->loyalty_card_id]);
-    }
-
-    public function test_merchant_cannot_mass_assign_their_own_status(): void
-    {
-        $merchant = Merchant::factory()->pendingReview()->create();
+        $merchant = Merchant::factory()->awaitingPackage()->create();
 
         $this->expectException(MassAssignmentException::class);
 
-        $merchant->fill(['status' => MerchantStatus::Active->value]);
+        $merchant->fill(['status' => 'ACTIVE']);
     }
 
-    public function test_tokens_store_the_morph_alias_instead_of_the_class_name(): void
+    public function test_customer_tokens_store_the_morph_alias_instead_of_the_class_name(): void
     {
         $customer = Customer::factory()->create();
 
-        $customer->createToken('customer-app');
+        $customer->createToken('customer-app', ['customer']);
 
         $this->assertDatabaseHas('personal_access_tokens', [
             'tokenable_type' => 'customer',

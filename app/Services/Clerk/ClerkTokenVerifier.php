@@ -55,7 +55,28 @@ final class ClerkTokenVerifier
             throw new InvalidClerkTokenException('Session is still pending.');
         }
 
-        return new ClerkSession($claims->sub, $claims->sid ?? null, $authorizedParty);
+        return new ClerkSession(
+            $claims->sub,
+            $claims->sid ?? null,
+            $authorizedParty,
+            is_string($claims->email ?? null) ? $claims->email : null,
+            $this->firstFactorAge($claims),
+        );
+    }
+
+    /**
+     * `fva` is `[first factor age, second factor age]` in minutes, with -1
+     * meaning never verified.
+     */
+    private function firstFactorAge(object $claims): ?int
+    {
+        $factorAges = $claims->fva ?? null;
+
+        if (! is_array($factorAges) || ! is_int($factorAges[0] ?? null)) {
+            return null;
+        }
+
+        return $factorAges[0];
     }
 
     /**

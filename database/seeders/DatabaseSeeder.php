@@ -15,9 +15,12 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            GovernorateSeeder::class,
+            BusinessTypeSeeder::class,
+            IconSeeder::class,
             PackageSeeder::class,
-            PlatformSettingSeeder::class,
-            AdminSeeder::class,
+            SettingSeeder::class,
+            AdminUserSeeder::class,
         ]);
 
         if (app()->isLocal()) {

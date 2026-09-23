@@ -8,41 +8,42 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name', 'max_cards', 'price_monthly_usd', 'price_yearly_usd', 'is_active', 'sort_order'])]
+/**
+ * What a subscription buys: how many loyalty cards the merchant may run and
+ * how many campaigns they may send per week.
+ */
+#[Fillable(['name', 'cards_limit', 'weekly_campaigns_limit', 'is_active', 'sort_order'])]
 class Package extends Model
 {
     /** @use HasFactory<PackageFactory> */
     use HasFactory;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
-            'max_cards' => 'integer',
-            'price_monthly_usd' => 'decimal:2',
-            'price_yearly_usd' => 'decimal:2',
+            'cards_limit' => 'integer',
+            'weekly_campaigns_limit' => 'integer',
             'is_active' => 'boolean',
             'sort_order' => 'integer',
         ];
     }
 
     /**
-     * @return HasMany<Merchant, $this>
+     * @return HasMany<PackagePrice, $this>
      */
-    public function merchants(): HasMany
+    public function prices(): HasMany
     {
-        return $this->hasMany(Merchant::class);
+        return $this->hasMany(PackagePrice::class);
     }
 
     /**
-     * @return HasMany<Subscription, $this>
+     * @return HasMany<SubscriptionPeriod, $this>
      */
-    public function subscriptions(): HasMany
+    public function subscriptionPeriods(): HasMany
     {
-        return $this->hasMany(Subscription::class);
+        return $this->hasMany(SubscriptionPeriod::class);
     }
 }

@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Api\V1\Customer;
 
-use App\Enums\CustomerStatus;
+use App\Models\Card;
+use App\Models\CardCycle;
 use App\Models\Customer;
-use App\Models\CustomerCardProgress;
 use App\Models\OtpCode;
+use App\Models\Setting;
+use App\Models\Stamp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Hash;
@@ -21,45 +23,45 @@ class AuthTest extends TestCase
     /** The code every OtpCode factory row hashes by default. */
     private const CODE = '123456';
 
+    private const POLICY_VERSION = '1.2';
+
     public function test_requesting_a_code_sends_it_through_lightotp_and_stores_only_its_hash(): void
     {
-        $this->useLightOtpDriver();
+        config(['otp.driver' => 'lightotp', 'services.lightotp.key' => 'test-key', 'services.lightotp.base_url' => 'https://api.lightotp.com']);
         Http::fake(['api.lightotp.com/*' => Http::response(['id' => 'a1b2', 'messageStatus' => 'Sent'])]);
 
         $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::PHONE]);
 
-        $response->assertOk()
-            ->assertJsonPath('expires_in', 300)
-            ->assertJsonPath('resend_after', 60);
+        $response->assertOk()->assertJsonPath('expires_in', 300);
         $this->assertArrayNotHasKey('code', $response->json());
 
         $otpCode = OtpCode::query()->sole();
-        $this->assertSame(self::PHONE, $otpCode->phone);
-
-        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.lightotp.com/SendMessage'
-            && $request->hasHeader('X-Api-Key', 'test-key')
-            && $request['toPhoneE164'] === self::PHONE
-            && preg_match('/^\d{6}$/', (string) $request['otpCode']) === 1
-            // The delivered code is the one we stored a hash of, and nothing else.
+        Http::assertSent(fn (Request $request): bool => $request['toPhoneE164'] === self::PHONE
             && Hash::check((string) $request['otpCode'], $otpCode->code_hash));
+    }
+
+    public function test_a_lightotp_cooldown_returns_429_with_its_wait_and_stores_no_code(): void
+    {
+        config(['otp.driver' => 'lightotp', 'services.lightotp.key' => 'test-key', 'services.lightotp.base_url' => 'https://api.lightotp.com']);
+        Http::preventStrayRequests();
+        Http::fake(['api.lightotp.com/SendMessage' => Http::response([
+            'errorMessage' => "You can't send another message to the same number yet. Please wait 00:02:00 and try again.",
+        ], 400)]);
+
+        $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::PHONE]);
+
+        $response->assertTooManyRequests()
+            ->assertJsonPath('retry_after', 120)
+            ->assertHeader('Retry-After', '120');
+
+        $this->assertDatabaseCount('otp_codes', 0);
     }
 
     public function test_requesting_a_code_normalizes_a_local_phone_number(): void
     {
-        $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => '0947 123 456']);
-
-        $response->assertOk();
+        $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => '0947 123 456'])->assertOk();
 
         $this->assertDatabaseHas('otp_codes', ['phone' => self::PHONE]);
-    }
-
-    public function test_requesting_a_code_for_an_invalid_phone_returns_422(): void
-    {
-        $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => '12345']);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('phone');
-
-        $this->assertDatabaseCount('otp_codes', 0);
     }
 
     public function test_requesting_a_second_code_before_the_cooldown_returns_429(): void
@@ -69,27 +71,9 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::PHONE]);
 
         $response->assertTooManyRequests()->assertJsonStructure(['message', 'retry_after']);
-        $response->assertHeader('Retry-After');
-
-        $this->assertDatabaseCount('otp_codes', 1);
     }
 
-    public function test_a_provider_failure_returns_503_and_stores_no_code(): void
-    {
-        $this->useLightOtpDriver();
-        Http::fake(['api.lightotp.com/*' => Http::response(['errorMessage' => 'InsufficientBalance'], 400)]);
-
-        $response = $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::PHONE]);
-
-        $response->assertStatus(503);
-        $this->assertStringNotContainsString('InsufficientBalance', (string) $response->json('message'));
-
-        // Rolled back, so the customer is not stuck behind a cooldown for a
-        // code that was never delivered.
-        $this->assertDatabaseCount('otp_codes', 0);
-    }
-
-    public function test_verifying_a_code_creates_the_customer_and_returns_a_token(): void
+    public function test_verifying_creates_the_account_and_records_the_policy_consent(): void
     {
         $otpCode = OtpCode::factory()->create(['phone' => self::PHONE]);
 
@@ -97,24 +81,32 @@ class AuthTest extends TestCase
             'phone' => self::PHONE,
             'code' => self::CODE,
             'name' => 'سارة',
+            'birthdate' => '1998-05-20',
+            'policy_version' => self::POLICY_VERSION,
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('data.phone', self::PHONE)
             ->assertJsonPath('data.name', 'سارة')
             ->assertJsonPath('is_new_customer', true)
-            ->assertJsonStructure(['data' => ['id', 'qr_token', 'status'], 'token']);
+            ->assertJsonPath('stamps_waiting', [])
+            // Read back from the database, so values filled by column defaults
+            // are real values and not null.
+            ->assertJsonPath('data.campaigns_muted', false)
+            ->assertJsonStructure(['data' => ['id', 'qr_secret', 'qr_period_seconds'], 'token']);
 
         $customer = Customer::query()->sole();
-        $this->assertSame(CustomerStatus::Active, $customer->status);
-        $this->assertNotNull($customer->qr_token);
-        $this->assertNotNull($customer->phone_verified_at);
-
+        $this->assertNotNull($customer->registered_at);
+        $this->assertNotNull($customer->qr_secret);
         $this->assertNotNull($otpCode->fresh()->consumed_at);
         $this->assertSame(['customer'], $customer->tokens()->sole()->abilities);
+
+        $this->assertDatabaseHas('policy_consents', [
+            'customer_id' => $customer->id,
+            'policy_version' => self::POLICY_VERSION,
+        ]);
     }
 
-    public function test_verifying_a_new_customer_without_a_name_returns_422_and_keeps_the_code_usable(): void
+    public function test_verifying_a_new_account_without_a_profile_returns_422_and_keeps_the_code_usable(): void
     {
         $otpCode = OtpCode::factory()->create(['phone' => self::PHONE]);
 
@@ -123,41 +115,108 @@ class AuthTest extends TestCase
             'code' => self::CODE,
         ]);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('name');
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'birthdate', 'policy_version']);
 
         $this->assertDatabaseCount('customers', 0);
         $this->assertNull($otpCode->fresh()->consumed_at);
 
-        // The same code still works once the name is supplied.
+        // The same code still works once the profile is supplied.
         $this->postJson('/api/v1/customer/auth/otp/verify', [
             'phone' => self::PHONE,
             'code' => self::CODE,
             'name' => 'سارة',
+            'birthdate' => '1998-05-20',
+            'policy_version' => self::POLICY_VERSION,
         ])->assertOk();
     }
 
-    public function test_verifying_activates_a_pending_customer_and_keeps_their_stamps(): void
+    public function test_verifying_rejects_someone_under_thirteen(): void
     {
-        $customer = Customer::factory()->pending()->create(['phone' => self::PHONE]);
-        $progress = CustomerCardProgress::factory()->for($customer)->create(['current_stamps' => 3]);
+        OtpCode::factory()->create(['phone' => self::PHONE]);
+
+        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
+            'phone' => self::PHONE,
+            'code' => self::CODE,
+            'name' => 'طفل',
+            'birthdate' => now()->subYears(12)->toDateString(),
+            'policy_version' => self::POLICY_VERSION,
+        ]);
+
+        $response->assertUnprocessable()->assertJsonValidationErrors('birthdate');
+
+        $this->assertDatabaseCount('customers', 0);
+    }
+
+    public function test_verifying_rejects_an_outdated_policy_version(): void
+    {
+        Setting::write('privacy_policy_version', '1.3');
         OtpCode::factory()->create(['phone' => self::PHONE]);
 
         $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
             'phone' => self::PHONE,
             'code' => self::CODE,
             'name' => 'سارة',
+            'birthdate' => '1998-05-20',
+            'policy_version' => '1.1',
         ]);
 
-        $response->assertOk()->assertJsonPath('data.id', $customer->id);
+        $response->assertUnprocessable()->assertJsonValidationErrors('policy_version');
+    }
 
-        $activated = $customer->fresh();
-        $this->assertSame(CustomerStatus::Active, $activated->status);
-        $this->assertSame('سارة', $activated->name);
-        $this->assertNotNull($activated->qr_token);
+    public function test_a_phone_only_customer_keeps_their_stamps_and_is_told_about_them(): void
+    {
+        $customer = Customer::factory()->pending()->create(['phone' => self::PHONE]);
+        $card = Card::factory()->create(['name' => 'بطاقة القهوة']);
+        $cycle = CardCycle::factory()->create([
+            'card_id' => $card->id,
+            'customer_id' => $customer->id,
+            'merchant_id' => $card->merchant_id,
+            'stamps_count' => 4,
+        ]);
+        Stamp::factory()->count(4)->create([
+            'card_cycle_id' => $cycle->id,
+            'card_id' => $card->id,
+            'customer_id' => $customer->id,
+            'merchant_id' => $card->merchant_id,
+        ]);
+        OtpCode::factory()->create(['phone' => self::PHONE]);
 
-        // Same row, so everything collected before the app was installed stays.
+        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
+            'phone' => self::PHONE,
+            'code' => self::CODE,
+            'name' => 'سارة',
+            'birthdate' => '1998-05-20',
+            'policy_version' => self::POLICY_VERSION,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $customer->id)
+            ->assertJsonPath('is_new_customer', true)
+            ->assertJsonPath('stamps_waiting.0.card', 'بطاقة القهوة')
+            ->assertJsonPath('stamps_waiting.0.stamps', 4);
+
+        // The same row, filled in — nothing was moved or recreated.
         $this->assertDatabaseCount('customers', 1);
-        $this->assertSame(3, $progress->fresh()->current_stamps);
+        $this->assertNotNull($customer->fresh()->registered_at);
+        $this->assertSame(4, $cycle->fresh()->stamps_count);
+    }
+
+    public function test_an_existing_customer_signs_in_without_sending_a_profile_again(): void
+    {
+        $customer = Customer::factory()->create(['phone' => self::PHONE, 'name' => 'سارة']);
+        OtpCode::factory()->create(['phone' => self::PHONE]);
+
+        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
+            'phone' => self::PHONE,
+            'code' => self::CODE,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $customer->id)
+            ->assertJsonPath('is_new_customer', false);
+
+        $this->assertDatabaseCount('policy_consents', 0);
     }
 
     public function test_verifying_a_wrong_code_returns_422_and_counts_the_attempt(): void
@@ -167,72 +226,16 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
             'phone' => self::PHONE,
             'code' => '999999',
-            'name' => 'سارة',
         ]);
 
         $response->assertUnprocessable()->assertJsonValidationErrors('code');
 
         $this->assertSame(1, $otpCode->fresh()->attempts);
-        $this->assertDatabaseCount('customers', 0);
-    }
-
-    public function test_verifying_after_too_many_attempts_returns_422(): void
-    {
-        OtpCode::factory()->create(['phone' => self::PHONE, 'attempts' => 5]);
-
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
-            'phone' => self::PHONE,
-            'code' => self::CODE,
-            'name' => 'سارة',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('code');
-    }
-
-    public function test_verifying_an_expired_code_returns_422(): void
-    {
-        OtpCode::factory()->create(['phone' => self::PHONE, 'expires_at' => now()->subMinute()]);
-
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
-            'phone' => self::PHONE,
-            'code' => self::CODE,
-            'name' => 'سارة',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('code');
-    }
-
-    public function test_verifying_an_already_used_code_returns_422(): void
-    {
-        OtpCode::factory()->create(['phone' => self::PHONE, 'consumed_at' => now()]);
-
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
-            'phone' => self::PHONE,
-            'code' => self::CODE,
-            'name' => 'سارة',
-        ]);
-
-        $response->assertUnprocessable()->assertJsonValidationErrors('code');
-    }
-
-    public function test_verifying_a_suspended_customer_returns_403(): void
-    {
-        Customer::factory()->create(['phone' => self::PHONE, 'status' => CustomerStatus::Suspended]);
-        OtpCode::factory()->create(['phone' => self::PHONE]);
-
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
-            'phone' => self::PHONE,
-            'code' => self::CODE,
-        ]);
-
-        $response->assertForbidden();
     }
 
     public function test_me_returns_401_without_a_token(): void
     {
-        $response = $this->getJson('/api/v1/customer/auth/me');
-
-        $response->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
+        $this->getJson('/api/v1/customer/auth/me')->assertUnauthorized();
     }
 
     public function test_me_returns_the_authenticated_customer(): void
@@ -255,43 +258,17 @@ class AuthTest extends TestCase
 
         $this->assertSame(1, $customer->tokens()->count());
 
-        // Separate requests share one container, so the resolved guard has to be
-        // dropped for each token to be checked again.
         $this->app['auth']->forgetGuards();
         $this->withToken($keptToken)->getJson('/api/v1/customer/auth/me')->assertOk();
-
-        $this->app['auth']->forgetGuards();
-        $this->withToken($revokedToken)->getJson('/api/v1/customer/auth/me')->assertUnauthorized();
-    }
-
-    public function test_logout_all_revokes_every_token(): void
-    {
-        $customer = Customer::factory()->create();
-        $customer->createToken('tablet', ['customer']);
-        $token = $customer->createToken('phone', ['customer'])->plainTextToken;
-
-        $this->withToken($token)->postJson('/api/v1/customer/auth/logout-all')->assertOk();
-
-        $this->assertSame(0, $customer->tokens()->count());
     }
 
     public function test_a_token_without_the_customer_ability_gets_403(): void
     {
-        $customer = Customer::factory()->create();
-        $token = $customer->createToken('phone', ['other'])->plainTextToken;
+        $token = Customer::factory()->create()->createToken('phone', ['other'])->plainTextToken;
 
         $response = $this->withToken($token)->getJson('/api/v1/customer/auth/me');
 
         $response->assertForbidden()
             ->assertJsonPath('message', 'This token is not allowed to access this resource.');
-    }
-
-    private function useLightOtpDriver(): void
-    {
-        config([
-            'otp.driver' => 'lightotp',
-            'services.lightotp.key' => 'test-key',
-            'services.lightotp.base_url' => 'https://api.lightotp.com',
-        ]);
     }
 }

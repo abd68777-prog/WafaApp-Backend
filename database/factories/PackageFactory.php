@@ -11,20 +11,31 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class PackageFactory extends Factory
 {
     /**
-     * Define the model's default state.
-     *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
         return [
-            'code' => fake()->unique()->slug(2),
-            'name' => fake()->words(2, true),
-            'max_cards' => 1,
-            'price_monthly_usd' => '10.00',
-            'price_yearly_usd' => null,
+            'name' => fake()->unique()->word(),
+            'cards_limit' => 1,
+            'weekly_campaigns_limit' => 1,
             'is_active' => true,
             'sort_order' => 0,
         ];
+    }
+
+    /**
+     * A package with the usual price matrix attached.
+     */
+    public function withPrices(float $monthly = 10): static
+    {
+        return $this->afterCreating(function (Package $package) use ($monthly): void {
+            foreach ([1 => $monthly, 3 => $monthly * 3 * 0.9, 12 => $monthly * 12 * 0.8] as $months => $price) {
+                $package->prices()->create([
+                    'duration_months' => $months,
+                    'price_usd' => round($price, 2),
+                ]);
+            }
+        });
     }
 }

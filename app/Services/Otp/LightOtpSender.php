@@ -61,10 +61,10 @@ final class LightOtpSender implements OtpSender
             'error' => $errorCode,
         ]);
 
-        if ($response->status() === 429 || $this->isCooldown($errorCode)) {
-            return OtpDeliveryException::cooldown(
-                (int) ($response->header('Retry-After') ?: 60)
-            );
+        $cooldown = $this->cooldownSeconds($response, $errorCode);
+
+        if ($cooldown !== null) {
+            return OtpDeliveryException::cooldown($cooldown);
         }
 
         if (in_array($errorCode, self::PHONE_ERRORS, true)) {
@@ -74,10 +74,22 @@ final class LightOtpSender implements OtpSender
         return OtpDeliveryException::unavailable($errorCode !== '' ? $errorCode : 'HTTP '.$response->status());
     }
 
-    private function isCooldown(string $errorCode): bool
+    /**
+     * LightOTP refuses a repeat send to the same number with a sentence, not a
+     * code: "… Please wait 00:02:00 and try again." The wait doubles on every
+     * repeat within six hours, so it can outlast our own fixed resend delay.
+     */
+    private function cooldownSeconds(Response $response, string $errorMessage): ?int
     {
-        $normalized = mb_strtolower($errorCode);
+        if (preg_match('/wait\s+(\d+):(\d{2}):(\d{2})/i', $errorMessage, $wait) === 1) {
+            return max(1, (int) $wait[1] * 3600 + (int) $wait[2] * 60 + (int) $wait[3]);
+        }
 
-        return str_contains($normalized, 'cooldown') || str_contains($normalized, 'duplicate');
+        // LightOTP's own per-IP request limit.
+        if ($response->status() === 429) {
+            return (int) ($response->header('Retry-After') ?: 60);
+        }
+
+        return null;
     }
 }

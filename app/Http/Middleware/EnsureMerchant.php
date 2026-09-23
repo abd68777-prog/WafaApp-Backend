@@ -10,10 +10,15 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Requires a registered merchant who is allowed to use the app.
+ * Requires a Clerk user who finished registering a shop.
  *
- * Each refusal carries a machine-readable `code` so the merchant app can route
- * the user: to the registration form, or to a "contact support" screen.
+ * It does not judge the subscription: an expired, grace or suspended merchant
+ * still opens the app — handing over rewards a customer already earned stays
+ * possible in every non-final state. What each status may do is decided by the
+ * endpoints, through MerchantStatus.
+ *
+ * Every refusal carries a machine-readable `code` so the app can route the
+ * user to the right screen.
  */
 class EnsureMerchant
 {
@@ -35,17 +40,18 @@ class EnsureMerchant
             ], 403);
         }
 
-        if ($merchant->status === MerchantStatus::Suspended) {
+        if (! $merchant->hasCompletedRegistration()) {
             return response()->json([
-                'message' => 'This business account has been suspended.',
-                'code' => 'merchant_suspended',
+                'message' => 'Finish the registration steps first.',
+                'code' => 'registration_incomplete',
+                'registration_step' => $merchant->registrationStep(),
             ], 403);
         }
 
-        if ($merchant->status === MerchantStatus::Rejected) {
+        if ($merchant->status === MerchantStatus::Deleted) {
             return response()->json([
-                'message' => 'This business account was not approved.',
-                'code' => 'merchant_rejected',
+                'message' => 'This business account has been deleted.',
+                'code' => 'merchant_deleted',
             ], 403);
         }
 

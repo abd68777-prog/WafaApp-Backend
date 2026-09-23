@@ -2,24 +2,27 @@
 
 namespace Database\Seeders;
 
-use App\Enums\StampSource;
+use App\Enums\CardCycleStatus;
+use App\Enums\StampMethod;
+use App\Models\BusinessType;
+use App\Models\Card;
+use App\Models\CardCycle;
 use App\Models\Customer;
-use App\Models\CustomerCardProgress;
-use App\Models\LoyaltyCard;
+use App\Models\Governorate;
+use App\Models\Icon;
 use App\Models\Merchant;
 use App\Models\Package;
-use App\Models\Reward;
-use App\Models\StampLog;
-use App\Models\Subscription;
+use App\Models\Setting;
+use App\Models\Stamp;
+use App\Models\SubscriptionPeriod;
 use Illuminate\Database\Seeder;
 
 /**
- * Local demo data covering the PRD 7.1 scenarios: returning customers, a
- * completed card with a reward ready, and a pending phone-only customer.
+ * Local demo data covering the states the apps have to render: a card being
+ * collected, one with the reward ready, a finished cycle, and a phone-only
+ * customer whose stamps are waiting for them to sign up.
  *
- * The demo merchant is linked to the Clerk user id `user_demo_merchant`, which
- * only matches tokens from a test Clerk instance; with a real Clerk app, sign
- * up in the merchant app and register a business instead.
+ * The demo merchant is linked to the Clerk user id `user_demo_merchant`.
  */
 class DemoSeeder extends Seeder
 {
@@ -28,55 +31,84 @@ class DemoSeeder extends Seeder
      */
     public function run(): void
     {
-        $premium = Package::query()->where('code', 'premium')->firstOrFail();
+        $package = Package::query()->where('cards_limit', '>=', 2)->orderBy('cards_limit')->firstOrFail();
+        $cafe = BusinessType::query()->where('name', 'كافيه')->firstOrFail();
+        $damascus = Governorate::query()->where('name', 'دمشق')->firstOrFail();
 
-        $merchant = Merchant::factory()->for($premium)->create([
+        $merchant = Merchant::factory()->create([
             'clerk_user_id' => 'user_demo_merchant',
+            'email' => 'demo-merchant@wafa.test',
             'business_name' => 'كافيه الياسمين',
+            'business_type_id' => $cafe->id,
+            'governorate_id' => $damascus->id,
+            'address' => 'شارع الحمرا',
+            'owner_name' => 'أحمد',
             'phone' => '+963900000001',
-            'email' => 'merchant@example.com',
         ]);
 
-        Subscription::factory()->for($merchant)->for($premium)->create([
-            'price_usd' => $premium->price_monthly_usd,
+        SubscriptionPeriod::factory()->trial((int) Setting::read('trial_days', 14))->create([
+            'merchant_id' => $merchant->id,
+            'package_id' => $package->id,
         ]);
 
-        $cards = LoyaltyCard::factory()->for($merchant)->count(3)->sequence(
-            ['name' => 'مشروبات ساخنة', 'stamps_required' => 5, 'reward_description' => 'مشروب ساخن مجاني', 'sort_order' => 1],
-            ['name' => 'مشروبات باردة', 'stamps_required' => 6, 'reward_description' => 'مشروب بارد مجاني', 'sort_order' => 2],
-            ['name' => 'حلويات', 'stamps_required' => 8, 'reward_description' => 'قطعة حلوى مجانية', 'sort_order' => 3],
-        )->create();
-
-        $hotDrinks = $cards->first();
-
-        Customer::factory()->count(4)->create()->each(function (Customer $customer) use ($hotDrinks): void {
-            $this->stamp($customer, $hotDrinks, 3, StampSource::Qr);
-        });
-
-        $loyalCustomer = Customer::factory()->create(['phone' => '+963900000010', 'name' => 'سارة']);
-        $completedProgress = $this->stamp($loyalCustomer, $hotDrinks, $hotDrinks->stamps_required, StampSource::Qr);
-
-        Reward::factory()->for($completedProgress, 'cardProgress')->create([
-            'description' => $hotDrinks->reward_description,
+        $coffee = Card::factory()->create([
+            'merchant_id' => $merchant->id,
+            'icon_id' => Icon::query()->where('key', 'coffee-cup')->value('id'),
+            'name' => 'بطاقة القهوة',
+            'stamps_required' => 5,
+            'reward_description' => 'قهوة مجانية من اختيارك',
+            'terms' => 'لا تشمل المشروبات المثلجة',
         ]);
 
-        $pendingCustomer = Customer::factory()->pending()->create(['phone' => '+963900000099']);
-        $this->stamp($pendingCustomer, $hotDrinks, 1, StampSource::Phone);
+        Card::factory()->create([
+            'merchant_id' => $merchant->id,
+            'icon_id' => Icon::query()->where('key', 'cake-slice')->value('id'),
+            'name' => 'بطاقة الحلويات',
+            'stamps_required' => 8,
+            'reward_description' => 'قطعة حلوى مجانية',
+        ]);
+
+        // Collecting: three of five.
+        $sara = Customer::factory()->create(['phone' => '+963900000010', 'name' => 'سارة']);
+        $this->cycleWithStamps($coffee, $sara, 3);
+
+        // Reward ready: the card is full and locked until the merchant hands it over.
+        $omar = Customer::factory()->create(['phone' => '+963900000011', 'name' => 'عمر']);
+        $ready = $this->cycleWithStamps($coffee, $omar, 5);
+        $ready->forceFill(['status' => CardCycleStatus::RewardReady, 'completed_at' => now()])->save();
+
+        // A finished cycle plus the new empty one that opened on redemption.
+        $lina = Customer::factory()->create(['phone' => '+963900000012', 'name' => 'لينا']);
+        $redeemed = $this->cycleWithStamps($coffee, $lina, 5);
+        $redeemed->forceFill([
+            'status' => CardCycleStatus::Redeemed,
+            'completed_at' => now()->subWeek(),
+            'redeemed_at' => now()->subDays(6),
+        ])->save();
+        $this->cycleWithStamps($coffee, $lina, 1);
+
+        // Phone-only customer: their stamps wait until they sign up.
+        $pending = Customer::factory()->pending()->create(['phone' => '+963900000099']);
+        $this->cycleWithStamps($coffee, $pending, 2, StampMethod::Phone);
     }
 
-    private function stamp(Customer $customer, LoyaltyCard $card, int $stamps, StampSource $source): CustomerCardProgress
+    private function cycleWithStamps(Card $card, Customer $customer, int $stamps, StampMethod $method = StampMethod::Qr): CardCycle
     {
-        $progress = CustomerCardProgress::factory()->for($customer)->for($card)->create([
-            'current_stamps' => $stamps,
-            'total_stamps' => $stamps,
-            'enrolled_via' => $source,
-            'last_stamped_at' => now(),
+        $cycle = CardCycle::factory()->create([
+            'card_id' => $card->id,
+            'customer_id' => $customer->id,
+            'merchant_id' => $card->merchant_id,
+            'stamps_count' => $stamps,
         ]);
 
-        StampLog::factory()->count($stamps)->for($progress, 'cardProgress')->create([
-            'source' => $source,
+        Stamp::factory()->count($stamps)->create([
+            'card_cycle_id' => $cycle->id,
+            'card_id' => $card->id,
+            'customer_id' => $customer->id,
+            'merchant_id' => $card->merchant_id,
+            'method' => $method,
         ]);
 
-        return $progress;
+        return $cycle;
     }
 }

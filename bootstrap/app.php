@@ -3,7 +3,10 @@
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureClerkSession;
 use App\Http\Middleware\EnsureMerchant;
+use App\Http\Middleware\EnsurePinUnlocked;
+use App\Http\Middleware\EnsureSupportedAppVersion;
 use App\Http\Middleware\ForceJsonResponse;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -40,11 +43,19 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
 
-            // Merchants and admins: a verified Clerk session, then a role
-            // resolved from our own tables.
+            // Merchants and dashboard users: a verified Clerk session, then a
+            // role resolved from our own tables.
             'clerk' => EnsureClerkSession::class,
             'clerk.admin' => EnsureAdmin::class,
             'clerk.merchant' => EnsureMerchant::class,
+
+            // The protected tabs of the merchant app need the PIN, proved by
+            // the token `pin/verify` returns.
+            'merchant.pin' => EnsurePinUnlocked::class,
+
+            // The merchant app is not updated by a store, so old builds are
+            // refused with a specific code.
+            'app.version' => EnsureSupportedAppVersion::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -71,17 +82,26 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
 
-        // A valid token used on routes it was not issued for. Sanctum's
-        // MissingAbilityException is already wrapped in an AccessDeniedHttpException
-        // by the time renderers run, so it is matched through the wrapper —
-        // other 403s keep their own message.
+        // Sanctum's MissingAbilityException and the gates' AuthorizationException
+        // are both wrapped in an AccessDeniedHttpException by the time renderers
+        // run, so they are matched through the wrapper — other 403s keep their
+        // own message.
         $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
-            if (! $e->getPrevious() instanceof MissingAbilityException) {
+            if (! ($request->is('api/*') || $request->expectsJson())) {
                 return null;
             }
 
-            if ($request->is('api/*') || $request->expectsJson()) {
+            // A valid token used on routes it was not issued for.
+            if ($e->getPrevious() instanceof MissingAbilityException) {
                 return response()->json(['message' => 'This token is not allowed to access this resource.'], 403);
+            }
+
+            // A dashboard account whose role lacks the permission (§5.1).
+            if ($e->getPrevious() instanceof AuthorizationException) {
+                return response()->json([
+                    'message' => 'Your role does not allow this action.',
+                    'code' => 'permission_denied',
+                ], 403);
             }
 
             return null;

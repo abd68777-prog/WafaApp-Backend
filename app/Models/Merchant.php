@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\MerchantStatus;
 use Database\Factories\MerchantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,67 +15,95 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 /**
- * A merchant account — exactly one business (PRD v1.1), signed in through Clerk.
+ * A shop. One account, shared by the owner and the cashier, signed in through
+ * Clerk; the PIN guards the sensitive tabs.
  *
- * The Clerk link, package, status, approval and subscription dates are
- * deliberately not mass assignable: only registration and admin flows may set
- * them (PRD 4.2).
+ * Registration fills this row in three steps, so `status` is null until a
+ * package is chosen and `pin_hash` until the PIN is set. The current package
+ * is not stored here — it comes from the latest subscription period.
+ *
+ * Status, Clerk link and PIN are not mass assignable: they change through
+ * registration and admin flows only. `email` is not either: it is copied from
+ * the Clerk session token, never taken from request input.
  */
 #[Fillable([
-    'owner_name',
     'business_name',
-    'phone',
-    'email',
-    'logo_path',
+    'business_type_id',
+    'governorate_id',
     'address',
-    'city',
-    'birthday_gift_enabled',
-    'birthday_gift_description',
+    'owner_name',
+    'phone',
+    'logo_path',
 ])]
+#[Hidden(['pin_hash'])]
 class Merchant extends Authenticatable
 {
     /** @use HasFactory<MerchantFactory> */
     use HasFactory, Notifiable, SoftDeletes;
 
     /**
-     * Get the attributes that should be cast.
-     *
      * @return array<string, string>
      */
     protected function casts(): array
     {
         return [
             'status' => MerchantStatus::class,
-            'approved_at' => 'datetime',
-            'trial_ends_at' => 'datetime',
-            'subscription_ends_at' => 'datetime',
-            'birthday_gift_enabled' => 'boolean',
+            'suspended_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
     }
 
     /**
-     * @return BelongsTo<Package, $this>
+     * Where the merchant is in the three registration screens.
+     *
+     * @return 'business'|'package'|'pin'|'done'
      */
-    public function package(): BelongsTo
+    public function registrationStep(): string
     {
-        return $this->belongsTo(Package::class);
+        return match (true) {
+            $this->status === null => 'package',
+            $this->pin_hash === null => 'pin',
+            default => 'done',
+        };
+    }
+
+    public function hasCompletedRegistration(): bool
+    {
+        return $this->registrationStep() === 'done';
     }
 
     /**
-     * @return BelongsTo<Admin, $this>
+     * @return BelongsTo<BusinessType, $this>
      */
-    public function approvedBy(): BelongsTo
+    public function businessType(): BelongsTo
     {
-        return $this->belongsTo(Admin::class, 'approved_by_admin_id');
+        return $this->belongsTo(BusinessType::class);
     }
 
     /**
-     * @return HasMany<Subscription, $this>
+     * @return BelongsTo<Governorate, $this>
      */
-    public function subscriptions(): HasMany
+    public function governorate(): BelongsTo
     {
-        return $this->hasMany(Subscription::class);
+        return $this->belongsTo(Governorate::class);
+    }
+
+    /**
+     * @return HasMany<SubscriptionPeriod, $this>
+     */
+    public function subscriptionPeriods(): HasMany
+    {
+        return $this->hasMany(SubscriptionPeriod::class);
+    }
+
+    /**
+     * The period that decides the current status: the one ending last.
+     *
+     * @return HasMany<SubscriptionPeriod, $this>
+     */
+    public function currentPeriod(): HasMany
+    {
+        return $this->subscriptionPeriods()->orderByDesc('ends_at')->limit(1);
     }
 
     /**
@@ -86,43 +115,35 @@ class Merchant extends Authenticatable
     }
 
     /**
-     * @return HasMany<LoyaltyCard, $this>
+     * @return HasMany<Card, $this>
      */
-    public function loyaltyCards(): HasMany
+    public function cards(): HasMany
     {
-        return $this->hasMany(LoyaltyCard::class);
+        return $this->hasMany(Card::class);
     }
 
     /**
-     * @return HasMany<CustomerCardProgress, $this>
+     * @return HasMany<CardCycle, $this>
      */
-    public function customerProgress(): HasMany
+    public function cardCycles(): HasMany
     {
-        return $this->hasMany(CustomerCardProgress::class);
+        return $this->hasMany(CardCycle::class);
     }
 
     /**
-     * @return HasMany<StampLog, $this>
+     * @return HasMany<Stamp, $this>
      */
-    public function stampLogs(): HasMany
+    public function stamps(): HasMany
     {
-        return $this->hasMany(StampLog::class);
+        return $this->hasMany(Stamp::class);
     }
 
     /**
-     * @return HasMany<Reward, $this>
-     */
-    public function rewards(): HasMany
-    {
-        return $this->hasMany(Reward::class);
-    }
-
-    /**
-     * @return HasMany<MerchantCampaign, $this>
+     * @return HasMany<Campaign, $this>
      */
     public function campaigns(): HasMany
     {
-        return $this->hasMany(MerchantCampaign::class);
+        return $this->hasMany(Campaign::class);
     }
 
     /**

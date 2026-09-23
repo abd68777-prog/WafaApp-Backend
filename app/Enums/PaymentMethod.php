@@ -3,11 +3,10 @@
 namespace App\Enums;
 
 /**
- * Manual transfer channels available in Syria (PRD 4.1).
+ * Transfers happen outside the app; the merchant uploads the proof afterwards.
  */
 enum PaymentMethod: string
 {
     case SyriatelCash = 'syriatel_cash';
     case Transfer = 'transfer';
-    case Other = 'other';
 }

@@ -13,6 +13,8 @@
 /.vscode
 /.zed
 /auth.json
+# Client requirement documents: kept locally, never pushed.
+/app/project/
 /public/fonts-manifest.dev.json
 /public/storage
 /storage/*.key

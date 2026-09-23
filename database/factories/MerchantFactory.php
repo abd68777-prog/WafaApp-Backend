@@ -3,9 +3,11 @@
 namespace Database\Factories;
 
 use App\Enums\MerchantStatus;
+use App\Models\BusinessType;
+use App\Models\Governorate;
 use App\Models\Merchant;
-use App\Models\Package;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -14,7 +16,7 @@ use Illuminate\Support\Str;
 class MerchantFactory extends Factory
 {
     /**
-     * Define the model's default state: an approved, paying merchant.
+     * A merchant who finished all three registration steps and is on trial.
      *
      * @return array<string, mixed>
      */
@@ -22,58 +24,59 @@ class MerchantFactory extends Factory
     {
         return [
             'clerk_user_id' => 'user_'.Str::random(27),
-            'owner_name' => fake()->name(),
-            'business_name' => fake()->company(),
-            'phone' => '+9639'.fake()->unique()->numerify('########'),
             'email' => fake()->unique()->safeEmail(),
-            'city' => fake()->city(),
-            'package_id' => Package::factory(),
-            'status' => MerchantStatus::Active,
-            'approved_at' => now(),
-            'trial_ends_at' => null,
-            'subscription_ends_at' => now()->addMonth(),
-            'birthday_gift_enabled' => false,
+            'business_name' => fake()->company(),
+            'business_type_id' => BusinessType::factory(),
+            'governorate_id' => Governorate::factory(),
+            'address' => null,
+            'owner_name' => fake()->name(),
+            'phone' => '+9639'.fake()->unique()->numerify('########'),
+            'logo_path' => null,
+            'pin_hash' => Hash::make('1234'),
+            'status' => MerchantStatus::Trial,
         ];
     }
 
     /**
-     * A merchant whose sign-up request is waiting for admin review.
+     * Business details saved, package not chosen yet.
      */
-    public function pendingReview(): static
+    public function awaitingPackage(): static
     {
         return $this->state(fn (array $attributes) => [
-            'status' => MerchantStatus::PendingReview,
-            'approved_at' => null,
-            'subscription_ends_at' => null,
+            'status' => null,
+            'pin_hash' => null,
         ]);
     }
 
     /**
-     * A merchant still inside the free trial.
+     * Package chosen, PIN not set yet.
      */
-    public function trial(): static
+    public function awaitingPin(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'status' => MerchantStatus::Trial,
-            'trial_ends_at' => now()->addDays(14),
-            'subscription_ends_at' => null,
-        ]);
+        return $this->state(fn (array $attributes) => ['pin_hash' => null]);
+    }
+
+    public function active(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => MerchantStatus::Active]);
+    }
+
+    public function grace(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => MerchantStatus::Grace]);
+    }
+
+    public function expired(): static
+    {
+        return $this->state(fn (array $attributes) => ['status' => MerchantStatus::Expired]);
     }
 
     public function suspended(): static
     {
         return $this->state(fn (array $attributes) => [
             'status' => MerchantStatus::Suspended,
-            'subscription_ends_at' => now()->subDay(),
-        ]);
-    }
-
-    public function rejected(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'status' => MerchantStatus::Rejected,
-            'approved_at' => null,
-            'subscription_ends_at' => null,
+            'suspended_at' => now(),
+            'suspension_reason' => 'Fraudulent stamps',
         ]);
     }
 }

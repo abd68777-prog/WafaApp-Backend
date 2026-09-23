@@ -39,4 +39,26 @@ class DeviceToken extends Model
     {
         return $this->morphTo();
     }
+
+    /**
+     * Record the push token of the device the owner is signed in on.
+     *
+     * A token identifies a device, not a person: when someone else signs in
+     * on the same phone, the token moves to them, so the previous account
+     * stops receiving that phone's notifications.
+     */
+    public static function register(Customer|Merchant $owner, string $token, DevicePlatform $platform): self
+    {
+        $deviceToken = static::query()->firstOrNew(['token' => $token]);
+
+        $deviceToken->fill([
+            'platform' => $platform,
+            'app' => $owner instanceof Merchant ? ClientApp::Merchant : ClientApp::Customer,
+            'last_seen_at' => now(),
+        ]);
+
+        $deviceToken->owner()->associate($owner)->save();
+
+        return $deviceToken;
+    }
 }
