@@ -119,12 +119,36 @@ OTP_DRIVER=lightotp     # real delivery, needs the key below
 LIGHTOTP_API_KEY=
 ```
 
+### Store review account
+
+Apple and Google reject an app whose reviewers cannot sign in, so the customer
+app has one fixed number with a fixed code. Nothing is sent for it and no other
+number accepts the code; both empty switches it off.
+
+```env
+REVIEW_PHONE=0900000999
+REVIEW_OTP_CODE=246810        # 6 digits, the normal code length
+```
+
+```sh
+php artisan db:seed --class=ReviewAccountSeeder   # two demo shops, a card in progress, a ready reward
+```
+
+Write the number and the code under **App access** in Play Console and in the
+**App Review** notes in App Store Connect. The demo shops use Clerk ids no user
+has, so nobody can sign in to them as a merchant.
+
 ### Clerk (merchants and admins)
 
 The merchant app and the admin dashboard use **one** Clerk application. Clerk
 proves who the user is; this backend decides what they may do: an admin is a
-Clerk user linked to a row in `admins`, a merchant is one linked to a row in
+Clerk user linked to a row in `admin_users`, a merchant is one linked to a row in
 `merchants`.
+
+0. Create the application at [dashboard.clerk.com](https://dashboard.clerk.com)
+   with **Email** and **Google** as the only sign-in options, email by
+   verification code (no password, no magic link, no phone, no username) — the
+   merchant sign-in screen of the requirements.
 
 1. In the Clerk Dashboard, open **API keys** and copy the **JWT public key**
    (PEM). Put it in `.env` on one line, replacing each line break with `\n`:
@@ -143,14 +167,21 @@ Clerk user linked to a row in `admins`, a merchant is one linked to a row in
    ```
 
 3. Add **`email` to the session token claims** (Clerk Dashboard → Sessions →
-   Customize session token). The backend needs it for three things: the hashed
+   Customize session token):
+
+   ```json
+   { "email": "{{user.primary_email_address}}" }
+   ```
+
+   The backend needs it for three things: the hashed
    fingerprint that stops the free trial being taken twice, the merchant's
    stored email, and linking a new dashboard account on its first sign-in.
    Clerk's default `fva` claim (minutes since the user last verified) is used as
    is to require a fresh sign-in before a merchant changes the PIN.
 
-4. Sign in to the admin dashboard once, copy your user id (`user_…`) from
-   **Clerk Dashboard → Users**, and link it as the first super admin:
+4. Create your own user (Clerk Dashboard → **Users** → Create user, or sign in
+   once through Clerk's hosted sign-in page), copy its id (`user_…`), and link
+   it as the first super admin:
 
    ```env
    ADMIN_EMAIL=owner@example.com
@@ -171,6 +202,58 @@ steps — business details, package (which starts the free trial) and PIN.
 `GET /api/v1/merchant/auth/me` tells the app which step is next. The PIN-protected
 tabs require the `X-Pin-Token` header returned by `POST /api/v1/merchant/pin/verify`
 (middleware `merchant.pin`).
+
+### Testing against the real Clerk instance
+
+`php artisan clerk:smoke-test` signs real session tokens and runs the merchant
+and dashboard flows against the API: it creates throwaway Clerk users, registers
+a shop through every step, links a dashboard account by email, checks your own
+account is a super admin, then deletes everything it created. It needs the
+**Secret key** of a development instance (Clerk Dashboard → API keys), which no
+request of the API ever uses:
+
+```env
+CLERK_SECRET_KEY=sk_test_...
+```
+
+It writes to the database the API uses, so run it where the API runs:
+
+```sh
+php artisan serve                     # in one terminal
+php artisan clerk:smoke-test          # in another
+
+docker compose up -d                  # Docker: apply the .env values first
+docker compose exec app php artisan clerk:smoke-test --base-url=http://web
+```
+
+`--keep` leaves the test users, shop and dashboard account in place. The command
+refuses to run in production or with a live (`sk_live_`) key.
+
+### Clerk webhooks
+
+`POST /api/v1/webhooks/clerk` keeps our copy of Clerk users in step: a changed
+primary email reaches the merchant and the dashboard account at once, and a
+deleted Clerk user unlinks its dashboard account (so a user recreated with the
+same email links again) while a shop is left untouched and only recorded in the
+audit log. Deliveries are verified with the Svix signature; anything unsigned or
+older than five minutes is refused with `400`.
+
+In the Clerk Dashboard → **Webhooks** → Add endpoint, point it at
+`https://<api-domain>/api/v1/webhooks/clerk`, subscribe to `user.updated` and
+`user.deleted`, and put the endpoint's **Signing secret** in `.env`:
+
+```env
+CLERK_WEBHOOK_SECRET=whsec_...
+```
+
+Clerk cannot reach `localhost`; to receive real deliveries locally, expose the
+API through a tunnel (cloudflared, ngrok).
+
+The "PIN change after a fresh sign-in" step always shows **SKIPPED**: Clerk
+gives sessions opened from the backend `fva: [99999, -1]` (no recent
+verification), so the API correctly answers `reverification_required`. A real
+sign-in in the app produces a fresh `fva`, and that is where the PIN change is
+tested end to end.
 
 ### Merchant app version
 

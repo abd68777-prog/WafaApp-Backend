@@ -34,6 +34,11 @@ services:
       FRONTEND_URLS: ${FRONTEND_URLS:-http://localhost:3000,http://localhost:5173,http://localhost:8081}
       CLERK_JWT_KEY: ${CLERK_JWT_KEY:-}
       CLERK_AUTHORIZED_PARTIES: ${CLERK_AUTHORIZED_PARTIES:-http://localhost:3000}
+      # Only for `php artisan clerk:smoke-test`; no request uses it.
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-}
+      REVIEW_PHONE: ${REVIEW_PHONE:-}
+      REVIEW_OTP_CODE: ${REVIEW_OTP_CODE:-}
       ADMIN_NAME: ${ADMIN_NAME:-Platform Admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_CLERK_USER_ID: ${ADMIN_CLERK_USER_ID:-}

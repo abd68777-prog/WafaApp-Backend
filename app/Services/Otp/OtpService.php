@@ -4,6 +4,7 @@ namespace App\Services\Otp;
 
 use App\Exceptions\OtpDeliveryException;
 use App\Models\OtpCode;
+use App\Support\PhoneNumber;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -35,9 +36,10 @@ final class OtpService
         $this->guardAgainstResend($phoneE164);
 
         $ttl = (int) config('otp.ttl');
-        $code = $this->generateCode();
+        $reviewCode = $this->reviewCodeFor($phoneE164);
+        $code = $reviewCode ?? $this->generateCode();
 
-        DB::transaction(function () use ($phoneE164, $code, $ipAddress, $ttl): void {
+        DB::transaction(function () use ($phoneE164, $code, $ipAddress, $ttl, $reviewCode): void {
             // A newly requested code replaces any code still outstanding.
             OtpCode::query()
                 ->where('phone', $phoneE164)
@@ -52,7 +54,11 @@ final class OtpService
                 'ip_address' => $ipAddress,
             ]);
 
-            $this->sender->send($phoneE164, $code, (string) Str::uuid());
+            // The store reviewers already know their code from the review
+            // notes, so nothing is sent and no credit is spent.
+            if ($reviewCode === null) {
+                $this->sender->send($phoneE164, $code, (string) Str::uuid());
+            }
         });
 
         return [
@@ -115,6 +121,27 @@ final class OtpService
         if ($availableAt->isFuture()) {
             throw OtpDeliveryException::cooldown(now()->diffInSeconds($availableAt, absolute: true) ?: 1);
         }
+    }
+
+    /**
+     * The fixed code of the store review account, for that exact number only.
+     * A code that does not fit the normal code format switches it off rather
+     * than weakening verification.
+     */
+    private function reviewCodeFor(string $phoneE164): ?string
+    {
+        $reviewPhone = PhoneNumber::normalize((string) config('otp.review_phone'));
+        $reviewCode = (string) config('otp.review_code');
+
+        if ($reviewPhone === null || $reviewPhone !== $phoneE164) {
+            return null;
+        }
+
+        if (preg_match('/^\d{'.(int) config('otp.length').'}$/', $reviewCode) !== 1) {
+            return null;
+        }
+
+        return $reviewCode;
     }
 
     private function generateCode(): string

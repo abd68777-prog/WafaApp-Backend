@@ -51,6 +51,10 @@ return [
     | verified locally with the instance's PEM public key (Clerk Dashboard →
     | API keys → "JWT public key"). A .env value is one line, so literal "\n"
     | sequences are turned back into line breaks.
+    |
+    | The secret key is used only by `php artisan clerk:smoke-test`, which
+    | creates throwaway users and sessions to test against the real Clerk
+    | instance. No API request depends on it.
     */
     'clerk' => [
         'jwt_key' => str_replace('\n', "\n", (string) env('CLERK_JWT_KEY', '')) ?: null,
@@ -59,6 +63,10 @@ return [
             explode(',', (string) env('CLERK_AUTHORIZED_PARTIES', '')),
         ))),
         'clock_skew' => (int) env('CLERK_CLOCK_SKEW', 5),
+        'secret_key' => env('CLERK_SECRET_KEY'),
+        // Signs the user.updated / user.deleted webhooks (Svix, whsec_…).
+        'webhook_secret' => env('CLERK_WEBHOOK_SECRET'),
+        'api_url' => env('CLERK_API_URL', 'https://api.clerk.com/v1'),
     ],
 
 ];

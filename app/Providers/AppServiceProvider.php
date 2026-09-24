@@ -6,7 +6,9 @@ use App\Enums\AdminPermission;
 use App\Models\AdminUser;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Services\Clerk\ClerkBackendApi;
 use App\Services\Clerk\ClerkTokenVerifier;
+use App\Services\Clerk\ClerkWebhookSignature;
 use App\Services\Otp\LightOtpSender;
 use App\Services\Otp\LogOtpSender;
 use App\Services\Otp\OtpSender;
@@ -43,6 +45,15 @@ class AppServiceProvider extends ServiceProvider
             config('services.clerk.jwt_key'),
             config('services.clerk.authorized_parties', []),
             (int) config('services.clerk.clock_skew'),
+        ));
+
+        $this->app->bind(ClerkWebhookSignature::class, fn (): ClerkWebhookSignature => new ClerkWebhookSignature(
+            config('services.clerk.webhook_secret'),
+        ));
+
+        $this->app->bind(ClerkBackendApi::class, fn (): ClerkBackendApi => new ClerkBackendApi(
+            (string) config('services.clerk.secret_key'),
+            rtrim((string) config('services.clerk.api_url'), '/'),
         ));
     }
 

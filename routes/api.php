@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\LookupController;
 use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthController;
 use App\Http\Controllers\Api\V1\Merchant\PinController;
 use App\Http\Controllers\Api\V1\Merchant\RegistrationController;
+use App\Http\Controllers\Api\V1\Webhooks\ClerkWebhookController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -49,6 +50,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     });
 
     Route::get('policy', [LookupController::class, 'policy'])->name('policy');
+
+    // --- Server-to-server ------------------------------------------------
+    // Signed by Clerk (Svix); the signature is the authentication.
+    Route::post('webhooks/clerk', [ClerkWebhookController::class, 'handle'])->name('webhooks.clerk');
 
     // --- Customer app (phone + OTP) --------------------------------------
     Route::prefix('customer')->name('customer.')->group(function () {

@@ -36,4 +36,20 @@ return [
 
     'resend_after' => (int) env('OTP_RESEND_AFTER', 60),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Store Review Account
+    |--------------------------------------------------------------------------
+    |
+    | Apple and Google reviewers sign in with a fixed number and a fixed code,
+    | written in the review notes; nothing is sent through LightOTP for it.
+    | Only this exact number accepts the fixed code. Both empty (the default)
+    | switches it off. Seed its demo cards with ReviewAccountSeeder.
+    |
+    */
+
+    'review_phone' => env('REVIEW_PHONE'),
+
+    'review_code' => env('REVIEW_OTP_CODE'),
+
 ];
