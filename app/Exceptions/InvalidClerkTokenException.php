@@ -2,8 +2,8 @@
 
 namespace App\Exceptions;
 
+use App\Enums\ErrorCode;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use RuntimeException;
 use Throwable;
 
@@ -23,8 +23,8 @@ class InvalidClerkTokenException extends RuntimeException
     /**
      * Render the exception into an HTTP response.
      */
-    public function render(Request $request): JsonResponse
+    public function render(): JsonResponse
     {
-        return response()->json(['message' => 'Unauthenticated.'], 401);
+        return ApiException::response(ErrorCode::Unauthenticated, 'Unauthenticated.');
     }
 }

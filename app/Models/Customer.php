@@ -24,7 +24,7 @@ use Laravel\Sanctum\HasApiTokens;
  * CustomerAccountDeleter): its stamps still count for merchants, anonymously.
  */
 #[Fillable(['phone', 'name', 'birthdate', 'campaigns_muted'])]
-#[Hidden(['qr_secret'])]
+#[Hidden(['qr_id', 'qr_secret'])]
 class Customer extends Authenticatable
 {
     /** @use HasFactory<CustomerFactory> */
@@ -50,6 +50,22 @@ class Customer extends Authenticatable
     public function isPending(): bool
     {
         return $this->registered_at === null;
+    }
+
+    /**
+     * The name and birthdate are asked once, right after the first sign-in.
+     */
+    public function hasCompleteProfile(): bool
+    {
+        return $this->name !== null && $this->birthdate !== null;
+    }
+
+    /**
+     * Whether the customer agreed to the privacy policy version now in force.
+     */
+    public function hasConsentedToCurrentPolicy(): bool
+    {
+        return $this->acceptedPolicyVersion() === Setting::currentPolicyVersion();
     }
 
     /**

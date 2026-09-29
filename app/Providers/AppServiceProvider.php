@@ -6,6 +6,7 @@ use App\Enums\AdminPermission;
 use App\Models\AdminUser;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Models\Stamp;
 use App\Services\Clerk\ClerkBackendApi;
 use App\Services\Clerk\ClerkTokenVerifier;
 use App\Services\Clerk\ClerkWebhookSignature;
@@ -85,8 +86,8 @@ class AppServiceProvider extends ServiceProvider
      * Fail loudly on lazy loading and mass-assignment mistakes while developing.
      *
      * The morph map stores short aliases instead of class names in polymorphic
-     * columns (Sanctum tokens, notifications, device tokens), so renaming a
-     * model never orphans existing rows.
+     * columns (Sanctum tokens, notifications, device tokens, audit subjects),
+     * so renaming a model never orphans existing rows.
      */
     protected function configureModels(): void
     {
@@ -96,14 +97,20 @@ class AppServiceProvider extends ServiceProvider
             'admin' => AdminUser::class,
             'merchant' => Merchant::class,
             'customer' => Customer::class,
+            'stamp' => Stamp::class,
         ]);
     }
 
     protected function configureRateLimiting(): void
     {
         // General API traffic: generous, keyed per authenticated user.
+        // Runs before authentication, so the caller is known only by the token
+        // it sends. Keying by IP alone would make every customer and shop
+        // behind one mobile carrier's shared address share one budget.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)
-            ->by($request->user()?->id ?: $request->ip()));
+            ->by(filled($request->bearerToken())
+                ? 'token:'.hash('sha256', (string) $request->bearerToken())
+                : 'ip:'.$request->ip()));
 
         // Sending a code costs real money, so it is capped per number and per
         // source. The per-request cooldown lives in OtpService.
@@ -118,10 +125,6 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(10)->by('otp-verify-phone:'.$this->phoneKey($request)),
             Limit::perMinute(30)->by('otp-verify-ip:'.$request->ip()),
         ]);
-
-        // A four digit PIN is guessable, so unlocking is throttled per shop.
-        RateLimiter::for('pin', fn (Request $request) => Limit::perMinute(5)
-            ->by('pin:'.($request->user()?->id ?: $request->ip())));
     }
 
     /**

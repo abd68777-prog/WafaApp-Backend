@@ -24,7 +24,7 @@ class AdminUserResource extends JsonResource
             'is_active' => $this->is_active,
             // False until the owner of the email signs in to Clerk once.
             'linked' => $this->isLinked(),
-            'last_login_at' => $this->last_login_at?->toIso8601String(),
+            'last_login_at' => $this->last_login_at?->toIso8601ZuluString(),
         ];
     }
 }

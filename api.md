@@ -1,686 +1,1138 @@
 # توثيق الـAPI — وفاء
 
-مرجع لمهندس الـFrontend (تطبيق الزبون، تطبيق التاجر، لوحة الإدارة).
-كل الأمثلة بهاد الملف ردود حقيقية من السيرفر.
+كل endpoint **شغّال حالياً** بالباك إند، شو بياخد، وشو بيرجّع، وأخطاؤه. كل الأمثلة ردود حقيقية من
+السيرفر. المسارات والأشكال مطابقة لـ«عقد الواجهات البرمجية» من Deep Code (`1.0.0-draft.1`).
 
-> **الحالة الحالية:** جاهز **الدخول والتسجيل والصلاحيات** للأطراف الثلاثة: حساب الزبون
-> كامل (مع الحذف وتجديد الموافقة)، وتسجيل التاجر وحماية الـPIN وتغييره، وأدوار لوحة
-> الإدارة وإدارة حساباتها، ورموز الإشعارات. الطوابع والبطاقات والحملات والدفعات
-> بتنضاف بالمراحل الجاية، وكل وحدة منها محمية بالحارس المكتوب بـ«خريطة الوصول» (§11).
+- **Base URL:** `http://127.0.0.1:8000/api/v1` (ومن موبايل على نفس الشبكة: `http://<IP-الكمبيوتر>:8000/api/v1`)
+- **الطلبات والردود:** JSON فقط (إلا رفع الشعار بالتسجيل: `multipart/form-data`)
+- **التواريخ:** ISO 8601 بتوقيت UTC، مثل `2026-09-29T15:00:52Z`. وتاريخ الميلاد لحاله: `1998-05-20`
+- **الهاتف:** `+9639XXXXXXXX`، والخادم بيقبل كمان `0933123456` وبيحوّلها
+- **المبالغ:** نصوص عشرية مو أرقام، مثل `"10.00"`
+
+## الفهرس
+
+| # | المسار | مين | الحماية |
+|---|---|---|---|
+| | **عام** | | |
+| 1 | `GET /ping` | الكل | — |
+| | **تطبيق الزبون** | | |
+| 2 | `GET /customer/config` | زبون | — |
+| 3 | `POST /customer/auth/otp` | زبون | — |
+| 4 | `POST /customer/auth/verify` | زبون | — |
+| 5 | `POST /customer/auth/logout` | زبون | توكن |
+| 6 | `GET /customer/me` | زبون | توكن |
+| 7 | `PATCH /customer/me` | زبون | توكن + جاهز |
+| 8 | `DELETE /customer/me` | زبون | توكن |
+| 9 | `POST /customer/me/profile` | زبون | توكن |
+| 10 | `POST /customer/me/policy-consents` | زبون | توكن |
+| 11 | `GET /customer/me/qr` | زبون | توكن + جاهز |
+| 12 | `GET /customer/cards` | زبون | توكن + جاهز |
+| 13 | `GET /customer/cards/{card_id}` | زبون | توكن + جاهز |
+| 14 | `GET /customer/notifications` | زبون | توكن + جاهز |
+| 15 | `POST /customer/notifications/{id}/read` | زبون | توكن + جاهز |
+| 16 | `POST /customer/notifications/read-all` | زبون | توكن + جاهز |
+| 17 | `PUT /customer/devices` | زبون | توكن |
+| 18 | `DELETE /customer/devices/{token}` | زبون | توكن |
+| | **تطبيق التاجر** | | |
+| 19 | `GET /merchant/me` | تاجر | Clerk |
+| 20 | `GET /merchant/lookups` | تاجر | Clerk |
+| 21 | `POST /merchant/registration/business` | تاجر | Clerk |
+| 22 | `POST /merchant/registration/package` | تاجر | Clerk |
+| 23 | `POST /merchant/registration/pin` | تاجر | Clerk |
+| 24 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
+| 25 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
+| 26 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
+| 27 | `GET /merchant/cards` | تاجر | مسجّل |
+| 28 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
+| 29 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 30 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
+| 31 | `POST /merchant/stamps` | تاجر | مسجّل |
+| 32 | `POST /merchant/redemptions` | تاجر | مسجّل |
+| 33 | `GET /merchant/notifications` | تاجر | مسجّل |
+| 34 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
+| 35 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
+| 36 | `PUT /merchant/devices` | تاجر | مسجّل |
+| 37 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
+| | **لوحة الإدارة** | | |
+| 38 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 39 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 40 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 41 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 42 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 43 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| | **للخادم فقط** | | |
+| 44 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+
+- **توكن:** توكن الزبون من `auth/verify`.
+- **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
+  (§1.3).
+- **Clerk:** توكن جلسة Clerk، حتى قبل ما يكمّل التاجر تسجيله.
+- **مسجّل:** Clerk + التاجر مكمّل خطوات التسجيل الثلاث. غير هيك `403 REGISTRATION_INCOMPLETE`.
+- **PIN:** الترويسة `X-Pin-Token` من `pin/unlock`.
 
 ---
 
-## 1. معلومات عامة
+## 1. أساسيات
 
-| البند | القيمة |
-|---|---|
-| Base URL (محلي) | `http://127.0.0.1:8000` — وبـDocker نفس العنوان |
-| بادئة الـAPI | `/api/v1` |
-| صيغة الطلب والرد | JSON فقط |
-| صيغة التواريخ | ISO 8601 بتوقيت UTC |
+### 1.1 المصادقة والترويسات
 
-### نوعين من المصادقة
-
-| مين | كيف بيسجّل دخول | شو بيبعت بـ`Authorization` |
+| مين | كيف بيفوت | شو بيبعت بـ`Authorization` |
 |---|---|---|
-| **الزبون** | رقم موبايل + رمز OTP على واتساب | توكن السيرفر الراجع من `otp/verify` |
-| **التاجر ولوحة الإدارة** | Clerk | توكن جلسة Clerk من `getToken()` — بكل طلب |
+| **الزبون** | رقم موبايل + رمز على واتساب | `Bearer <token>` من `auth/verify`. خزّنه بـ`expo-secure-store` |
+| **التاجر ولوحة الإدارة** | Clerk (Google أو رمز على البريد) | `Bearer <token>` من `getToken()` تبع Clerk **قبل كل طلب**، وما بيتخزّن |
 
-> **رمز واتساب (OTP) لتطبيق الزبون بس.** التاجر والإدارة ما بيستعملوه أبداً، ودخولهم كله عبر
-> Clerk (حساب Google أو رمز على البريد). و`phone` بخطوة «بيانات النشاط» للتاجر هو رقم تواصل
-> للمحل، مو للدخول.
+رمز واتساب لتطبيق الزبون بس. التاجر والإدارة ما بيستعملوه أبداً.
 
-### Clerk بتطبيق التاجر ولوحة الإدارة
-
-- **تطبيق Clerk واحد** للاتنين. المفتاح العام (`pk_test_…`) بتاخده من مطوّر الباك إند، وما هو سرّي.
-  **المفتاح السري (`sk_…`) ما بيدخل الفرونت أبداً.**
-- **طرق الدخول:** حساب Google، أو بريد برمز تحقق. ما في كلمة سر.
-- **تطبيق التاجر (Expo):**
-  - `@clerk/clerk-expo` مع `tokenCache` تبع Clerk.
-  - قبل كل طلب: `getToken()`، والتوكن بينبعت بـ`Authorization`.
-  - توكنات التطبيق الأصلي ما فيها `azp`، والخادم بيقبلها.
-- **لوحة الإدارة (Next.js):** `@clerk/nextjs`. أصل اللوحة (مثلاً `http://localhost:3000`) لازم يكون
-  بإعدادَين بالباك إند:
-  - `CLERK_AUTHORIZED_PARTIES`، وإلا الرد `401`.
-  - `FRONTEND_URLS`، وإلا المتصفح بيرفض بسبب CORS.
-- **البريد:** الخادم بياخده من توكن Clerk نفسه، لأن ادعاء `email` مضاف بلوحة Clerk. ما تبعته بالـbody.
-- **تغيير الـPIN** بيحتاج `useReverification` (§7).
-- **Google بملف الـAPK:** لازم تنضاف بصمة SHA-1 تبع مفتاح توقيع الـAPK بإعدادات Google وClerk.
-  بدونها دخول Google بيفشل عند التجار، مع إنه بيشتغل وقت التطوير.
-
-### الـHeaders
-
-| Header | متى | القيمة |
+| الترويسة | متى | القيمة |
 |---|---|---|
 | `Accept` | كل طلب | `application/json` |
-| `Content-Type` | أي طلب فيه body | `application/json` |
-| `Authorization` | الـendpoints المحمية 🔒 | `Bearer <token>` |
-| `X-App-Version` | **تطبيق التاجر فقط** | نسخة التطبيق، مثال `1.4.0` |
-| `X-Pin-Token` | **تطبيق التاجر — التبويبات المحمية** | `pin_token` الراجع من `pin/verify` |
+| `Authorization` | المسارات المحمية | `Bearer <token>` |
+| `X-App-Version` | كل طلبات تطبيق التاجر | نسخة التطبيق، مثل `1.0.0`. الأقدم من الحد الأدنى بياخد `426` |
+| `X-App-Platform` | كل طلبات تطبيق التاجر | `android` أو `ios` |
+| `X-Pin-Token` | تبويبات التاجر المحمية | `pin_token` من `pin/unlock`. بالذاكرة بس، بيروح لما ينسكّر التطبيق |
 
-`X-App-Version` مطلوب من تطبيق التاجر لأنه موزَّع خارج المتاجر ولا يتحدث تلقائياً:
-الخادم بيرفض النسخ الأقدم من الحد الأدنى برمز خاص لتظهر شاشة التحديث الإجباري.
-الطلب بدون الهيدر بيمرّ (المتصفح والأدوات ما بتبعته).
+**إعداد Clerk بالفرونت:**
+- تطبيق Clerk واحد للتاجر واللوحة. الـPublishable key (`pk_test_…`) من مطوّر الباك إند، والمفتاح السري
+  `sk_…` **ما بيدخل الفرونت أبداً**.
+- تطبيق التاجر (Expo): `@clerk/clerk-expo` مع `tokenCache`.
+- لوحة الإدارة (Next.js): `@clerk/nextjs`. أصل اللوحة لازم يكون بـ`CLERK_AUTHORIZED_PARTIES` (وإلا
+  `401`) وبـ`FRONTEND_URLS` (وإلا CORS).
+- البريد بياخده الخادم من توكن Clerk، لا تبعته بالـbody.
 
----
+### 1.2 شكل الردود
 
-## 2. شكل الأخطاء
+```jsonc
+// عنصر واحد
+{ "data": { … } }
 
-| الكود | المعنى | الرد |
-|---|---|---|
-| `401` | ما في توكن، أو منتهي، أو غير صالح | `{"message": "Unauthenticated."}` |
-| `403` | التوكن صالح بس صاحبه ما عنده صلاحية — ومعه `code` | شوف الجدول تحت |
-| `404` | الـendpoint مو موجود | `{"message": "Endpoint not found."}` |
-| `404` | العنصر المطلوب مو موجود | `{"message": "Resource not found."}` |
-| `409` | العملية متعارضة مع الحالة الحالية (تسجيل مرتين مثلاً) | `{"message": "…"}` |
-| `422` | خطأ بالبيانات | `message` + `errors` |
-| `426` | نسخة تطبيق التاجر قديمة | `code: app_update_required` |
-| `429` | تجاوز حد الطلبات | `{"message":"Too Many Attempts."}` + هيدر `Retry-After` |
-| `429` | طلب رمز جديد قبل انتهاء مدة الانتظار | `{"message":"…","retry_after":57}` |
-| `503` | ما قدرنا نوصّل رمز التحقق | `{"message":"Could not send the verification code right now. Please try again shortly."}` |
+// قائمة بتصفح (الإشعارات): ابعت ?cursor=…&limit=20 (الحد 1–50، والافتراضي 20)
+{ "data": [ … ], "meta": { "next_cursor": "eyJjcmVhdGVkX2F0…" } }   // null = ما في صفحات بعد
 
-### رموز `403`
-
-| `code` | مين | متى | شو يعمل التطبيق |
-|---|---|---|---|
-| `merchant_not_registered` | تاجر | مستخدم Clerk بدون نشاط مسجّل | افتح شاشة تسجيل النشاط |
-| `registration_incomplete` | تاجر | التسجيل ناقص — ومعه `registration_step` | كمّل الخطوة المطلوبة |
-| `merchant_deleted` | تاجر | الحساب محذوف | شاشة تواصل مع الدعم |
-| `pin_required` | تاجر | تبويب محمي بدون `X-Pin-Token` صالح | اطلب الـPIN |
-| `reverification_required` | تاجر | تغيير الـPIN بدون دخول حديث بـClerk | `useReverification()` بيتعامل معه لحاله (§7) |
-| `permission_denied` | إدارة | دور الحساب ما بيسمح بهالعملية | خبّي الزر، واعرض رسالة |
-
----
-
-## 3. حدود الطلبات
-
-| الحد | على شو | العدد |
-|---|---|---|
-| `api` | كل `/api/*` | 60 بالدقيقة |
-| `otp` | طلب رمز | 5 بالساعة لكل رقم · 20 بالساعة لكل IP |
-| `otp-verify` | التحقق من الرمز | 10 بالدقيقة لكل رقم · 30 لكل IP |
-| `pin` | التحقق من الـPIN | 5 بالدقيقة لكل تاجر |
-
-تجاوز أي حد منهم بيرجع `429` مع `{"message":"Too Many Attempts."}` وهيدر `Retry-After`.
-وفوقهم مدة انتظار **60 ثانية بين رمز ورمز** لنفس الرقم، وهي بترجع `429` مع `retry_after` بالـbody.
-
----
-
-## 4. الفهرس
-
-| Method | Path | 🔒 | الوصف |
-|---|---|---|---|
-| `GET` | `/api/v1/ping` | – | فحص الاتصال |
-| `GET` | `/api/v1/lookups/governorates` | – | المحافظات الـ14 |
-| `GET` | `/api/v1/lookups/business-types` | – | أنواع النشاط |
-| `GET` | `/api/v1/lookups/icons` | – | مكتبة أيقونات البطاقات |
-| `GET` | `/api/v1/lookups/packages` | – | الباقات ومصفوفة الأسعار |
-| `GET` | `/api/v1/policy` | – | إصدار سياسة الخصوصية وروابطها |
-| `POST` | `/api/v1/customer/auth/otp/request` | – | إرسال رمز تحقق |
-| `POST` | `/api/v1/customer/auth/otp/verify` | – | التحقق وإنشاء الحساب وإصدار توكن |
-| `GET` | `/api/v1/customer/auth/me` | 🔒 زبون | بيانات الزبون |
-| `POST` | `/api/v1/customer/auth/logout` | 🔒 زبون | خروج من الجهاز الحالي |
-| `POST` | `/api/v1/customer/auth/logout-all` | 🔒 زبون | خروج من كل الأجهزة |
-| `POST` | `/api/v1/customer/devices` | 🔒 زبون | تسجيل رمز إشعارات الجهاز |
-| `POST` | `/api/v1/customer/policy/accept` | 🔒 زبون | الموافقة على إصدار سياسة جديد |
-| `DELETE` | `/api/v1/customer/account` | 🔒 زبون | حذف الحساب |
-| `GET` | `/api/v1/merchant/auth/me` | 🔒 Clerk | حالة التاجر وخطوة التسجيل التالية |
-| `POST` | `/api/v1/merchant/auth/logout` | 🔒 Clerk | نسيان رمز إشعارات الجهاز عند الخروج |
-| `POST` | `/api/v1/merchant/registration/business` | 🔒 Clerk | خطوة 1: بيانات النشاط |
-| `POST` | `/api/v1/merchant/registration/package` | 🔒 Clerk | خطوة 2: اختيار الباقة وبدء التجربة |
-| `POST` | `/api/v1/merchant/registration/pin` | 🔒 Clerk | خطوة 3: إنشاء رمز PIN |
-| `POST` | `/api/v1/merchant/pin/verify` | 🔒 تاجر | التحقق من الـPIN وإصدار توكن فتح |
-| `PUT` | `/api/v1/merchant/pin` | 🔒 تاجر + دخول حديث | تغيير الـPIN أو استرجاعه |
-| `POST` | `/api/v1/merchant/devices` | 🔒 تاجر | تسجيل رمز إشعارات الجهاز |
-| `GET` | `/api/v1/admin/auth/me` | 🔒 إدارة | الحساب ودوره وصلاحياته |
-| `GET` | `/api/v1/admin/admin-users` | 🔒 Super Admin | حسابات الإدارة |
-| `POST` | `/api/v1/admin/admin-users` | 🔒 Super Admin | إضافة حساب إدارة |
-| `PATCH` | `/api/v1/admin/admin-users/{id}` | 🔒 Super Admin | تعديل الاسم أو الدور أو التفعيل |
-| `DELETE` | `/api/v1/admin/admin-users/{id}` | 🔒 Super Admin | تعطيل حساب إدارة |
-| `POST` | `/api/v1/webhooks/clerk` | توقيع Clerk | **للخادم فقط** — مش للفرونت (§12) |
-
----
-
-## 5. القوائم
-
-### `GET /api/v1/lookups/governorates`
-
-```json
-{ "data": [ { "id": 1, "name": "دمشق" }, { "id": 2, "name": "ريف دمشق" } ] }
+// خطأ
+{ "error": { "code": "STAMP_INTERVAL", "message": "Stamp interval not elapsed.", "details": { … } } }
 ```
 
-`GET /api/v1/lookups/business-types` و`GET /api/v1/lookups/icons` بنفس الشكل
-(الأيقونات فيها `key` كمان، والتطبيق بيرسم حسبها).
+**قاعدة:** اعرض للمستخدم نصاً من ملفات التطبيق حسب `error.code`. الـ`message` للتطوير بس، بالإنجليزي.
+القيم يلي بيحتاجها النص (دقائق، حدود، تواريخ) بتجي بـ`details`.
 
-### `GET /api/v1/lookups/packages`
+أخطاء الحقول (`422 VALIDATION_FAILED`) بتجي هيك:
 
 ```json
 {
-  "data": [
-    {
-      "id": 1,
-      "name": "الأساسية",
-      "cards_limit": 1,
-      "weekly_campaigns_limit": 1,
-      "prices": [
-        { "duration_months": 1, "price_usd": "10.00" },
-        { "duration_months": 3, "price_usd": "27.00" },
-        { "duration_months": 12, "price_usd": "96.00" }
-      ]
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "The business name field must be at least 2 characters. (and 4 more errors)",
+    "details": {
+      "fields": {
+        "business_name": ["min"],
+        "business_type_id": ["required"],
+        "phone": ["format"]
+      }
     }
-  ]
+  }
 }
 ```
 
-> الأسعار والأسماء قيم مبدئية لحد ما تجهز قيم Deep Code، وبتتعدّل من اللوحة.
+أسماء القواعد: `required` · `min` · `max` · `size` · `format` (نمط، تاريخ، رقم، قيمة مو من القائمة، صورة،
+uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `prohibits` (انبعت مع حقل ما لازم ينبعت معه) ·
+`invalid`.
 
-### `GET /api/v1/policy`
+### 1.3 رموز الأخطاء
+
+| الرمز | HTTP | `details` | متى |
+|---|---|---|---|
+| `UNAUTHENTICATED` | 401 | — | توكن مفقود أو منتهي أو غلط |
+| `FORBIDDEN` | 403 | — | الحساب ما إلو صلاحية (دور بلوحة الإدارة، أو توكن لتطبيق تاني) |
+| `NOT_FOUND` | 404 | — | المسار أو العنصر مو موجود، أو مو تبع هالحساب |
+| `VALIDATION_FAILED` | 422 | `fields` | أخطاء الحقول |
+| `RATE_LIMITED` | 429 | `retry_after_seconds` | تجاوز حد الطلبات |
+| `APP_VERSION_UNSUPPORTED` | 426 | `min_version`, `download_url` | تطبيق التاجر قديم: شاشة التحديث الإجباري |
+| `SERVER_ERROR` | 500 / 503 | — | خطأ غير متوقع، أو ما قدرنا نبعت رمز واتساب |
+| `OTP_INVALID` | 422 | `attempts_remaining` | رمز واتساب غلط |
+| `OTP_EXPIRED` | 422 | — | الرمز انتهت دقائقه الخمس، أو ما في رمز |
+| `OTP_ATTEMPTS_EXCEEDED` | 422 | — | 5 محاولات غلط، اطلب رمز جديد |
+| `OTP_RESEND_TOO_SOON` | 429 | `retry_after_seconds` | طلب رمز قبل انتهاء المهلة |
+| `POLICY_VERSION_OUTDATED` | 422 | `current_version` | الإصدار المبعوث مو الحالي: حمّل السياسة من جديد |
+| `POLICY_CONSENT_REQUIRED` | 403 | `current_version` | في إصدار سياسة جديد ما وافق عليه الزبون |
+| `PROFILE_INCOMPLETE` | 403 | — | الزبون ما كمّل اسمه وتاريخ ميلاده |
+| `PROFILE_ALREADY_COMPLETED` | 409 | — | إكمال الملف مرة تانية |
+| `UNDER_AGE` | 422 | `min_age` | عمره أقل من 13 |
+| `REGISTRATION_INCOMPLETE` | 403 | `registration_step` | مسار تاجر قبل ما يكمّل التسجيل |
+| `REGISTRATION_STEP_MISMATCH` | 409 | `registration_step` | خطوة تسجيل بغير وقتها |
+| `PIN_REQUIRED` | 403 | — | `X-Pin-Token` مفقود أو منتهي |
+| `PIN_INVALID` | 422 | `attempts_remaining` | PIN غلط |
+| `PIN_LOCKED` | 429 | `retry_after_seconds` | 5 محاولات غلط ورا بعض: قفل 15 دقيقة |
+| `PIN_RESET_REQUIRES_RECENT_LOGIN` | 403 | `max_age_seconds` | إعادة ضبط الـPIN بدون دخول حديث لـClerk |
+| `QR_INVALID` | 422 | — | رمز مو مقروء أو لزبون مو موجود |
+| `QR_EXPIRED` | 422 | — | رمز قديم: «اطلب من الزبون يفتح رمزه من جديد» |
+| `SCAN_TOKEN_EXPIRED` | 422 | — | مرّت 3 دقائق على المعاينة: امسح من جديد |
+| `STAMP_INTERVAL` | 422 | `last_stamp_at`, `next_allowed_at`, `minutes_since_last`, `minutes_remaining` | الفاصل بين طابعين ما خلص |
+| `REWARD_READY_REDEEM_FIRST` | 422 | `cycle_id` | البطاقة مكتملة: سلّم الهدية أولاً |
+| `NO_REWARD_READY` | 422 | — | تسليم على دورة ما فيها هدية جاهزة |
+| `REDEEM_REQUIRES_QR` | 422 | — | التسليم بيحتاج مسح رمز الزبون، مو رقم مكتوب |
+| `REWARD_ALREADY_REDEEMED` | 409 | `cycle_id`, `redeemed_at` | جهاز تاني سلّم الهدية للتو |
+| `CARD_SUSPENDED` | 422 | — | بطاقة موقوفة: لا مشتركين جدد ولا دورات جديدة |
+| `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards`) |
+| `CARDS_LIMIT_REACHED` | 422 | `cards_limit` | وصل حد البطاقات الفعّالة بالباقة |
+
+### 1.4 حدود الطلبات
+
+| على شو | الحد |
+|---|---|
+| كل `/api/*` | 60 بالدقيقة لكل توكن (أو لكل IP للطلبات بدون توكن) |
+| `POST /customer/auth/otp` | 5 بالساعة لكل رقم، و20 لكل IP، ومهلة 60 ثانية بين رمز ورمز |
+| `POST /customer/auth/verify` | 10 بالدقيقة لكل رقم، و30 لكل IP |
+| الـPIN | 5 محاولات غلط ورا بعض بتقفل 15 دقيقة |
+
+الرد `429` فيه الترويسة `Retry-After` و`details.retry_after_seconds`.
+
+### 1.5 الكائنات المشتركة
+
+**Customer** (للزبون نفسه بس):
+
+| الحقل | النوع | ملاحظة |
+|---|---|---|
+| `id` | integer | |
+| `phone` | string | `+963933123456` |
+| `name` | string \| null | `null` لحتى يكمّل ملفه |
+| `birthdate` | string \| null | `1998-05-20`. ما بيتعدّل من التطبيق |
+| `campaigns_muted` | boolean | إيقاف عروض كل التجار |
+| `profile_complete` | boolean | `false` ← اعرض شاشة الاسم وتاريخ الميلاد |
+| `consented_policy_version` | string \| null | إذا مختلف عن `privacy_policy_version` بـ`/customer/config` اعرض شاشة الموافقة |
+| `registered_at` | string | |
+
+**CardSummary:**
 
 ```json
 {
-  "privacy_policy_version": "1.2",
-  "privacy_policy_url": "",
-  "customer_terms_url": "",
-  "merchant_terms_url": ""
+  "id": 11,
+  "name": "بطاقة القهوة",
+  "stamps_required": 3,
+  "reward_description": "فنجان قهوة مجاني",
+  "terms": "لا تُجمع مع عروض أخرى",
+  "icon": { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" },
+  "status": "active"
 }
 ```
 
-`privacy_policy_version` هو يلي لازم يرجع بطلب التحقق مع مربّع الموافقة.
+التطبيق بيرسم الأيقونة من مكتبته حسب `icon.key`. و`status`: `active` أو `suspended`.
+
+**MerchantSummary:**
+
+```json
+{
+  "id": 10,
+  "business_name": "كافيه الياسمين",
+  "logo_url": null,
+  "business_type": { "id": 1, "name": "كافيه" },
+  "governorate": { "id": 1, "name": "دمشق" }
+}
+```
+
+**CycleProgress:** تقدّم الزبون على بطاقة.
+
+```json
+{ "id": 17, "stamps_count": 1, "status": "COLLECTING", "completed_at": null }
+```
+
+- `status`: `COLLECTING` (عم يجمّع) أو `REWARD_READY` (الهدية جاهزة).
+- `id: null` مع `stamps_count: 0` يعني ما في دورة مفتوحة: قبل أول طابع، أو بعد استلام الهدية. الدورة
+  الجديدة بتنفتح مع الطابع الجاي.
 
 ---
 
-## 6. تطبيق الزبون
+## 2. عام
+
+### `GET /ping`
+
+فحص الاتصال.
+
+```json
+{ "message": "pong", "version": "v1", "time": "2026-09-29T15:00:50Z" }
+```
+
+---
+
+## 3. تطبيق الزبون
 
 ### التدفق
 
 ```
-1. الرقم + مربّع الموافقة على السياسة   →  POST /customer/auth/otp/request
-2. رمز 6 أرقام على واتساب (صالح 5 دقائق)
-3. الرمز + الاسم + تاريخ الميلاد + إصدار السياسة  →  POST /customer/auth/otp/verify
-   ├─ حساب جديد وبيانات ناقصة  ⇒ 422، والرمز بيضل صالح
-   └─ تمام ⇒ توكن + qr_secret + «طوابعك وصلت» إذا كان رقمه ممسوح من قبل
-4. احفظ التوكن وابعته بكل طلب
-5. سجّل رمز إشعارات الجهاز  →  POST /customer/devices
-6. عند كل فتح للتطبيق: GET /customer/auth/me — وإذا policy.update_required ⇒ شاشة السياسة الجديدة
+عند فتح التطبيق:  GET /customer/config  (إصدار السياسة، مدة الرمز، القوائم)
+
+الدخول:
+  1. POST /customer/auth/otp        { phone }
+  2. POST /customer/auth/verify     { phone, code, policy_version }  →  token
+       needs_profile = true   →  3. POST /customer/me/profile  { name, birthdate }
+       claimed_stamps فيها شي →  اعرض «طوابعك وصلت»
+  4. GET  /customer/me/qr           →  خزّن السر، وولّد الرمز بدون اتصال (§6)
+  5. PUT  /customer/devices         { token, platform }
+
+كل ما ينفتح التطبيق وهو داخل:  GET /customer/me
+  profile_complete = false                                   →  شاشة الاسم وتاريخ الميلاد
+  consented_policy_version ≠ config.privacy_policy_version   →  شاشة الموافقة  →  POST /customer/me/policy-consents
 ```
 
-### `POST /customer/auth/otp/request`
+### 3.1 `GET /customer/config`
+
+**بدون مصادقة.** بيتقرأ عند فتح التطبيق وبيتخزّن محلياً.
+
+```json
+{
+  "data": {
+    "qr_period_seconds": 60,
+    "privacy_policy_version": "1.2",
+    "privacy_policy_url": "https://…",
+    "customer_terms_url": "https://…",
+    "governorates": [ { "id": 1, "name": "دمشق" }, { "id": 2, "name": "ريف دمشق" }, … ],
+    "business_types": [ { "id": 1, "name": "كافيه" }, { "id": 2, "name": "مطعم" }, … ]
+  }
+}
+```
+
+### 3.2 `POST /customer/auth/otp`
+
+**بدون مصادقة.** بيبعت رمز من 6 أرقام على واتساب، صالح 5 دقائق. الرد نفسه سواء الرقم مسجّل أو لأ.
 
 | الحقل | النوع | مطلوب |
 |---|---|---|
 | `phone` | string | ✅ |
 
-**صيغ الرقم المقبولة** (كلها بتنحفظ `+963947123456`): `+963947123456` · `963947123456` ·
-`00963947123456` · `0947123456` · `947123456` — والمسافات والشرطات بتنتجاهل.
-
-**رد `200`:**
+**`202`:**
 
 ```json
-{ "message": "Verification code sent.", "expires_in": 300, "resend_after": 60 }
+{ "data": { "expires_in_seconds": 300, "resend_after_seconds": 60 } }
 ```
 
-الرمز **ما بيرجع بالرد**. محلياً وبـDocker (`OTP_DRIVER=log`) بينكتب بالسجل.
+**أخطاء:**
+- `429 OTP_RESEND_TOO_SOON` مع `details.retry_after_seconds`.
+- `422 VALIDATION_FAILED` لرقم مو سوري.
+- `503 SERVER_ERROR` إذا ما قدرنا نبعت الرسالة.
 
-**الأخطاء:** `422` رقم غير صالح · `429` قبل انتهاء مدة الانتظار (مع `retry_after`) ·
-`503` فشل التوصيل (وما بينحفظ رمز، فبيقدر يعيد فوراً).
+### 3.3 `POST /customer/auth/verify`
 
-> **عدّاد «إعادة الإرسال»:** ابنِه على `retry_after` من الرد، مو على 60 ثابتة.
-> مزوّد واتساب بيضاعف مدة الانتظار مع كل طلب متكرر لنفس الرقم خلال 6 ساعات
-> (60 ← 120 ← 240 ثانية…)، والخادم بيرجّع المدة الفعلية.
-
----
-
-### `POST /customer/auth/otp/verify`
+**بدون مصادقة.** بيتحقق من الرمز. إذا الرقم جديد بينشئ الحساب، وإذا كان «زبون معلّق» (تاجر أضافله طوابع
+برقمه) بيكمّل نفس الحساب وطوابعه معه. وبيسجّل الموافقة على السياسة.
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
-| `phone` | string | ✅ | نفس الرقم |
+| `phone` | string | ✅ | |
 | `code` | string | ✅ | 6 أرقام |
-| `name` | string | ⚠️ | **للحساب الجديد فقط** |
-| `birthdate` | string | ⚠️ | `YYYY-MM-DD` — **للحساب الجديد فقط**، والعمر 13 سنة فأكثر |
-| `policy_version` | string | ⚠️ | **للحساب الجديد فقط** — من `GET /policy` |
-| `device_name` | string | ❌ | اسم الجهاز |
+| `policy_version` | string | ✅ | الإصدار يلي شافه الزبون، من `config` |
 
-**رد `200`:**
+**`200`:**
 
 ```json
 {
   "data": {
-    "id": 4,
+    "token": "10|FJ2HL4cWxpQLwZuDeeAcBWDcAgBc3fuOGaPqmWE5ab4dc686",
+    "token_type": "Bearer",
+    "customer": {
+      "id": 18,
+      "phone": "+963933123456",
+      "name": null,
+      "birthdate": null,
+      "campaigns_muted": false,
+      "profile_complete": false,
+      "consented_policy_version": "1.2",
+      "registered_at": "2026-09-29T15:00:51Z"
+    },
+    "needs_profile": true,
+    "claimed_stamps": []
+  }
+}
+```
+
+`claimed_stamps` فيها عناصر بس بأول دخول لرقم كان زبون معلّق:
+
+```json
+[ { "merchant": MerchantSummary, "card": CardSummary, "stamps_count": 4, "status": "COLLECTING" } ]
+```
+
+**أخطاء:**
+- `422 OTP_INVALID` مع `attempts_remaining`.
+- `422 OTP_EXPIRED`.
+- `422 OTP_ATTEMPTS_EXCEEDED`.
+- `422 POLICY_VERSION_OUTDATED` مع `current_version`. بيتفحص قبل الرمز، فالرمز بيضل صالح.
+
+```json
+{ "error": { "code": "OTP_INVALID", "message": "The verification code is not correct.", "details": { "attempts_remaining": 4 } } }
+```
+
+### 3.4 `POST /customer/auth/logout` 🔒
+
+بيبطل التوكن الحالي بس. ابعت `DELETE /customer/devices/{token}` **قبله** لتوقف الإشعارات على الجهاز.
+**`204`** بدون محتوى.
+
+### 3.5 `GET /customer/me` 🔒
+
+بيشتغل حتى لو الملف ناقص أو الموافقة قديمة، وهو يلي بيقرر أي شاشة تنعرض. **`200`:** `{ "data": Customer }`.
+
+```json
+{
+  "data": {
+    "id": 18,
+    "phone": "+963933123456",
     "name": "سارة",
-    "phone": "+963900000099",
-    "birthdate": "1995-03-10",
-    "qr_secret": "RlcVzJlgyMF2ta1vnw9MR9ckrRjzDXwKa0zJbGu0",
-    "qr_period_seconds": 60,
+    "birthdate": "1998-05-20",
     "campaigns_muted": false,
-    "registered_at": "2026-09-23T16:54:03+00:00",
-    "policy": { "accepted_version": "1.2", "current_version": "1.2", "update_required": false }
-  },
-  "token": "1|XJoYklhBagldWLUnIQEom0goRXwejNFvlmaUiHsn84320fbb",
-  "token_type": "Bearer",
-  "is_new_customer": true,
-  "stamps_waiting": [
-    { "merchant": "كافيه الياسمين", "card": "بطاقة القهوة", "stamps": 2 }
+    "profile_complete": true,
+    "consented_policy_version": "1.2",
+    "registered_at": "2026-09-29T15:00:51Z"
+  }
+}
+```
+
+### 3.6 `PATCH /customer/me` 🔒 جاهز
+
+الحقل الوحيد القابل للتعديل: إيقاف عروض كل التجار. الاسم وتاريخ الميلاد ما بيتعدّلوا من التطبيق.
+
+| الحقل | النوع | مطلوب |
+|---|---|---|
+| `campaigns_muted` | boolean | ✅ |
+
+**`200`:** `{ "data": Customer }`.
+
+### 3.7 `DELETE /customer/me` 🔒
+
+حذف فوري للحساب:
+- بينمسحوا الرقم، والاسم، وتاريخ الميلاد، ورمز الـQR، والأجهزة، والتوكنات، والإشعارات، والموافقات.
+- الطوابع بتضل بدون ما تدل على حدا، لإحصاءات التجار.
+- الطوابع والهدايا يلي ما استلمها بتضيع، فنبّهه قبل الحذف.
+
+**`204`** بدون محتوى. نفس الرقم بيقدر يسجّل بعدين كحساب جديد فاضي.
+
+### 3.8 `POST /customer/me/profile` 🔒
+
+الاسم وتاريخ الميلاد، مرة وحدة بعد أول دخول.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `name` | string | ✅ | 2–60 حرف |
+| `birthdate` | string | ✅ | `YYYY-MM-DD`، بالماضي |
+
+**`200`:** `{ "data": Customer }` مع `profile_complete: true`.
+
+**أخطاء:**
+- `422 UNDER_AGE` مع `details.min_age: 13`.
+- `409 PROFILE_ALREADY_COMPLETED`.
+- `422 VALIDATION_FAILED`.
+
+### 3.9 `POST /customer/me/policy-consents` 🔒
+
+الموافقة على إصدار جديد من سياسة الخصوصية.
+
+| الحقل | النوع | مطلوب |
+|---|---|---|
+| `policy_version` | string | ✅ |
+
+**`200`:** `{ "data": Customer }`. **أخطاء:** `422 POLICY_VERSION_OUTDATED` مع `current_version`.
+
+لما يطلع إصدار جديد، كل المسارات المعلّمة «جاهز» بترجع `403 POLICY_CONSENT_REQUIRED` لحد ما يوافق.
+
+### 3.10 `GET /customer/me/qr` 🔒 جاهز
+
+سرّ توليد رمز QR. اطلبه مرة بعد الدخول وخزّنه بـ`expo-secure-store`. طريقة التوليد بـ§6.
+
+```json
+{
+  "data": {
+    "qr_id": "Q1Pa9zblIBzE",
+    "secret": "4XDGTVZPZAQC34IDCLK7GPZOMBYPLY3Q",
+    "algorithm": "SHA256",
+    "digits": 8,
+    "period_seconds": 60
+  }
+}
+```
+
+### 3.11 `GET /customer/cards` 🔒 جاهز
+
+«بطاقاتي»: كل البطاقات مرة وحدة بدون تصفح. الترتيب: الهدايا الجاهزة أول شي، بعدين حسب آخر طابع.
+
+- بعد استلام هدية على بطاقة فعّالة: البطاقة بتضل بتقدّم 0 و`cycle.id: null`.
+- بعد استلام هدية على بطاقة موقوفة: البطاقة بتختفي.
+
+```json
+{
+  "data": [
+    {
+      "card": CardSummary,
+      "merchant": MerchantSummary,
+      "cycle": { "id": null, "stamps_count": 0, "status": "COLLECTING", "completed_at": null },
+      "completed_cycles_count": 1,
+      "last_stamp_at": "2026-09-29T15:00:52Z",
+      "merchant_muted": false
+    }
   ]
 }
 ```
 
-| الحقل | المعنى |
+| الحقل | ملاحظة |
 |---|---|
-| `qr_secret` | سرّ توليد رمز الـQR على الجهاز — بيتجدد كل `qr_period_seconds` ثانية ويشتغل دون اتصال |
-| `is_new_customer` | `true` إذا انفتح الحساب أو انفعّل بهالطلب |
-| `stamps_waiting` | طوابع كانت مسجّلة على رقمه قبل ما ينزّل التطبيق ⇒ اعرض شاشة «طوابعك وصلت» |
+| `completed_cycles_count` | كم مرة استلم هدية هالبطاقة |
+| `last_stamp_at` | آخر طابع غير ملغى، أو `null` |
+| `merchant_muted` | موقّف عروض هالمحل |
 
-**الأخطاء:**
+### 3.12 `GET /customer/cards/{card_id}` 🔒 جاهز
 
-`422` — حساب جديد وبيانات ناقصة (**والرمز بيضل صالح**، أعد الإرسال بعد تعبئتها):
+تفاصيل بطاقة: نفس حقول العنصر فوق، ومعها طوابع الدورة الحالية (الأقدم أول) وعنوان المحل.
 
 ```json
 {
-  "message": "Your name is required to finish creating your account. (and 2 more errors)",
-  "errors": {
-    "name": ["Your name is required to finish creating your account."],
-    "birthdate": ["Your date of birth is required to finish creating your account."],
-    "policy_version": ["You must accept the privacy policy to create an account."]
+  "data": {
+    "card": CardSummary,
+    "merchant": MerchantSummary,
+    "cycle": { "id": 17, "stamps_count": 2, "status": "COLLECTING", "completed_at": null },
+    "completed_cycles_count": 0,
+    "last_stamp_at": "2026-09-29T15:00:52Z",
+    "merchant_muted": false,
+    "stamps": [
+      { "stamped_at": "2026-09-27T10:00:00Z", "method": "qr" },
+      { "stamped_at": "2026-09-29T15:00:52Z", "method": "phone" }
+    ],
+    "merchant_address": "دمشق، شارع الحمرا"
   }
 }
 ```
 
-`422` — العمر تحت 13:
+`method`: `qr` (مسح الرمز) أو `phone` (برقمه). **أخطاء:** `404 NOT_FOUND` لبطاقة ما جمّع عليها الزبون.
+
+### 3.13 `GET /customer/notifications` 🔒 جاهز
+
+صندوق الإشعارات، الأحدث أول، بالمؤشر: `?limit=20` وبعدين `?cursor=<meta.next_cursor>`.
 
 ```json
 {
-  "message": "You must be at least 13 years old to use Wafa.",
-  "errors": { "birthdate": ["You must be at least 13 years old to use Wafa."] }
+  "data": [
+    {
+      "id": "01a0edae-d41f-73e0-a373-7304776dc323",
+      "type": "reward_redeemed",
+      "title": "استلمت هديتك",
+      "body": "استلمت هديتك من كافيه الياسمين. بدأت بطاقتك الجديدة.",
+      "data": { "merchant_id": 10, "card_id": 11, "cycle_id": 17 },
+      "read_at": null,
+      "created_at": "2026-09-29T15:00:52Z"
+    },
+    {
+      "id": "01a0edae-d3dc-710c-b3f7-4d688299b861",
+      "type": "card_completed",
+      "title": "هديتك جاهزة",
+      "body": "هديتك جاهزة عند كافيه الياسمين! اعرض رمزك في زيارتك القادمة.",
+      "data": { "merchant_id": 10, "card_id": 11, "cycle_id": 17 },
+      "read_at": null,
+      "created_at": "2026-09-29T15:00:52Z"
+    }
+  ],
+  "meta": { "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAy…" }
 }
 ```
 
-`422` — رمز غلط أو منتهي أو مستهلك: `"The verification code is invalid or has expired."`
-(نفس الرسالة للحالات الثلاثة، وبعد 5 محاولات خاطئة لازم رمز جديد).
+| `type` | متى | النص |
+|---|---|---|
+| `stamp_added` | انضافله طابع | «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.» |
+| `card_completed` | اكتملت البطاقة | «هديتك جاهزة عند [المحل]! اعرض رمزك في زيارتك القادمة.» |
+| `reward_redeemed` | استلم الهدية | «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.» |
 
-`422` — إصدار سياسة قديم: `"This version of the privacy policy is no longer current."`
+`data` فيها المعرّفات لتفتح البطاقة لما يضغط. الإشعارات هلق **بالصندوق داخل التطبيق بس**.
+
+### 3.14 `POST /customer/notifications/{id}/read` 🔒 جاهز
+
+تعليم إشعار كمقروء. **`204`**. إشعار مو إلو ← `404`.
+
+### 3.15 `POST /customer/notifications/read-all` 🔒 جاهز
+
+تعليم الكل كمقروء. **`204`**.
+
+### 3.16 `PUT /customer/devices` 🔒
+
+تسجيل رمز FCM للجهاز، بعد الدخول وكل ما يتغيّر. إذا الرمز كان لحساب تاني بينتقل لهالحساب.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `token` | string | ✅ | لحد 255 حرف |
+| `platform` | string | ✅ | `android` أو `ios` |
+
+**`204`**.
+
+### 3.17 `DELETE /customer/devices/{token}` 🔒
+
+إزالة رمز الجهاز عند الخروج. ابعت الرمز مرمَّز: `encodeURIComponent(token)`، لأن رموز FCM فيها `:`.
+**`204`** حتى لو الرمز مو موجود.
 
 ---
 
-### `GET /customer/auth/me` 🔒 زبون
-
-بيرجع كائن `Customer` داخل `data`، ومعه كتلة `policy`:
-
-```json
-"policy": { "accepted_version": "1.2", "current_version": "1.2", "update_required": false }
-```
-
-لما `update_required` تكون `true`، يعني صدرت نسخة جديدة من السياسة: اعرض شاشة التغييرات
-وزر موافقة بيبعت `POST /customer/policy/accept`.
-
-**الأخطاء:** `401` · `403` لتوكن مو تبع زبون.
-
-### `POST /customer/policy/accept` 🔒 زبون
-
-| الحقل | النوع | مطلوب |
-|---|---|---|
-| `policy_version` | string | ✅ لازم يكون الإصدار الحالي |
-
-**رد `200`:** كائن `Customer` محدَّث (`policy.update_required: false`).
-**`422`:** `"This version of the privacy policy is no longer current."`
-
-### `POST /customer/devices` 🔒 زبون
-
-سجّل رمز Firebase بعد الدخول، وكل ما Firebase يغيّره.
-
-| الحقل | النوع | مطلوب |
-|---|---|---|
-| `token` | string | ✅ رمز FCM |
-| `platform` | string | ✅ `ios` · `android` |
-
-**رد `200`:** `{ "message": "Device registered." }`
-
-إذا فات شخص تاني على نفس الجهاز، الرمز بينتقل لحسابه، والحساب القديم ما عاد بيوصله إشعارات هالجهاز.
-
-### `POST /customer/auth/logout` 🔒 زبون
-
-| الحقل | النوع | مطلوب |
-|---|---|---|
-| `device_token` | string | ❌ رمز FCM لهالجهاز — ابعته حتى تنقطع إشعاراته |
-
-`{ "message": "Logged out." }`
-
-### `POST /customer/auth/logout-all` 🔒 زبون
-
-بيلغي كل التوكنات وبينسى كل الأجهزة. `{ "message": "Logged out on all devices." }`
-
-### `DELETE /customer/account` 🔒 زبون
-
-حذف الحساب من داخل التطبيق، وهو شرط من المتجرين. **قبل الاستدعاء** لازم التطبيق
-يعرض شو بينحذف وشو بيبقى، وينبّه إنو الطوابع والهدايا غير المستلمة بتضيع نهائياً.
-
-**رد `200`:** `{ "message": "Account deleted." }`
-
-| شو بيصير | التفاصيل |
-|---|---|
-| بينحذف فوراً | الرقم، الاسم، تاريخ الميلاد، سرّ الـQR، رموز الأجهزة، التوكنات، الموافقات، التفضيلات |
-| بيبقى بدون ربط | سجلات الطوابع والزيارات، لإحصاءات التجار فقط |
-| بعدها | التوكن بيرجع `401`، ونفس الرقم فيه يسجّل من جديد كحساب جديد فاضي |
-
----
-
-## 7. تطبيق التاجر
+## 4. تطبيق التاجر
 
 ### التدفق
 
 ```
-1. دخول بـClerk (Google أو بريد برمز)         ← على الفرونت
-2. GET /merchant/auth/me  →  registration_step
-   ├─ "business" ⇒ POST /registration/business   (بيانات النشاط)
-   ├─ "package"  ⇒ POST /registration/package    (الباقة — تبدأ التجربة فوراً)
-   ├─ "pin"      ⇒ POST /registration/pin        (رمز الحماية)
-   └─ "done"     ⇒ ادخل على التطبيق
-3. POST /merchant/devices  (رمز الإشعارات)
-4. شاشة المسح مفتوحة دائماً — والتبويبات المحمية بتطلب الـPIN:
-   POST /merchant/pin/verify  →  pin_token  →  هيدر X-Pin-Token على طلباتها
+دخول بـClerk
+GET /merchant/me  →  registration_step:
+   business  →  POST /merchant/registration/business
+   package   →  POST /merchant/registration/package   (التجربة بتبلّش فوراً)
+   pin       →  POST /merchant/registration/pin       (بيرجع pin_token كمان)
+   done      →  الشاشة الرئيسية
+PUT /merchant/devices
+
+المسح (بدون PIN، للكاشير):
+   GET  /merchant/cards?status=active       ←  اختيار البطاقة
+   POST /merchant/scan/resolve              ←  شاشة التأكيد
+   action = stamp   →  POST /merchant/stamps       { scan_token, client_uuid }
+   action = redeem  →  POST /merchant/redemptions  { scan_token, cycle_id }
+
+التبويبات المحمية:  POST /merchant/pin/unlock  →  X-Pin-Token
 ```
 
-### `GET /merchant/auth/me` 🔒 Clerk
-
-**رد `200` — مستخدم Clerk جديد:**
+**كل** طلبات التاجر بتبعت `X-App-Version` و`X-App-Platform`، والنسخة القديمة بتاخد:
 
 ```json
-{ "registered": false, "registration_step": "business", "data": null }
+{ "error": { "code": "APP_VERSION_UNSUPPORTED", "message": "A newer version of the app is required.", "details": { "min_version": "1.0.0", "download_url": "https://…/wafa-merchant.apk" } } }
 ```
 
-بعد التسجيل بيرجع `registered: true` و`registration_step: "done"` مع كائن `Merchant`.
-كل استدعاء بيسجّل وقت آخر دخول، وبيحدّث `email` إذا غيّر التاجر بريده بـClerk.
+وقبل ما يكمّل التسجيل، كل مسار غير `me` و`lookups` والتسجيل بيرجع:
 
----
+```json
+{ "error": { "code": "REGISTRATION_INCOMPLETE", "message": "Finish the registration steps first.", "details": { "registration_step": "business" } } }
+```
 
-### `POST /merchant/registration/business` 🔒 Clerk
+### 4.1 `GET /merchant/me`
 
-`multipart/form-data` إذا في شعار، وإلا JSON.
+أول طلب عند فتح التطبيق. بيشتغل قبل التسجيل، وبيسجّل آخر دخول وبيحدّث البريد من توكن Clerk.
 
-| الحقل | النوع | مطلوب | ملاحظة |
-|---|---|---|---|
-| `business_name` | string | ✅ | **ما بيتعدّل لاحقاً إلا من الدعم** |
-| `business_type_id` | integer | ✅ | من `lookups/business-types` |
-| `governorate_id` | integer | ✅ | من `lookups/governorates` |
-| `owner_name` | string | ✅ | |
-| `phone` | string | ✅ | رقم سوري، ما يكون مستخدم لتاجر تاني |
-| `address` | string | ❌ | يظهر بصفحة المحل بالدليل فقط |
-| `logo` | file | ❌ | صورة، أقصى 2MB |
+**مستخدم Clerk جديد:**
 
-البريد **ما بينبعت بالـbody**: الخادم بياخده من توكن Clerk وبيحفظه مع بيانات النشاط.
+```json
+{ "data": { "registration_step": "business", "email": "shop@example.com", "merchant": null, "subscription": null, "usage": null } }
+```
 
-**رد `201`:**
+**تاجر مسجّل (MerchantMe):**
 
 ```json
 {
-  "registration_step": "package",
   "data": {
-    "id": 2,
-    "email": "owner@example.com",
-    "business_name": "كافيه التجربة",
-    "business_type": { "id": 1, "name": "كافيه" },
-    "governorate": { "id": 1, "name": "دمشق" },
-    "address": null,
-    "owner_name": "سامر",
-    "phone": "+963988111222",
-    "logo_url": null,
-    "status": null,
-    "registration_step": "package",
-    "has_pin": false,
-    "subscription": null,
-    "created_at": "2026-09-23T16:53:04+00:00"
+    "registration_step": "done",
+    "email": "shop@example.com",
+    "merchant": {
+      "id": 10,
+      "email": "shop@example.com",
+      "business_name": "كافيه الياسمين",
+      "business_type": { "id": 1, "name": "كافيه" },
+      "governorate": { "id": 1, "name": "دمشق" },
+      "address": "دمشق، شارع الحمرا",
+      "owner_name": "أحمد",
+      "phone": "+963944111222",
+      "logo_url": null,
+      "created_at": "2026-09-29T15:00:51Z"
+    },
+    "subscription": {
+      "status": "TRIAL",
+      "package": { "id": 2, "name": "المتوسطة", "cards_limit": 2, "weekly_campaigns_limit": 2 },
+      "current_period": {
+        "id": 10,
+        "type": "trial",
+        "package": { "id": 2, "name": "المتوسطة", "cards_limit": 2, "weekly_campaigns_limit": 2 },
+        "duration_months": null,
+        "starts_at": "2026-09-29T15:00:51Z",
+        "ends_at": "2026-10-13T15:00:51Z",
+        "grace_ends_at": null
+      },
+      "trial_used": true,
+      "days_remaining": 14,
+      "capabilities": {
+        "stamps": true,
+        "new_customers": true,
+        "campaigns": true,
+        "redemptions": true,
+        "create_cards": true,
+        "directory_visible": true
+      },
+      "banner": null,
+      "pending_payment": null
+    },
+    "usage": {
+      "active_cards": 0,
+      "cards_limit": 2,
+      "campaigns_used_this_week": 0,
+      "weekly_campaigns_limit": 2,
+      "campaigns_resets_at": "2026-10-02T21:00:00Z"
+    }
   }
 }
 ```
 
-**الأخطاء:** `409` النشاط مسجّل من قبل لهاد الحساب · `422` رقم مستخدم أو نوع/محافظة غير موجودة.
+| الحقل | ملاحظة |
+|---|---|
+| `registration_step` | `business` · `package` · `pin` · `done` |
+| `subscription.status` | `TRIAL` · `ACTIVE` · `GRACE` · `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` |
+| `subscription.days_remaining` | لنهاية التجربة أو الاشتراك، أو لنهاية المهلة بـ`GRACE`. `null` بباقي الحالات |
+| `subscription.capabilities` | شو مسموح هلق. استعمله للعرض، والخادم بيفرضه على كل حال |
+| `subscription.banner` | شريط التنبيه، أو `null` |
+| `usage.campaigns_resets_at` | بداية أسبوع الحملات الجاي: السبت منتصف الليل بتوقيت دمشق |
 
----
+**`banner`:** `{ "code", "level", "params" }`:
 
-### `POST /merchant/registration/package` 🔒 Clerk
+| `code` | متى | `level` | `params` |
+|---|---|---|---|
+| `TRIAL_ENDING` | باقي للتجربة 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
+| `SUBSCRIPTION_ENDING` | باقي للاشتراك 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
+| `GRACE` | مهلة السماح | `danger` | `days_remaining`, `ends_at` |
+| `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` | الحالة نفسها | `danger` | — |
 
-| الحقل | النوع | مطلوب |
-|---|---|---|
-| `package_id` | integer | ✅ (من `lookups/packages`) |
+**`capabilities` حسب الحالة:** `TRIAL` و`ACTIVE` و`GRACE` كلها `true`. وبـ`EXPIRED` و`SUSPENDED`
+و`PENDING_DELETION` بس `redemptions: true` (تسليم الهدايا مسموح دايماً)، والباقي `false`.
 
-**رد `200` — التجربة بدأت:**
+### 4.2 `GET /merchant/lookups`
+
+كل شي بتحتاجه نماذج التطبيق، مفتوح قبل التسجيل.
 
 ```json
 {
-  "registration_step": "pin",
   "data": {
-    "status": "TRIAL",
-    "subscription": {
-      "package": { "id": 1, "name": "الأساسية" },
-      "type": "trial",
-      "starts_at": "2026-09-23T16:53:10+00:00",
-      "ends_at": "2026-10-07T16:53:10+00:00",
-      "grace_ends_at": null
-    }
-  },
-  "trial_granted": true
+    "governorates": [ { "id": 1, "name": "دمشق" }, … ],
+    "business_types": [ { "id": 1, "name": "كافيه" }, … ],
+    "icons": [ { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" }, { "id": 2, "key": "tea-glass", "name": "كأس شاي" }, … ],
+    "packages": [
+      {
+        "id": 1,
+        "name": "الأساسية",
+        "cards_limit": 1,
+        "weekly_campaigns_limit": 1,
+        "prices": [
+          { "duration_months": 1, "price_usd": "10.00", "amount_syp": "130000.00" },
+          { "duration_months": 3, "price_usd": "27.00", "amount_syp": "351000.00" },
+          { "duration_months": 12, "price_usd": "96.00", "amount_syp": "1248000.00" }
+        ]
+      }
+    ],
+    "payment": {
+      "exchange_rate_syp": "13000.00",
+      "syriatel_cash_number": "…",
+      "bank_transfer_details": "…",
+      "review_sla_hours": 24
+    },
+    "limits": {
+      "card_stamps_min": 3,
+      "card_stamps_max": 10,
+      "campaign_title_max": 60,
+      "campaign_body_max": 300,
+      "stamp_interval_minutes": 60,
+      "pin_unlock_hours": 12
+    },
+    "links": { "privacy_policy_url": "…", "merchant_terms_url": "…" }
+  }
 }
 ```
 
-**رد `200` — التجربة مستهلكة سابقاً بنفس البريد:**
+`amount_syp` بسعر الصرف الحالي، للعرض بس. ابني قواعد النماذج من `limits`.
 
-```json
-{ "registration_step": "pin", "data": { "status": "EXPIRED" }, "trial_granted": false }
-```
+### 4.3 `POST /merchant/registration/business`
 
-التجربة **مرة واحدة لكل تاجر**، محمية ببصمة مشفّرة للبريد تبقى حتى بعد حذف الحساب.
-لما `trial_granted` يكون `false`، التاجر بيكمّل التسجيل وبعدين بيروح لشاشة الدفع.
+الخطوة 1: بيانات النشاط. مقبولة بس لما `registration_step = business`.
 
-**الأخطاء:** `409` الباقة مختارة من قبل · `403` لسا ما سجّل بيانات نشاطه · `422` باقة غير موجودة.
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `business_name` | string | ✅ | 2–80. ما بيتعدّل بعدين إلا من الدعم |
+| `business_type_id` | integer | ✅ | من `lookups.business_types` |
+| `governorate_id` | integer | ✅ | من `lookups.governorates` |
+| `address` | string | — | لحد 255 |
+| `owner_name` | string | ✅ | 2–80 |
+| `phone` | string | ✅ | رقم تواصل المحل، مو للدخول. فريد بين التجار |
+| `logo` | ملف | — | JPEG أو PNG أو WebP لحد 2 MB. مع الشعار ابعت الطلب `multipart/form-data` |
 
----
+**`201`:** `{ "data": MerchantMe }` مع `registration_step: "package"` و`subscription: null`.
 
-### `POST /merchant/registration/pin` 🔒 Clerk
+**أخطاء:**
+- `422 VALIDATION_FAILED` (الرقم المستعمل: `phone: ["taken"]`).
+- `409 REGISTRATION_STEP_MISMATCH` مع `registration_step`.
+
+### 4.4 `POST /merchant/registration/package`
+
+الخطوة 2: اختيار الباقة، والتجربة المجانية بتبلّش فوراً.
 
 | الحقل | النوع | مطلوب |
 |---|---|---|
-| `pin` | string | ✅ 4–6 أرقام |
-| `pin_confirmation` | string | ✅ مطابق |
+| `package_id` | integer | ✅ |
 
-**رد `200`:** `registration_step: "done"` و`data.has_pin: true`.
-**الأخطاء:** `409` قبل اختيار الباقة · `422` رمز غير مطابق أو بصيغة غلط.
+**`200`:** `{ "data": MerchantMe + "trial_granted": true }`، مع `registration_step: "pin"`.
 
----
+إذا البريد أخد تجربة قبل (حتى بحساب محذوف)، الطلب ما بينرفض: `trial_granted: false` و
+`subscription.status: "EXPIRED"`. بعد الـPIN بتوجّهه للدفع.
 
-### `POST /merchant/pin/verify` 🔒 تاجر
+**أخطاء:** `409 REGISTRATION_STEP_MISMATCH`، و`422 VALIDATION_FAILED`.
 
-بيتحقق من الـPIN وبيرجّع **توكن فتح** للتبويبات المحمية (الإحصاءات، الزبائن، الحملات،
-البطاقات، الاشتراك، الإعدادات).
+### 4.5 `POST /merchant/registration/pin`
+
+الخطوة 3: إنشاء الـPIN، وفيها بيكتمل التسجيل.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `pin` | string | ✅ | 4–6 أرقام |
+
+**`200`:** بيرجع `pin_token` كمان، حتى ما ينطلب الـPIN فوراً:
+
+```json
+{ "data": { "me": MerchantMe, "pin": { "pin_token": "eyJpdiI6…", "expires_at": "2026-09-30T03:00:52Z" } } }
+```
+
+**أخطاء:**
+- `422 VALIDATION_FAILED` (`pin: ["format"]`).
+- `409 REGISTRATION_STEP_MISMATCH`.
+
+### 4.6 `POST /merchant/pin/unlock`
+
+فتح التبويبات المحمية.
 
 | الحقل | النوع | مطلوب |
 |---|---|---|
 | `pin` | string | ✅ |
 
-**رد `200`:**
+**`200`:**
 
 ```json
-{
-  "message": "PIN accepted.",
-  "pin_token": "eyJpdiI6IklzZlJEamVKUklzdkUyTUNNNVJUQ1E9PSIsInZhbHVlIjoi…",
-  "expires_at": "2026-09-24T06:24:34+00:00"
-}
+{ "data": { "pin_token": "eyJpdiI6IjI5ZGgzSWRKQzdI…", "expires_at": "2026-09-30T03:00:52Z" } }
 ```
 
-- ابعت `pin_token` بهيدر **`X-Pin-Token`** على كل طلبات التبويبات المحمية.
-- خزّنه **بالذاكرة بس**، وامسحه لما ينسكّر التطبيق: الوثيقة بتقول «تُقفل عند إغلاق التطبيق».
-  `expires_at` هو سقف من الخادم (12 ساعة افتراضياً، بتنضبط من اللوحة).
-- تغيير الـPIN بيبطل كل التوكنات القديمة.
+ابعته بـ`X-Pin-Token` مع التبويبات المحمية. خزّنه **بالذاكرة بس**، فبيروح لما ينسكّر التطبيق. صالح
+`pin_unlock_hours` ساعة.
 
-**`422`:** `{ "message": "This PIN is not correct.", "errors": { "pin": ["This PIN is not correct."] } }`
+**أخطاء:**
+- `422 PIN_INVALID` مع `attempts_remaining`. الخامسة بترجع `0`.
+- بعدها `429 PIN_LOCKED` مع `retry_after_seconds` (15 دقيقة). الـPIN الصح بيصفّر العداد.
 
-**`403`** إذا التسجيل ناقص:
+### 4.7 `PUT /merchant/pin` 🔒 PIN
 
-```json
-{
-  "message": "Finish the registration steps first.",
-  "code": "registration_incomplete",
-  "registration_step": "pin"
-}
-```
-
-**التبويب المحمي بدون توكن صالح** (غايب، منتهي، لتاجر تاني، أو من قبل تغيير الـPIN) بيرجع:
-
-```json
-{ "message": "Enter the PIN to open this section.", "code": "pin_required" }
-```
-
----
-
-### `PUT /merchant/pin` 🔒 تاجر + دخول حديث بـClerk
-
-تغيير الـPIN من الإعدادات، **وكمان لـ«نسيت الرمز»**: ما بيطلب الـPIN القديم. بدالها
-بيطلب إنو المالك يكون أكّد هويته بـClerk خلال آخر **10 دقائق**. الكاشير ما بيقدر يعمل هالشي،
-لأن رمز Clerk بيروح على بريد المالك.
+تغيير الـPIN بالرمز الحالي. كل `pin_token` قديم على كل الأجهزة بيوقف، وهالجهاز بياخد واحد جديد.
 
 | الحقل | النوع | مطلوب |
 |---|---|---|
-| `pin` | string | ✅ 4–6 أرقام |
-| `pin_confirmation` | string | ✅ مطابق |
+| `current_pin` | string | ✅ |
+| `new_pin` | string | ✅ |
 
-**رد `200`:** `{ "message": "PIN updated." }`
+**`200`:** `{ "data": { "pin_token", "expires_at" } }`. **أخطاء:** `422 PIN_INVALID` للرمز الحالي الغلط
+(بيتحسب من محاولات القفل)، و`403 PIN_REQUIRED`.
 
-**`403` — لازم تأكيد الهوية:** الرد بصيغة Clerk نفسها، فـ`useReverification()` من
-`@clerk/clerk-expo` بيلقطه، بيطلب من المالك يأكّد هويته، وبيعيد الطلب لحاله:
+### 4.8 `POST /merchant/pin/reset`
+
+لصاحب المحل يلي نسي الـPIN: بيطلع من Clerk وبيفوت من جديد، وبعدين بيحط رمز جديد **خلال 5 دقائق**.
+الكاشير الفايت على جهاز المحل ما بيقدر.
+
+| الحقل | النوع | مطلوب |
+|---|---|---|
+| `new_pin` | string | ✅ |
+
+**`200`:** `{ "data": { "pin_token", "expires_at" } }`.
+
+**أخطاء:**
+
+```json
+{ "error": { "code": "PIN_RESET_REQUIRES_RECENT_LOGIN", "message": "Sign in again to reset the PIN.", "details": { "max_age_seconds": 300 } } }
+```
+
+بالتطبيق: `signOut()` ثم `signIn` ثم `POST /merchant/pin/reset` مباشرة.
+
+### 4.9 `GET /merchant/cards`
+
+بطاقات المحل بدون تصفح، والفعّالة أول شي. **بدون PIN** لأن شاشة المسح بتستعمله: `?status=active`.
+
+| الاستعلام | القيم |
+|---|---|
+| `status` | `active` أو `suspended` (اختياري) |
 
 ```json
 {
-  "message": "Sign in again to change the PIN.",
-  "code": "reverification_required",
-  "clerk_error": {
-    "type": "forbidden",
-    "reason": "reverification-error",
-    "metadata": { "reverification": { "level": "first_factor", "afterMinutes": 10 } }
+  "data": [
+    {
+      "id": 11,
+      "name": "بطاقة القهوة",
+      "stamps_required": 3,
+      "reward_description": "فنجان قهوة مجاني",
+      "terms": "لا تُجمع مع عروض أخرى",
+      "icon": { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" },
+      "status": "active",
+      "created_at": "2026-09-29T15:00:52Z",
+      "suspended_at": null,
+      "active_customers": 2,
+      "rewards_ready": 1
+    }
+  ]
+}
+```
+
+`active_customers`: زبائن إلهم دورة مفتوحة على البطاقة. `rewards_ready`: هدايا جاهزة ما انسلّمت.
+
+### 4.10 `POST /merchant/cards` 🔒 PIN
+
+نشر بطاقة. **ما بتتعدّل بعد النشر، وما في مسار تعديل**.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `name` | string | ✅ | 2–60 |
+| `stamps_required` | integer | ✅ | بين `limits.card_stamps_min` و`card_stamps_max` (3–10) |
+| `reward_description` | string | ✅ | 2–120 |
+| `terms` | string | — | لحد 500 |
+| `icon_id` | integer | ✅ | من `lookups.icons` |
+
+**`201`:** `{ "data": MerchantCard }` (نفس عنصر §4.9).
+
+**أخطاء:**
+- `422 CARDS_LIMIT_REACHED` مع `cards_limit`. البطاقات الموقوفة ما بتنحسب.
+- `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `{ "status": "EXPIRED", "action": "cards" }`.
+- `422 VALIDATION_FAILED`.
+- `403 PIN_REQUIRED`.
+
+### 4.11 `POST /merchant/cards/{card_id}/suspend` 🔒 PIN
+
+إيقاف نهائي، ما في رجعة:
+- الزبائن الحاليين بيكمّلوا دوراتهم وبيستلموا هداياهم.
+- ما في مشتركين جدد ولا دورات جديدة.
+- التكرار بيرجّع البطاقة متل ما هي.
+
+**`200`:** `{ "data": MerchantCard }` مع `status: "suspended"`. **أخطاء:** `404 NOT_FOUND` لبطاقة مو تبع
+المحل.
+
+### 4.12 `POST /merchant/scan/resolve`
+
+معاينة ما قبل التأكيد، بعد مسح الرمز أو كتابة الرقم. **ما بتكتب شي بقاعدة البيانات.**
+بترجع `scan_token` صالح **3 دقائق**، فالكاشير بيقدر يأكّد حتى لو رمز الزبون تجدد.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `card_id` | integer | ✅ | البطاقة المختارة (فعّالة أو موقوفة) |
+| `qr` | string | واحد منهم | المحتوى الخام من الكاميرا، مثل `W1.Q1Pa9zblIBzE.19687500` |
+| `phone` | string | واحد منهم | رقم كتبه الكاشير |
+
+**`200`** بعد مسح الرمز:
+
+```json
+{
+  "data": {
+    "scan_token": "eyJpdiI6IkpuUjlpTlcvdnhw…",
+    "expires_at": "2026-09-29T15:03:52Z",
+    "method": "qr",
+    "customer": { "id": 18, "kind": "registered", "name": "سارة", "phone_full": null, "phone_masked": "0933***456" },
+    "card": CardSummary,
+    "cycle": { "id": null, "stamps_count": 0, "status": "COLLECTING", "completed_at": null },
+    "action": "stamp",
+    "blocked_reason": null,
+    "other_ready_rewards": []
   }
 }
 ```
 
-**`422`:** رمز غير مطابق أو بصيغة غلط.
+**`action`:** الزر الوحيد بشاشة التأكيد.
 
----
-
-### `POST /merchant/devices` 🔒 تاجر
-
-نفس حقول وردّ `POST /customer/devices` (`token` و`platform`).
-
-### `POST /merchant/auth/logout` 🔒 Clerk
-
-| الحقل | النوع | مطلوب |
+| `action` | الزر | الطلب |
 |---|---|---|
-| `device_token` | string | ❌ رمز FCM لهالجهاز |
+| `stamp` | «إضافة طابع» | `POST /merchant/stamps` |
+| `redeem` | «تسليم الهدية» مع وصفها | `POST /merchant/redemptions` بـ`cycle.id` |
+| `none` | ما في زر، اعرض `blocked_reason` | — |
 
-بينسى رمز إشعارات الجهاز. تسجيل الخروج من Clerk نفسه بيصير بالتطبيق (`signOut()`).
-`{ "message": "Logged out." }`
+**`customer.kind`:**
 
----
+| `kind` | مين | شو بيظهر |
+|---|---|---|
+| `registered` | زبون مسجّل | `name` و`phone_masked` |
+| `pending` | رقم انضافله طوابع قبل وما سجّل | `phone_full` بس |
+| `new` | رقم ما إلو أي حساب (`id: null`) | `phone_full` بس، ليتأكد الكاشير من الرقم يلي كتبه |
 
-### تحديث إجباري (`426`)
+الزبون المعلّق **ما بينعمل هون**، بينعمل عند تأكيد الطابع.
 
-أي طلب من تطبيق التاجر بنسخة أقدم من الحد الأدنى:
+**`blocked_reason`** (مع `action: "none"`) هو كائن خطأ كامل:
 
 ```json
 {
-  "message": "A newer version of the app is required.",
-  "code": "app_update_required",
-  "minimum_version": "1.0.0",
-  "download_url": ""
+  "code": "STAMP_INTERVAL",
+  "message": "Stamp interval not elapsed.",
+  "details": {
+    "last_stamp_at": "2026-09-29T15:00:52Z",
+    "next_allowed_at": "2026-09-29T16:00:52Z",
+    "minutes_since_last": 0,
+    "minutes_remaining": 60
+  }
 }
 ```
 
----
+| `code` | متى |
+|---|---|
+| `STAMP_INTERVAL` | الفاصل بين طابعين لنفس الزبون على نفس البطاقة ما خلص |
+| `CARD_SUSPENDED` | بطاقة موقوفة وما في دورة مفتوحة للزبون |
+| `MERCHANT_STATUS_BLOCKS_ACTION` | حالة الاشتراك بتمنع الطوابع: `{ "status": "EXPIRED", "action": "stamps" }` |
+| `REDEEM_REQUIRES_QR` | في هدية جاهزة بس الزبون انكتب رقمه، والتسليم بيحتاج مسح رمزه |
 
-## 8. لوحة الإدارة
-
-### الأدوار والصلاحيات
-
-الصلاحية بتنفحص **بالخادم** على كل طلب. اللوحة بتستعمل `permissions` من `me` بس لتخبّي
-الشاشات والأزرار.
-
-| الصلاحية (`permission`) | Super Admin | Admin | مراجع المدفوعات | الدعم |
-|---|---|---|---|---|
-| `manage-admin-accounts` — حسابات الإدارة | ✓ | – | – | – |
-| `manage-packages` — الباقات والأسعار | ✓ | – | – | – |
-| `manage-settings` — سعر الصرف وبيانات الاستلام والإعدادات | ✓ | – | – | – |
-| `grant-extensions` — التمديد اليدوي | ✓ | – | – | – |
-| `view-audit-log` — سجل التدقيق | ✓ | – | – | – |
-| `review-payments` — قبول أو رفض إثبات الدفع | – | – | ✓ | – |
-| `view-financials` — سجل المدفوعات والتقارير المالية | ✓ | – | ✓ | – |
-| `suspend-merchants` — إيقاف تاجر أو إعادة تفعيله | ✓ | ✓ | – | – |
-| `execute-deletion-requests` — تنفيذ طلبات الحذف | ✓ | ✓ | – | – |
-| `cancel-stamps` — إلغاء طابع | ✓ | ✓ | – | – |
-| `manage-lookups` — الأيقونات وأنواع النشاط | ✓ | ✓ | – | – |
-| `edit-business-identity` — تعديل اسم النشاط أو نوعه | ✓ | ✓ | – | ✓ |
-| `edit-customer-birthdate` — تعديل تاريخ ميلاد زبون | ✓ | ✓ | – | ✓ |
-| `view-merchants-and-customers` — عرض التجار والبطاقات والزبائن | ✓ | ✓ | – | ✓ |
-| `reveal-customer-phone` — عرض رقم الزبون كاملاً | ✓ | ✓ | – | ✓ |
-
-> **مبدأ من الوثيقة:** يلي بيقبل الدفعات ما بيعدّل أسعار ولا بيمنح تمديد، ولا حتى الـSuper Admin
-> بيقبل دفعات. إذا صاحب المشروع بده يراجع الدفعات بنفسه، بياخد حساب تاني بدور مراجع مدفوعات.
-
-العملية الممنوعة بترجع:
+**`other_ready_rewards`:** هدايا جاهزة لنفس الزبون على بطاقات تانية بالمحل، لتنبيه «عنده هدية على بطاقة
+تانية». بتنسلّم بنفس `scan_token` إذا `method = qr`:
 
 ```json
-{ "message": "Your role does not allow this action.", "code": "permission_denied" }
+"other_ready_rewards": [
+  { "cycle_id": 17, "card": CardSummary, "completed_at": "2026-09-29T15:00:52Z" }
+]
 ```
 
-### إضافة حساب إدارة جديد
+**أخطاء قبل ما ينعرف الزبون:**
+- `422 QR_INVALID`.
+- `422 QR_EXPIRED`.
+- `404 NOT_FOUND` لبطاقة مو تبع المحل.
+- `422 VALIDATION_FAILED` لما ما ينبعت `qr` ولا `phone`، أو ينبعتوا التنين سوا.
 
-```
-1. Super Admin: POST /admin/admin-users  بالاسم والبريد والدور  →  linked: false
-2. صاحب البريد بيفوت على اللوحة بـClerk بنفس البريد (Google أو رمز على البريد)
-3. أول طلب بيربط حساب Clerk بالحساب تلقائياً  →  linked: true
-```
+### 4.13 `POST /merchant/stamps`
 
-الربط بيعتمد على ادعاء `email` بتوكن Clerk (لازم يكون مفعّل من لوحة Clerk).
-الحساب المربوط ما بيقدر حدا تاني ياخده ولو دخل بنفس البريد.
+تأكيد إضافة طابع. **طابع واحد بكل طلب**، ما في حقل كمية.
 
-### `GET /admin/auth/me` 🔒 إدارة
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `scan_token` | string | ✅ | من المعاينة |
+| `client_uuid` | string (uuid) | ✅ | ولّده **مرة وحدة لكل ضغطة «تأكيد»**، وأعد استعماله نفسه إذا أعدت المحاولة |
+
+**`201`** طابع جديد:
 
 ```json
 {
   "data": {
-    "id": 3,
-    "name": "Live Reviewer",
-    "email": "live-reviewer@wafa.test",
-    "role": "payments_reviewer",
-    "is_active": true,
-    "linked": true,
-    "last_login_at": "2026-09-23T18:20:14+00:00"
-  },
-  "permissions": ["review-payments", "view-financials"]
+    "stamp": { "id": 42, "stamped_at": "2026-09-29T15:00:52Z", "method": "qr" },
+    "cycle": { "id": 17, "stamps_count": 1, "status": "COLLECTING", "completed_at": null },
+    "card": CardSummary,
+    "customer": { "id": 18, "kind": "registered", "name": "سارة", "phone_full": null, "phone_masked": "0933***456" }
+  }
 }
 ```
 
-مستخدم Clerk مو مربوط بحساب لوحة (أو حسابه معطّل) بياخد:
+- **`200`** بنفس الشكل: الطلب انبعت قبل بنفس `client_uuid` (شبكة بطيئة أو ضغط مزدوج)، وهي النتيجة
+  الأصلية. ما بينضاف طابع تاني.
+- إذا اكتملت البطاقة بهالطابع: `cycle.status: "REWARD_READY"` مع `completed_at`.
+- الرقم الجديد بيصير هون زبون معلّق: `customer.kind: "pending"` و`phone_masked`. بعد الحفظ الرقم دايماً
+  مخفي.
+- الخادم بيعيد فحص كل القواعد لحظة التأكيد، لأن جهاز تاني ممكن يكون أضاف طابع بعد المعاينة.
+- الزبون المسجّل بيوصله إشعار بالطابع، وإشعار «هديتك جاهزة» إذا اكتملت البطاقة.
+
+**أخطاء:**
+- `422 SCAN_TOKEN_EXPIRED`: مرّت 3 دقائق أو التوكن لمحل تاني.
+- `422 STAMP_INTERVAL` مع التفاصيل.
+- `422 REWARD_READY_REDEEM_FIRST` مع `cycle_id`.
+- `422 CARD_SUSPENDED`.
+- `422 MERCHANT_STATUS_BLOCKS_ACTION`.
+
+### 4.14 `POST /merchant/redemptions`
+
+تأكيد تسليم الهدية. العملية ذرّية: إذا ضغط جهازين سوا، واحد بس بينجح.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `scan_token` | string | ✅ | من معاينة **مسح رمز** (`method: qr`) |
+| `cycle_id` | integer | ✅ | `cycle.id` من المعاينة، أو `cycle_id` من `other_ready_rewards` |
+
+**`200`:**
 
 ```json
-{ "message": "This account does not have admin access." }
+{
+  "data": {
+    "cycle_id": 17,
+    "redeemed_at": "2026-09-29T15:00:52Z",
+    "card": CardSummary,
+    "next_cycle_available": true
+  }
+}
 ```
 
-### `GET /admin/admin-users` 🔒 `manage-admin-accounts`
+- `next_cycle_available: false` إذا البطاقة موقوفة، فما في دورة جديدة.
+- مسموح بكل حالات الاشتراك، حتى المنتهي، لأن الهدية حق الزبون.
+- الزبون بيوصله إشعار `reward_redeemed`.
+- ممكن تسليم الهدية بنفس زيارة الطابع الأخير، وبنفس `scan_token`.
 
-`{ "data": [ AdminUser, … ] }` — الفعّالة أولاً، مرتبة بالاسم.
+**أخطاء:**
 
-### `POST /admin/admin-users` 🔒 `manage-admin-accounts`
+```json
+{ "error": { "code": "REWARD_ALREADY_REDEEMED", "message": "This reward was just handed over.", "details": { "cycle_id": 17, "redeemed_at": "2026-09-29T15:00:52Z" } } }
+```
+
+- `409 REWARD_ALREADY_REDEEMED`: جهاز تاني سلّمها للتو. اعرض «سُلّمت هذه الهدية للتو».
+- `422 REDEEM_REQUIRES_QR`: التوكن من رقم مكتوب.
+- `422 NO_REWARD_READY`.
+- `404 NOT_FOUND`: الدورة مو لهالزبون أو هالمحل.
+- `422 SCAN_TOKEN_EXPIRED`.
+
+### 4.15 `GET /merchant/notifications` · `POST /merchant/notifications/{id}/read` · `POST /merchant/notifications/read-all`
+
+صندوق إشعارات التاجر، بنفس شكل وتصفح إشعارات الزبون (§3.13–3.15). لسا ما في إشعارات بتنبعت للتاجر،
+فالقائمة فاضية هلق:
+
+```json
+{ "data": [], "meta": { "next_cursor": null } }
+```
+
+### 4.16 `PUT /merchant/devices` · `DELETE /merchant/devices/{token}`
+
+متل الزبون (§3.16–3.17): `{ token, platform }` ← **`204`**، والحذف بالرمز مرمَّز ← **`204`**. التاجر
+بيبعت الحذف عند الخروج من Clerk.
+
+---
+
+## 5. لوحة الإدارة
+
+المصادقة جلسة Clerk، والدور من جدول `admin_users`. مستخدم Clerk مو مربوط بحساب إدارة فعّال بياخد
+`403 FORBIDDEN`.
+
+### الأدوار والصلاحيات
+
+الصلاحية بتنفحص **بالخادم** على كل طلب. اللوحة بتستعمل `permissions` من `me` بس لتخبّي الشاشات
+والأزرار. العملية الممنوعة:
+
+```json
+{ "error": { "code": "FORBIDDEN", "message": "Your role does not allow this action." } }
+```
+
+| الصلاحية | Super Admin | Admin | مراجع المدفوعات | الدعم |
+|---|---|---|---|---|
+| `manage-admin-accounts` — حسابات الإدارة | ✓ | – | – | – |
+| `cancel-stamps` — إلغاء طابع | ✓ | ✓ | – | – |
+
+هدول الصلاحيتين يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
+
+### 5.1 `GET /admin/auth/me`
+
+الحساب والدور والصلاحيات. بأول دخول لصاحب البريد، الحساب بينربط بحساب Clerk تلقائياً.
+
+```json
+{
+  "data": {
+    "id": 9,
+    "name": "Doc Admin",
+    "email": "doc-admin@wafa.test",
+    "role": "super_admin",
+    "is_active": true,
+    "linked": true,
+    "last_login_at": "2026-09-29T15:00:53Z"
+  },
+  "permissions": [
+    "manage-admin-accounts", "manage-packages", "manage-settings", "grant-extensions", "view-audit-log",
+    "view-financials", "suspend-merchants", "execute-deletion-requests", "cancel-stamps", "manage-lookups",
+    "edit-business-identity", "edit-customer-birthdate", "view-merchants-and-customers", "reveal-customer-phone"
+  ]
+}
+```
+
+`role`: `super_admin` · `admin` · `payments_reviewer` · `support`.
+
+### 5.2 `GET /admin/admin-users` 🔒 `manage-admin-accounts`
+
+`{ "data": [ AdminUser, … ] }`، الفعّالة أول، مرتبة بالاسم.
+
+### 5.3 `POST /admin/admin-users` 🔒 `manage-admin-accounts`
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
 | `name` | string | ✅ | |
-| `email` | string | ✅ | فريد (بدون فرق بالأحرف الكبيرة والصغيرة) |
+| `email` | string | ✅ | فريد، بدون فرق بالأحرف الكبيرة والصغيرة |
 | `role` | string | ✅ | `super_admin` · `admin` · `payments_reviewer` · `support` |
 
-**رد `201`:**
+**`201`:**
 
 ```json
 {
   "data": {
-    "id": 3,
-    "name": "Live Reviewer",
-    "email": "live-reviewer@wafa.test",
+    "id": 10,
+    "name": "Payments Reviewer",
+    "email": "reviewer@wafa.test",
     "role": "payments_reviewer",
     "is_active": true,
     "linked": false,
@@ -689,172 +1141,200 @@
 }
 ```
 
-### `PATCH /admin/admin-users/{id}` 🔒 `manage-admin-accounts`
+`linked: false` لحد ما يفوت صاحب البريد على اللوحة بـClerk بنفس البريد.
 
-أي حقل من: `name` · `role` · `is_active` · `email` (البريد **بس قبل الربط**).
-**رد `200`:** كائن `AdminUser` محدَّث.
+### 5.4 `PATCH /admin/admin-users/{id}` 🔒 `manage-admin-accounts`
 
-### `DELETE /admin/admin-users/{id}` 🔒 `manage-admin-accounts`
+أي حقل من:
+- `name`
+- `role`
+- `is_active`
+- `email`، بس **قبل الربط**.
 
-بيعطّل الحساب (`is_active: false`) وما بيحذفه، حتى يضل سجل التدقيق يدل على مين عمل شو.
-بيرجع يتفعّل بـ`PATCH` مع `is_active: true`. **رد `200`:** كائن `AdminUser`.
+**`200`:** AdminUser.
 
-**حمايات (`422`):** ما حدا بيغيّر دوره أو بيعطّل حسابه بنفسه:
+ما حدا بيغيّر دوره أو بيعطّل حسابه بنفسه:
+
+```json
+{ "error": { "code": "VALIDATION_FAILED", "message": "You cannot change the role of your own account or deactivate it.", "details": { "fields": { "admin_user": ["invalid"] } } } }
+```
+
+### 5.5 `DELETE /admin/admin-users/{id}` 🔒 `manage-admin-accounts`
+
+بيعطّل الحساب (`is_active: false`) وما بيحذفه، حتى يضل سجل التدقيق يدل على مين عمل شو. بيرجع يتفعّل
+بـ`PATCH` مع `is_active: true`. **`200`:** AdminUser.
+
+### 5.6 `POST /admin/stamps/{id}/cancel` 🔒 `cancel-stamps`
+
+إلغاء طابع غلط بسبب مكتوب:
+- الطابع ما بينحذف، بينعلّم ملغى.
+- إذا كان هو يلي كمّل البطاقة، الدورة بترجع `COLLECTING`.
+- العملية بتنكتب بسجل التدقيق.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `reason` | string | ✅ | 3–255 |
+
+**`200`:**
 
 ```json
 {
-  "message": "You cannot change the role of your own account or deactivate it.",
-  "errors": { "admin_user": ["You cannot change the role of your own account or deactivate it."] }
+  "data": {
+    "id": 45,
+    "cancelled_at": "2026-09-29T15:00:53Z",
+    "cancel_reason": "أضيف للزبون الخطأ",
+    "cycle": { "id": 18, "stamps_count": 0, "status": "COLLECTING", "completed_at": null }
+  }
 }
 ```
 
-كل إنشاء وتعديل وتعطيل وربط بينكتب بسجل التدقيق، مع القيم قبل وبعد.
+**أخطاء:**
+- `409 REWARD_ALREADY_REDEEMED`: ممنوع بعد تسليم الهدية، لأنها طلعت من المحل.
+- `422 VALIDATION_FAILED`: بدون سبب.
+
+إلغاء نفس الطابع مرة تانية بيرجّعه متل ما هو.
 
 ---
 
-## 9. الكائنات
+## 6. توليد رمز QR بتطبيق الزبون
 
-### Customer
-
-| الحقل | النوع | ملاحظة |
-|---|---|---|
-| `id` | integer | |
-| `name` | string \| null | |
-| `phone` | string | `+9639XXXXXXXX` |
-| `birthdate` | string \| null | `YYYY-MM-DD` — ما بيتعدّل من التطبيق |
-| `qr_secret` | string \| null | سرّ رمز الـQR — لتطبيق الزبون فقط |
-| `qr_period_seconds` | integer | مدة تجدد الرمز |
-| `campaigns_muted` | boolean | إيقاف عروض كل التجار |
-| `registered_at` | string \| null | فاضي = زبون معلّق |
-| `policy` | object | `{ accepted_version, current_version, update_required }` |
-
-### Merchant
-
-| الحقل | النوع | ملاحظة |
-|---|---|---|
-| `id` | integer | |
-| `email` | string \| null | بريد الدخول من Clerk |
-| `business_name` · `owner_name` · `phone` | string | |
-| `business_type` · `governorate` | object | `{ id, name }` |
-| `address` | string \| null | |
-| `logo_url` | string \| null | |
-| `status` | string \| null | `TRIAL` · `ACTIVE` · `GRACE` · `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` · `DELETED` — و`null` قبل اختيار الباقة |
-| `registration_step` | string | `business` · `package` · `pin` · `done` |
-| `has_pin` | boolean | |
-| `subscription` | object \| null | الباقة ونوع الفترة وتواريخها |
-
-### AdminUser
-
-`id` · `name` · `email` · `role` · `is_active` · `linked` (دخل صاحبه مرة وحدة على الأقل) · `last_login_at`
-
-### Package
-
-`id` · `name` · `cards_limit` · `weekly_campaigns_limit` · `prices[{duration_months, price_usd}]`
-
----
-
-## 10. مثال ربط (axios)
-
-**تطبيق الزبون:**
+TOTP حسب RFC 6238، بـHMAC-SHA256، و8 أرقام، ونافذة `period_seconds`. الخادم مختبر مع متجهات الاختبار
+الرسمية بالـRFC، فأي مكتبة TOTP قياسية بتعطي نفس الرمز.
 
 ```ts
-const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1', headers: { Accept: 'application/json' } });
+import * as OTPAuth from 'otpauth';
+
+// مرة وحدة بعد الدخول، وخزّنه بـexpo-secure-store
+const { data: { data: qr } } = await api.get('/customer/me/qr');
+
+const totp = new OTPAuth.TOTP({
+  secret: OTPAuth.Secret.fromBase32(qr.secret),
+  algorithm: 'SHA256',
+  digits: 8,
+  period: qr.period_seconds,
+});
+
+// بدون اتصال، كل ما تتغير النافذة
+const qrContent = `W1.${qr.qr_id}.${totp.generate()}`;   // مثل W1.Q1Pa9zblIBzE.19687500
+const secondsLeft = qr.period_seconds - (Math.floor(Date.now() / 1000) % qr.period_seconds);
+```
+
+- الخادم بيقبل النافذة الحالية والسابقة بس، فساعة الموبايل لازم تكون مضبوطة تقريباً.
+- الرمز الأقدم لحد 30 دقيقة بيرجع `QR_EXPIRED`، وغير هيك `QR_INVALID`.
+- الرمز ما فيه رقم ولا اسم، و`qr_id` عشوائي.
+
+---
+
+## 7. إعداد axios
+
+### تطبيق الزبون
+
+```ts
+import axios from 'axios';
+import * as SecureStore from 'expo-secure-store';
+
+export const api = axios.create({
+  baseURL: 'http://127.0.0.1:8000/api/v1',
+  headers: { Accept: 'application/json' },
+});
 
 api.interceptors.request.use(async (config) => {
-  const token = await getStoredToken(); // expo-secure-store
+  const token = await SecureStore.getItemAsync('customer_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// التسجيل
-const { data: policy } = await api.get('/policy');
-await api.post('/customer/auth/otp/request', { phone });
-
-try {
-  const { data } = await api.post('/customer/auth/otp/verify', {
-    phone, code, name, birthdate, policy_version: policy.privacy_policy_version,
-  });
-  await saveToken(data.token);
-  await api.post('/customer/devices', { token: await getFcmToken(), platform: Platform.OS });
-  if (data.stamps_waiting.length) showStampsArrivedScreen(data.stamps_waiting);
-} catch (error) {
-  const errors = error.response?.data?.errors;
-  if (errors?.birthdate) showAgeError(errors.birthdate[0]);
-}
-
-// الخروج
-await api.post('/customer/auth/logout', { device_token: await getFcmToken() });
-await clearToken();
-```
-
-**تطبيق التاجر (Clerk + نسخة التطبيق + الـPIN):**
-
-```ts
-let pinToken: string | null = null;   // بالذاكرة فقط — بيروح لما ينسكّر التطبيق
-
-const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1', headers: { Accept: 'application/json' } });
-
-api.interceptors.request.use(async (config) => {
-  const token = await getToken();            // @clerk/clerk-expo — لا تخزّنه
-  if (token) config.headers.Authorization = `Bearer ${token}`;
-  config.headers['X-App-Version'] = Constants.expoConfig.version;
-  if (pinToken) config.headers['X-Pin-Token'] = pinToken;
-  return config;
-});
-
-api.interceptors.response.use(undefined, (error) => {
-  const data = error.response?.data;
-  if (data?.code === 'app_update_required') showForcedUpdate(data.download_url);
-  if (data?.code === 'merchant_not_registered') openRegistration();
-  if (data?.code === 'registration_incomplete') openRegistration(data.registration_step);
-  if (data?.code === 'pin_required') { pinToken = null; askForPin(); }
+api.interceptors.response.use(undefined, async (error) => {
+  const code = error.response?.data?.error?.code;
+  if (code === 'UNAUTHENTICATED') { await SecureStore.deleteItemAsync('customer_token'); openPhoneScreen(); }
+  if (code === 'PROFILE_INCOMPLETE') openProfileScreen();
+  if (code === 'POLICY_CONSENT_REQUIRED') openPolicyScreen();
   return Promise.reject(error);
 });
-
-// فتح التبويبات المحمية
-const { data } = await api.post('/merchant/pin/verify', { pin });
-pinToken = data.pin_token;
-
-// تغيير الـPIN — useReverification بيعيد الطلب بعد ما المالك يأكّد هويته
-const changePin = useReverification((pin: string) =>
-  api.put('/merchant/pin', { pin, pin_confirmation: pin })
-    .then((r) => r.data)
-    // مرّر للـhook بس ردّ طلب التأكيد؛ باقي الأخطاء (422 مثلاً) بتضل أخطاء
-    .catch((e) => (e.response?.data?.clerk_error ? e.response.data : Promise.reject(e))),
-);
 ```
 
-**أين تخزّن التوكنات:** توكن الزبون بـ`expo-secure-store`؛ توكن Clerk ما بيتخزّن —
-`getToken()` قبل كل طلب؛ و`pin_token` بالذاكرة بس.
+### تطبيق التاجر
+
+```ts
+import axios from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+let pinToken: string | null = null;   // بالذاكرة بس
+export const setPinToken = (t: string | null) => { pinToken = t; };
+
+export function createMerchantApi(getToken: () => Promise<string | null>) {
+  const api = axios.create({ baseURL: 'http://127.0.0.1:8000/api/v1', headers: { Accept: 'application/json' } });
+
+  api.interceptors.request.use(async (config) => {
+    const token = await getToken();   // من useAuth() تبع @clerk/clerk-expo
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    config.headers['X-App-Version'] = Constants.expoConfig?.version;
+    config.headers['X-App-Platform'] = Platform.OS;
+    if (pinToken) config.headers['X-Pin-Token'] = pinToken;
+    return config;
+  });
+
+  api.interceptors.response.use(undefined, (error) => {
+    const e = error.response?.data?.error;
+    if (e?.code === 'APP_VERSION_UNSUPPORTED') showForcedUpdate(e.details.download_url);
+    if (e?.code === 'REGISTRATION_INCOMPLETE') openRegistration(e.details.registration_step);
+    if (e?.code === 'PIN_REQUIRED') { pinToken = null; askForPin(); }
+    return Promise.reject(error);
+  });
+
+  return api;
+}
+
+// تأكيد طابع: uuid واحد لكل ضغطة، ونفسه عند إعادة المحاولة
+const clientUuid = Crypto.randomUUID();
+await api.post('/merchant/stamps', { scan_token: preview.scan_token, client_uuid: clientUuid });
+```
+
+### لوحة الإدارة (Next.js)
+
+```ts
+'use client';
+import axios from 'axios';
+import { useAuth } from '@clerk/nextjs';
+
+export function useAdminApi() {
+  const { getToken } = useAuth();
+  const api = axios.create({ baseURL: process.env.NEXT_PUBLIC_API_URL + '/api/v1', headers: { Accept: 'application/json' } });
+  api.interceptors.request.use(async (config) => {
+    const token = await getToken();
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+  });
+  return api;
+}
+```
 
 ---
 
-## 11. خريطة الوصول
+## 8. للخادم فقط
 
-الوظائف الجاية كل وحدة إلها حارس جاهز من هلق. لما تنبنى، بتنضاف لهالملف بنفس الشكل.
+### `POST /webhooks/clerk`
 
-| الوظيفة | الطرف | الحارس |
-|---|---|---|
-| المسح وإضافة طابع وتسليم الهدية | تاجر | دخول Clerk + تسجيل مكتمل — **بدون PIN**. وحالة الاشتراك بتقرر: الطوابع بـ`TRIAL`/`ACTIVE`/`GRACE` بس، والتسليم بكل حالة غير نهائية |
-| الإحصاءات، الزبائن، الحملات، البطاقات، الاشتراك، الإعدادات | تاجر | `X-Pin-Token` |
-| بطاقاتي، المحلات، رمزي، الإشعارات، حسابي | زبون | توكن الزبون |
-| طابور مراجعة الدفعات | إدارة | `review-payments` |
-| التجار والزبائن (عرض) | إدارة | `view-merchants-and-customers` — وكشف الرقم كامل `reveal-customer-phone` مع سجل تدقيق |
-| إيقاف تاجر · طلبات الحذف · إلغاء طابع | إدارة | `suspend-merchants` · `execute-deletion-requests` · `cancel-stamps` |
-| الباقات والأسعار · الإعدادات · التمديد · سجل التدقيق | إدارة | `manage-packages` · `manage-settings` · `grant-extensions` · `view-audit-log` |
-
----
-
-## 12. للخادم فقط
-
-### `POST /api/v1/webhooks/clerk`
-
-**التطبيقات ما بتستعمله.** Clerk بيبعته لما مستخدم يغيّر بريده أو ينحذف، والطلب موقّع بتوقيع
-Svix (`svix-id`، `svix-timestamp`، `svix-signature`).
+**التطبيقات ما بتستعمله.** Clerk بيبعته لما مستخدم يغيّر بريده أو ينحذف، والطلب موقّع بتوقيع Svix
+(`svix-id`، `svix-timestamp`، `svix-signature`).
 
 | الحدث | الأثر |
 |---|---|
 | `user.updated` | البريد الأساسي الجديد بيتحدّث للتاجر ولحساب الإدارة المربوط |
-| `user.deleted` | حساب الإدارة بينفك ربطه، فإذا انعمل المستخدم من جديد بنفس البريد بيرجع ينربط بأول دخول. **بيانات التاجر ما بتنلمس** (هدايا الزبائن حق إلهم)، بس بينكتب سطر بسجل التدقيق |
+| `user.deleted` | حساب الإدارة بينفك ربطه. **بيانات التاجر ما بتنلمس** (هدايا الزبائن حق إلهم)، بس بينكتب سطر بسجل التدقيق |
 
-الرد `200` لأي حدث موقّع، و`400` للتوقيع الغلط أو إذا كان أقدم من 5 دقائق.
+الرد `200` لأي حدث موقّع، و`400` للتوقيع الغلط أو الأقدم من 5 دقائق.
+
+---
+
+## 9. للتجريب محلياً
+
+- **OTP:** مع `OTP_DRIVER=log` الرمز ما بينبعت على واتساب، بينكتب بـ`storage/logs/laravel.log`. وبـDocker:
+  `docker compose logs -f app` (دوّر على `OTP code issued`).
+- **رقم المراجع:**
+  - `REVIEW_PHONE` و`REVIEW_OTP_CODE` بـ`.env` بيعطوا رقم برمز ثابت.
+  - `php artisan db:seed --class=ReviewAccountSeeder` بيعطيه بطاقة قيد التجميع وهدية جاهزة.
+- **Clerk:** `php artisan clerk:smoke-test` بيجرّب التسجيل والـPIN ولوحة الإدارة على نسخة Clerk الحقيقية.
+- **الفاصل بين طابعين:** إعداد `stamp_interval_minutes` بجدول `settings` (افتراضياً 60). نزّله للتجريب
+  السريع.

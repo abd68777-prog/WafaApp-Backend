@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\Setting;
 use Closure;
 use Illuminate\Http\Request;
@@ -33,11 +35,9 @@ class EnsureSupportedAppVersion
             return $next($request);
         }
 
-        return response()->json([
-            'message' => 'A newer version of the app is required.',
-            'code' => 'app_update_required',
-            'minimum_version' => $minimum,
-            'download_url' => Setting::read('merchant_app_download_url', ''),
-        ], 426);
+        throw ApiException::of(ErrorCode::AppVersionUnsupported, 'A newer version of the app is required.', [
+            'min_version' => $minimum,
+            'download_url' => (string) Setting::read('merchant_app_download_url', ''),
+        ]);
     }
 }

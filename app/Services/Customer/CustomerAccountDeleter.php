@@ -42,6 +42,7 @@ final class CustomerAccountDeleter
                 'phone' => null,
                 'name' => null,
                 'birthdate' => null,
+                'qr_id' => null,
                 'qr_secret' => null,
             ])->save();
 

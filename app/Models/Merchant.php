@@ -73,6 +73,14 @@ class Merchant extends Authenticatable
     }
 
     /**
+     * A full URL, never a storage path: the apps load it as is.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path !== null ? url('storage/'.$this->logo_path) : null;
+    }
+
+    /**
      * @return BelongsTo<BusinessType, $this>
      */
     public function businessType(): BelongsTo

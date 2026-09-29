@@ -41,8 +41,7 @@ class AdminUserTest extends TestCase
         ]);
 
         $response->assertForbidden()->assertExactJson([
-            'message' => 'Your role does not allow this action.',
-            'code' => 'permission_denied',
+            'error' => ['code' => 'FORBIDDEN', 'message' => 'Your role does not allow this action.'],
         ]);
 
         $this->assertDatabaseMissing('admin_users', ['email' => 'new@wafa.test']);
@@ -97,7 +96,7 @@ class AdminUserTest extends TestCase
             'role' => 'support',
         ]);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('email');
+        $response->assertUnprocessable()->assertJsonValidationErrors('email', 'error.details.fields');
 
         $this->assertDatabaseCount('admin_users', 2);
     }
@@ -126,7 +125,7 @@ class AdminUserTest extends TestCase
         $response = $this->withToken($this->superAdminToken())
             ->patchJson("/api/v1/admin/admin-users/{$staff->id}", ['email' => 'other@wafa.test']);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('email');
+        $response->assertUnprocessable()->assertJsonValidationErrors('email', 'error.details.fields');
 
         $this->assertSame('staff@wafa.test', $staff->fresh()->email);
     }
@@ -171,7 +170,7 @@ class AdminUserTest extends TestCase
         $response = $this->withToken($this->superAdminToken())
             ->patchJson("/api/v1/admin/admin-users/{$superAdmin->id}", ['role' => 'admin']);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('admin_user');
+        $response->assertUnprocessable()->assertJsonValidationErrors('admin_user', 'error.details.fields');
 
         $this->assertSame(AdminRole::SuperAdmin, $superAdmin->fresh()->role);
     }
@@ -182,7 +181,7 @@ class AdminUserTest extends TestCase
 
         $response = $this->withToken($this->superAdminToken())->deleteJson("/api/v1/admin/admin-users/{$superAdmin->id}");
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('admin_user');
+        $response->assertUnprocessable()->assertJsonValidationErrors('admin_user', 'error.details.fields');
 
         $this->assertTrue($superAdmin->fresh()->is_active);
     }

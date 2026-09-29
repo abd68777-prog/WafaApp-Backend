@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\V1\Webhooks;
 
+use App\Enums\ErrorCode;
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Models\AdminUser;
 use App\Models\AuditLog;
@@ -30,7 +32,7 @@ class ClerkWebhookController extends Controller
     public function handle(Request $request): JsonResponse
     {
         if (! $this->signature->isValid($request)) {
-            return response()->json(['message' => 'Invalid webhook signature.'], 400);
+            return ApiException::response(ErrorCode::Unauthenticated, 'Invalid webhook signature.', status: 400);
         }
 
         $clerkUserId = $request->input('data.id');

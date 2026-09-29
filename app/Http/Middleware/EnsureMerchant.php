@@ -2,7 +2,9 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ErrorCode;
 use App\Enums\MerchantStatus;
+use App\Exceptions\ApiException;
 use App\Models\Merchant;
 use App\Services\Clerk\ClerkSession;
 use Closure;
@@ -17,8 +19,8 @@ use Symfony\Component\HttpFoundation\Response;
  * possible in every non-final state. What each status may do is decided by the
  * endpoints, through MerchantStatus.
  *
- * Every refusal carries a machine-readable `code` so the app can route the
- * user to the right screen.
+ * Before registration is complete every route here answers
+ * REGISTRATION_INCOMPLETE with the step the app should open.
  */
 class EnsureMerchant
 {
@@ -33,26 +35,14 @@ class EnsureMerchant
             ->where('clerk_user_id', ClerkSession::fromRequest($request)->userId)
             ->first();
 
-        if (! $merchant) {
-            return response()->json([
-                'message' => 'Complete your business registration first.',
-                'code' => 'merchant_not_registered',
-            ], 403);
-        }
-
-        if (! $merchant->hasCompletedRegistration()) {
-            return response()->json([
-                'message' => 'Finish the registration steps first.',
-                'code' => 'registration_incomplete',
-                'registration_step' => $merchant->registrationStep(),
-            ], 403);
+        if (! $merchant?->hasCompletedRegistration()) {
+            throw ApiException::of(ErrorCode::RegistrationIncomplete, 'Finish the registration steps first.', [
+                'registration_step' => $merchant?->registrationStep() ?? 'business',
+            ]);
         }
 
         if ($merchant->status === MerchantStatus::Deleted) {
-            return response()->json([
-                'message' => 'This business account has been deleted.',
-                'code' => 'merchant_deleted',
-            ], 403);
+            throw ApiException::of(ErrorCode::Forbidden, 'This business account has been deleted.');
         }
 
         $request->setUserResolver(fn (): Merchant => $merchant);

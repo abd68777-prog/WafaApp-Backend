@@ -21,7 +21,7 @@ use Tests\TestCase;
  * Deleting an account from the app, as the privacy policy describes it (§10):
  * personal data goes at once, stamps stay behind without anyone attached.
  */
-class AccountTest extends TestCase
+class AccountDeletionTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -49,15 +49,16 @@ class AccountTest extends TestCase
         DeviceToken::factory()->create(['owner_id' => $customer->id]);
         OtpCode::factory()->create(['phone' => self::PHONE]);
 
-        $response = $this->withToken($this->customerToken($customer))->deleteJson('/api/v1/customer/account');
+        $response = $this->withToken($this->customerToken($customer))->deleteJson('/api/v1/customer/me');
 
-        $response->assertOk();
+        $response->assertNoContent();
 
         $deleted = Customer::withTrashed()->find($customer->id);
         $this->assertSoftDeleted($deleted);
         $this->assertNull($deleted->phone);
         $this->assertNull($deleted->name);
         $this->assertNull($deleted->birthdate);
+        $this->assertNull($deleted->qr_id);
         $this->assertNull($deleted->qr_secret);
 
         $this->assertSame(0, $deleted->tokens()->count());
@@ -83,37 +84,35 @@ class AccountTest extends TestCase
         $customer = Customer::factory()->create();
         $token = $this->customerToken($customer);
 
-        $this->withToken($token)->deleteJson('/api/v1/customer/account')->assertOk();
+        $this->withToken($token)->deleteJson('/api/v1/customer/me')->assertNoContent();
 
         $this->app['auth']->forgetGuards();
-        $this->withToken($token)->getJson('/api/v1/customer/auth/me')->assertUnauthorized();
+        $this->withToken($token)->getJson('/api/v1/customer/me')->assertUnauthorized();
     }
 
     public function test_the_same_number_can_sign_up_again_as_a_new_account_without_the_old_stamps(): void
     {
         $customer = Customer::factory()->create(['phone' => self::PHONE]);
         CardCycle::factory()->create(['customer_id' => $customer->id, 'stamps_count' => 5]);
-        $this->withToken($this->customerToken($customer))->deleteJson('/api/v1/customer/account')->assertOk();
+        $this->withToken($this->customerToken($customer))->deleteJson('/api/v1/customer/me')->assertNoContent();
         OtpCode::factory()->create(['phone' => self::PHONE]);
 
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
+        $response = $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => self::PHONE,
             'code' => '123456',
-            'name' => 'سارة',
-            'birthdate' => '1998-05-20',
             'policy_version' => '1.2',
         ]);
 
         $response->assertOk()
-            ->assertJsonPath('is_new_customer', true)
-            ->assertJsonPath('stamps_waiting', []);
+            ->assertJsonPath('data.needs_profile', true)
+            ->assertJsonPath('data.claimed_stamps', []);
 
-        $this->assertNotSame($customer->id, $response->json('data.id'));
+        $this->assertNotSame($customer->id, $response->json('data.customer.id'));
     }
 
     public function test_deleting_requires_a_customer_token(): void
     {
-        $this->deleteJson('/api/v1/customer/account')->assertUnauthorized();
+        $this->deleteJson('/api/v1/customer/me')->assertUnauthorized();
     }
 
     private function customerToken(Customer $customer): string

@@ -36,6 +36,20 @@ enum MerchantStatus: string
     }
 
     /**
+     * Campaigns, new cards and new customers follow the same rule as stamps
+     * (requirements table 3.4).
+     */
+    public function canSendCampaigns(): bool
+    {
+        return $this->canCollectStamps();
+    }
+
+    public function canCreateCards(): bool
+    {
+        return $this->canCollectStamps();
+    }
+
+    /**
      * Only merchants who can actually stamp appear in the customer directory.
      */
     public function appearsInDirectory(): bool

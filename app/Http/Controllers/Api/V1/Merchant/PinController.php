@@ -2,94 +2,92 @@
 
 namespace App\Http\Controllers\Api\V1\Merchant;
 
+use App\Enums\ErrorCode;
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Api\V1\Merchant\SetPinRequest;
-use App\Http\Requests\Api\V1\Merchant\VerifyPinRequest;
+use App\Http\Requests\Api\V1\Merchant\ChangePinRequest;
+use App\Http\Requests\Api\V1\Merchant\ResetPinRequest;
+use App\Http\Requests\Api\V1\Merchant\UnlockPinRequest;
 use App\Models\Merchant;
 use App\Services\Clerk\ClerkSession;
+use App\Services\Merchant\PinAttempts;
 use App\Services\Merchant\PinUnlockToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 /**
- * The PIN that separates the owner from the cashier on a shared account.
+ * The PIN that separates the owner from the cashier on a shared account
+ * (contract §5.4).
  */
 class PinController extends Controller
 {
     /**
-     * How recently the owner must have proved their identity to Clerk before
-     * setting a new PIN.
+     * How recently the owner must have signed in to Clerk to reset a
+     * forgotten PIN.
      */
-    private const REVERIFICATION_MINUTES = 10;
+    public const RESET_MAX_AGE_MINUTES = 5;
 
-    public function __construct(private readonly PinUnlockToken $pinUnlockToken) {}
+    public function __construct(
+        private readonly PinUnlockToken $pinUnlockToken,
+        private readonly PinAttempts $pinAttempts,
+    ) {}
 
     /**
-     * Check the PIN and hand back the token that opens the protected tabs for
-     * the rest of the app session.
+     * Check the PIN and hand back the token that opens the protected tabs.
+     * The app keeps it in memory only, so closing the app locks them again.
      */
-    public function verify(VerifyPinRequest $request): JsonResponse
+    public function unlock(UnlockPinRequest $request): JsonResponse
     {
         /** @var Merchant $merchant */
         $merchant = $request->user();
 
-        if ($merchant->pin_hash === null || ! Hash::check($request->string('pin')->value(), $merchant->pin_hash)) {
-            throw ValidationException::withMessages([
-                'pin' => ['This PIN is not correct.'],
+        $this->pinAttempts->check($merchant, $request->string('pin')->value());
+
+        return $this->unlocked($merchant);
+    }
+
+    /**
+     * Change the PIN with the current one. Every unlock token issued for the
+     * old PIN, on every device, stops working; this device gets a new one.
+     */
+    public function update(ChangePinRequest $request): JsonResponse
+    {
+        /** @var Merchant $merchant */
+        $merchant = $request->user();
+
+        $this->pinAttempts->check($merchant, $request->string('current_pin')->value());
+
+        return $this->setPin($merchant, $request->string('new_pin')->value());
+    }
+
+    /**
+     * Set a new PIN without the old one, for an owner who forgot it: they sign
+     * out of Clerk, sign in again, and have a few minutes to choose a new PIN.
+     * The cashier signed in on the shop's phone cannot pass that check.
+     */
+    public function reset(ResetPinRequest $request): JsonResponse
+    {
+        if (! ClerkSession::fromRequest($request)->verifiedWithin(self::RESET_MAX_AGE_MINUTES)) {
+            throw ApiException::of(ErrorCode::PinResetRequiresRecentLogin, 'Sign in again to reset the PIN.', [
+                'max_age_seconds' => self::RESET_MAX_AGE_MINUTES * 60,
             ]);
         }
 
-        $unlock = $this->pinUnlockToken->issue($merchant);
-
-        return response()->json([
-            'message' => 'PIN accepted.',
-            'pin_token' => $unlock['token'],
-            'expires_at' => $unlock['expires_at']->toIso8601String(),
-        ]);
-    }
-
-    /**
-     * Set a new PIN, which also covers a forgotten one: the old PIN is not
-     * asked for. Instead the owner must have signed in to Clerk again within
-     * the last few minutes — the cashier uses the app but cannot pass Clerk's
-     * check, since its code goes to the owner's email.
-     *
-     * Every unlock token issued for the old PIN stops working.
-     */
-    public function update(SetPinRequest $request): JsonResponse
-    {
-        if (! ClerkSession::fromRequest($request)->verifiedWithin(self::REVERIFICATION_MINUTES)) {
-            return $this->reverificationRequired();
-        }
-
         /** @var Merchant $merchant */
         $merchant = $request->user();
 
-        $merchant->forceFill(['pin_hash' => Hash::make($request->string('pin')->value())])->save();
-
-        return response()->json(['message' => 'PIN updated.']);
+        return $this->setPin($merchant, $request->string('new_pin')->value());
     }
 
-    /**
-     * Shaped like Clerk's own reverification error, so `useReverification()`
-     * in the app recognises it, asks the owner to verify, and retries.
-     */
-    private function reverificationRequired(): JsonResponse
+    private function setPin(Merchant $merchant, string $pin): JsonResponse
     {
-        return response()->json([
-            'message' => 'Sign in again to change the PIN.',
-            'code' => 'reverification_required',
-            'clerk_error' => [
-                'type' => 'forbidden',
-                'reason' => 'reverification-error',
-                'metadata' => [
-                    'reverification' => [
-                        'level' => 'first_factor',
-                        'afterMinutes' => self::REVERIFICATION_MINUTES,
-                    ],
-                ],
-            ],
-        ], 403);
+        $merchant->forceFill(['pin_hash' => Hash::make($pin)])->save();
+
+        return $this->unlocked($merchant);
+    }
+
+    private function unlocked(Merchant $merchant): JsonResponse
+    {
+        return response()->json(['data' => $this->pinUnlockToken->describe($merchant)]);
     }
 }

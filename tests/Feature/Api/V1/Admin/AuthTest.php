@@ -100,7 +100,7 @@ class AuthTest extends TestCase
         // alone must not grant dashboard access.
         $response = $this->withToken($this->clerkToken('user_some_merchant'))->getJson('/api/v1/admin/auth/me');
 
-        $response->assertForbidden()->assertJsonPath('message', 'This account does not have admin access.');
+        $response->assertForbidden()->assertJsonPath('error.code', 'FORBIDDEN');
     }
 
     public function test_a_deactivated_dashboard_account_gets_403(): void

@@ -44,6 +44,17 @@ final class PhoneNumber
         return '+'.self::COUNTRY_CODE.$digits;
     }
 
+    /**
+     * The form merchants see: the local number with its middle hidden,
+     * `0933***456` for `+963933123456` (privacy policy, contract §1.7).
+     */
+    public static function mask(string $e164): string
+    {
+        $local = '0'.substr($e164, strlen('+'.self::COUNTRY_CODE));
+
+        return substr($local, 0, 4).'***'.substr($local, -3);
+    }
+
     public static function isValid(string $value): bool
     {
         return self::normalize($value) !== null;

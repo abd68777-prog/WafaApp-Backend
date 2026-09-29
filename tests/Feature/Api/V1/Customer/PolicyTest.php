@@ -10,55 +10,54 @@ use Tests\TestCase;
 
 /**
  * A new privacy policy version is announced in the app, and the customer's
- * agreement to it is recorded per version (privacy policy §14).
+ * agreement to it is recorded per version (privacy policy §14). Until then the
+ * app is limited to the screens that let the customer agree or leave.
  */
 class PolicyTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_a_customer_who_agreed_to_the_current_version_has_nothing_to_accept(): void
+    public function test_the_account_shows_which_version_the_customer_agreed_to(): void
     {
         $customer = Customer::factory()->create();
         PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.2']);
 
-        $response = $this->withToken($this->customerToken($customer))->getJson('/api/v1/customer/auth/me');
+        $response = $this->withToken($this->customerToken($customer))->getJson('/api/v1/customer/me');
 
-        $response->assertOk()->assertJsonPath('data.policy', [
-            'accepted_version' => '1.2',
-            'current_version' => '1.2',
-            'update_required' => false,
-        ]);
+        $response->assertOk()->assertJsonPath('data.consented_policy_version', '1.2');
     }
 
-    public function test_a_new_policy_version_is_flagged_until_the_customer_accepts_it(): void
+    public function test_a_new_version_blocks_the_app_until_the_customer_agrees_to_it(): void
     {
         Setting::write('privacy_policy_version', '1.3');
         $customer = Customer::factory()->create();
         PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.2']);
+        $token = $this->customerToken($customer);
 
-        $this->withToken($this->customerToken($customer))
-            ->getJson('/api/v1/customer/auth/me')
-            ->assertJsonPath('data.policy.update_required', true);
+        $this->withToken($token)->getJson('/api/v1/customer/me/qr')
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'POLICY_CONSENT_REQUIRED')
+            ->assertJsonPath('error.details.current_version', '1.3');
 
-        $response = $this->withToken($this->customerToken($customer))
-            ->postJson('/api/v1/customer/policy/accept', ['policy_version' => '1.3']);
+        $this->withToken($token)->postJson('/api/v1/customer/me/policy-consents', ['policy_version' => '1.3'])
+            ->assertOk()
+            ->assertJsonPath('data.consented_policy_version', '1.3');
 
-        $response->assertOk()
-            ->assertJsonPath('data.policy.accepted_version', '1.3')
-            ->assertJsonPath('data.policy.update_required', false);
-
+        $this->withToken($token)->getJson('/api/v1/customer/me/qr')->assertOk();
         $this->assertDatabaseHas('policy_consents', ['customer_id' => $customer->id, 'policy_version' => '1.3']);
     }
 
-    public function test_accepting_a_version_that_is_no_longer_current_is_rejected(): void
+    public function test_agreeing_to_a_version_that_is_no_longer_current_is_refused(): void
     {
         Setting::write('privacy_policy_version', '1.3');
         $customer = Customer::factory()->create();
 
         $response = $this->withToken($this->customerToken($customer))
-            ->postJson('/api/v1/customer/policy/accept', ['policy_version' => '1.2']);
+            ->postJson('/api/v1/customer/me/policy-consents', ['policy_version' => '1.2']);
 
-        $response->assertUnprocessable()->assertJsonValidationErrors('policy_version');
+        $response->assertUnprocessable()
+            ->assertJsonPath('error.code', 'POLICY_VERSION_OUTDATED')
+            ->assertJsonPath('error.details.current_version', '1.3');
 
         $this->assertDatabaseCount('policy_consents', 0);
     }

@@ -124,7 +124,7 @@ class ClerkSmokeTest extends Command
         $this->inspectClaims($merchantToken);
 
         $this->section('Token verification');
-        $me = $this->api($merchantToken)->get('/merchant/auth/me');
+        $me = $this->api($merchantToken)->get('/merchant/me');
 
         if ($me->unauthorized()) {
             $this->recordFailure('The API accepts the Clerk token', 'got 401: CLERK_JWT_KEY is not the public key of this Clerk instance');
@@ -132,7 +132,7 @@ class ClerkSmokeTest extends Command
             return;
         }
 
-        $this->check('The API accepts the Clerk token', $me->ok() && $me->json('registered') === false, $this->describe($me));
+        $this->check('The API accepts the Clerk token', $me->ok() && $me->json('data.registration_step') === 'business', $this->describe($me));
 
         $this->section('Merchant registration');
         $this->merchantFlow($merchantToken, $suffix);
@@ -156,10 +156,12 @@ class ClerkSmokeTest extends Command
     {
         $api = $this->api($token);
 
+        $lookups = $api->get('/merchant/lookups');
+
         $business = $api->post('/merchant/registration/business', [
             'business_name' => "Smoke Test Shop {$suffix}",
-            'business_type_id' => $api->get('/lookups/business-types')->json('data.0.id'),
-            'governorate_id' => $api->get('/lookups/governorates')->json('data.0.id'),
+            'business_type_id' => $lookups->json('data.business_types.0.id'),
+            'governorate_id' => $lookups->json('data.governorates.0.id'),
             'owner_name' => 'Smoke Test',
             'phone' => '+96390'.random_int(1000000, 9999999),
         ]);
@@ -167,8 +169,8 @@ class ClerkSmokeTest extends Command
         $this->check('Business details saved', $business->created(), $this->describe($business));
         $this->check(
             'Email copied from the Clerk token',
-            $business->json('data.email') === $this->merchantEmail,
-            'stored: '.var_export($business->json('data.email'), true),
+            $business->json('data.merchant.email') === $this->merchantEmail,
+            'stored: '.var_export($business->json('data.merchant.email'), true),
         );
 
         if (! $business->created()) {
@@ -177,47 +179,47 @@ class ClerkSmokeTest extends Command
 
         // Everything below cleans up through this process's database; if the
         // API writes elsewhere, cleaning up (and linking) cannot work.
-        $this->sharesDatabase = Merchant::query()->whereKey($business->json('data.id'))->exists();
+        $this->sharesDatabase = Merchant::query()->whereKey($business->json('data.merchant.id'))->exists();
 
         if (! $this->sharesDatabase) {
             $this->recordFailure(
                 'The API shares this database',
-                "run the command where the API runs (inside Docker: --base-url=http://web); remove shop #{$business->json('data.id')} by hand",
+                "run the command where the API runs (inside Docker: --base-url=http://web); remove shop #{$business->json('data.merchant.id')} by hand",
             );
 
             return;
         }
 
         $package = $api->post('/merchant/registration/package', [
-            'package_id' => $api->get('/lookups/packages')->json('data.0.id'),
+            'package_id' => $lookups->json('data.packages.0.id'),
         ]);
 
         $this->check(
             'Package chosen, trial started',
-            $package->ok() && $package->json('trial_granted') === true && $package->json('data.status') === 'TRIAL',
+            $package->ok() && $package->json('data.trial_granted') === true && $package->json('data.subscription.status') === 'TRIAL',
             $this->describe($package),
         );
 
-        $pin = $api->post('/merchant/registration/pin', ['pin' => self::PIN, 'pin_confirmation' => self::PIN]);
-        $this->check('PIN set, registration done', $pin->json('registration_step') === 'done', $this->describe($pin));
+        $pin = $api->post('/merchant/registration/pin', ['pin' => self::PIN]);
+        $this->check('PIN set, registration done', $pin->json('data.me.registration_step') === 'done', $this->describe($pin));
 
-        $unlock = $api->post('/merchant/pin/verify', ['pin' => self::PIN]);
-        $this->check('PIN unlocks the protected tabs', filled($unlock->json('pin_token')), $this->describe($unlock));
+        $unlock = $api->post('/merchant/pin/unlock', ['pin' => self::PIN]);
+        $this->check('PIN unlocks the protected tabs', filled($unlock->json('data.pin_token')), $this->describe($unlock));
 
-        $change = $api->put('/merchant/pin', ['pin' => '8765', 'pin_confirmation' => '8765']);
+        $reset = $api->post('/merchant/pin/reset', ['new_pin' => '8765']);
 
-        if ($change->json('code') === 'reverification_required') {
+        if ($reset->json('error.code') === 'PIN_RESET_REQUIRES_RECENT_LOGIN') {
             // Not a failure of the API: the session was opened from the
             // backend, and Clerk decides what `fva` says for it.
             $this->components->twoColumnDetail(
-                'PIN change after a fresh sign-in',
+                'PIN reset after a fresh sign-in',
                 '<fg=yellow;options=bold>SKIPPED</> this session has no fresh fva; test it from the app',
             );
 
             return;
         }
 
-        $this->check('PIN change after a fresh sign-in', $change->ok(), $this->describe($change));
+        $this->check('PIN reset after a fresh sign-in', $reset->ok(), $this->describe($reset));
     }
 
     private function dashboardFlow(string $token, string $email): void
@@ -246,7 +248,7 @@ class ClerkSmokeTest extends Command
 
         $this->check(
             'Support cannot manage dashboard accounts',
-            $accounts->forbidden() && $accounts->json('code') === 'permission_denied',
+            $accounts->forbidden() && $accounts->json('error.code') === 'FORBIDDEN',
             $this->describe($accounts),
         );
     }

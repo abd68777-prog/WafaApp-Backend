@@ -36,6 +36,21 @@ final class PinUnlockToken
         return ['token' => $token, 'expires_at' => $expiresAt];
     }
 
+    /**
+     * A fresh token in the contract's PinUnlock shape.
+     *
+     * @return array{pin_token: string, expires_at: string}
+     */
+    public function describe(Merchant $merchant): array
+    {
+        $unlock = $this->issue($merchant);
+
+        return [
+            'pin_token' => $unlock['token'],
+            'expires_at' => $unlock['expires_at']->toIso8601ZuluString(),
+        ];
+    }
+
     public function isValidFor(Merchant $merchant, ?string $token): bool
     {
         if (blank($token) || $merchant->pin_hash === null) {

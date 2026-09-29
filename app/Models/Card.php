@@ -2,9 +2,12 @@
 
 namespace App\Models;
 
+use App\Enums\CardCycleStatus;
 use App\Enums\CardStatus;
 use Database\Factories\CardFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +44,21 @@ class Card extends Model
     public function acceptsNewCustomers(): bool
     {
         return $this->status === CardStatus::Active;
+    }
+
+    /**
+     * Customers with an open cycle on the card, and how many of them wait for
+     * their reward: the two numbers on the merchant's card list.
+     *
+     * @param  Builder<Card>  $query
+     */
+    #[Scope]
+    protected function withMerchantCounts(Builder $query): void
+    {
+        $query->withCount([
+            'cycles as active_customers_count' => fn (Builder $cycles) => $cycles->where('status', '!=', CardCycleStatus::Redeemed),
+            'cycles as rewards_ready_count' => fn (Builder $cycles) => $cycles->where('status', CardCycleStatus::RewardReady),
+        ]);
     }
 
     /**

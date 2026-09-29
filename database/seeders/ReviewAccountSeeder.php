@@ -16,6 +16,7 @@ use App\Models\Merchant;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Stamp;
+use App\Services\Customer\CustomerQrCode;
 use App\Support\PhoneNumber;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -69,10 +70,12 @@ class ReviewAccountSeeder extends Seeder
         ]);
 
         $customer->forceFill([
-            'qr_secret' => $customer->qr_secret ?? Str::random(40),
             'registered_at' => $customer->registered_at ?? now(),
             'last_activity_at' => now(),
-        ])->save();
+        ]);
+
+        app(CustomerQrCode::class)->assignTo($customer);
+        $customer->save();
 
         $customer->policyConsents()->firstOrCreate(
             ['policy_version' => (string) Setting::read('privacy_policy_version', '1.2')],

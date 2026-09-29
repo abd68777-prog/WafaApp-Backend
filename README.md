@@ -101,7 +101,7 @@ FRONTEND_URLS=http://localhost:3000,http://localhost:5173
 
 | Who                | Signs in with                      | Sends as `Authorization: Bearer`     |
 | ------------------ | ---------------------------------- | ------------------------------------ |
-| Customer           | Phone number + WhatsApp OTP        | The token returned by `otp/verify`   |
+| Customer           | Phone number + WhatsApp OTP        | The token returned by `auth/verify`  |
 | Merchant and admin | Clerk (Google and other providers) | A Clerk session token on every request |
 
 The WhatsApp OTP is for the customer app only; merchants and admins never use it.
@@ -177,7 +177,8 @@ Clerk user linked to a row in `admin_users`, a merchant is one linked to a row i
    fingerprint that stops the free trial being taken twice, the merchant's
    stored email, and linking a new dashboard account on its first sign-in.
    Clerk's default `fva` claim (minutes since the user last verified) is used as
-   is to require a fresh sign-in before a merchant changes the PIN.
+   is to require a sign-in within the last five minutes before a merchant resets
+   a forgotten PIN.
 
 4. Create your own user (Clerk Dashboard → **Users** → Create user, or sign in
    once through Clerk's hosted sign-in page), copy its id (`user_…`), and link
@@ -199,8 +200,8 @@ Clerk user linked to a row in `admin_users`, a merchant is one linked to a row i
 
 Merchants need no setup: after signing in with Clerk they register in three
 steps — business details, package (which starts the free trial) and PIN.
-`GET /api/v1/merchant/auth/me` tells the app which step is next. The PIN-protected
-tabs require the `X-Pin-Token` header returned by `POST /api/v1/merchant/pin/verify`
+`GET /api/v1/merchant/me` tells the app which step is next. The PIN-protected
+tabs require the `X-Pin-Token` header returned by `POST /api/v1/merchant/pin/unlock`
 (middleware `merchant.pin`).
 
 ### Testing against the real Clerk instance
@@ -249,53 +250,41 @@ CLERK_WEBHOOK_SECRET=whsec_...
 Clerk cannot reach `localhost`; to receive real deliveries locally, expose the
 API through a tunnel (cloudflared, ngrok).
 
-The "PIN change after a fresh sign-in" step always shows **SKIPPED**: Clerk
+The "PIN reset after a fresh sign-in" step always shows **SKIPPED**: Clerk
 gives sessions opened from the backend `fva: [99999, -1]` (no recent
-verification), so the API correctly answers `reverification_required`. A real
-sign-in in the app produces a fresh `fva`, and that is where the PIN change is
+verification), so the API correctly answers `PIN_RESET_REQUIRES_RECENT_LOGIN`. A
+real sign-in in the app produces a fresh `fva`, and that is where the reset is
 tested end to end.
 
 ### Merchant app version
 
 The merchant app is distributed outside the stores, so every request from it
 carries `X-App-Version`. Anything older than the `merchant_min_app_version`
-setting is refused with `426` and `code: app_update_required`, which drives the
+setting is refused with `426` and `APP_VERSION_UNSUPPORTED`, which drives the
 forced-update screen. Requests without the header pass.
 
 ## Endpoints
 
-| Method | Path                                      | Auth           | Purpose                                |
-| ------ | ----------------------------------------- | -------------- | -------------------------------------- |
-| GET    | `/up`                                     | –              | Health check                           |
-| GET    | `/api/v1/ping`                            | –              | Connectivity check                     |
-| GET    | `/api/v1/lookups/governorates`            | –              | The 14 governorates                    |
-| GET    | `/api/v1/lookups/business-types`          | –              | Business types                         |
-| GET    | `/api/v1/lookups/icons`                   | –              | Card icon library                      |
-| GET    | `/api/v1/lookups/packages`                | –              | Packages with their price matrix       |
-| GET    | `/api/v1/policy`                          | –              | Current privacy policy version and URLs |
-| POST   | `/api/v1/customer/auth/otp/request`       | –              | Send a login code over WhatsApp        |
-| POST   | `/api/v1/customer/auth/otp/verify`        | –              | Verify, create the account, return a token |
-| GET    | `/api/v1/customer/auth/me`                | customer token | Current customer                       |
-| POST   | `/api/v1/customer/auth/logout`            | customer token | Revoke the current token               |
-| POST   | `/api/v1/customer/auth/logout-all`        | customer token | Revoke every token and device          |
-| POST   | `/api/v1/customer/devices`                | customer token | Register the device's push token       |
-| POST   | `/api/v1/customer/policy/accept`          | customer token | Agree to a new privacy policy version  |
-| DELETE | `/api/v1/customer/account`                | customer token | Delete the account (anonymised stamps stay) |
-| GET    | `/api/v1/merchant/auth/me`                | Clerk          | Merchant state and the next step       |
-| POST   | `/api/v1/merchant/auth/logout`            | Clerk          | Forget this device's push token        |
-| POST   | `/api/v1/merchant/registration/business`  | Clerk          | Step 1 — business details              |
-| POST   | `/api/v1/merchant/registration/package`   | Clerk          | Step 2 — package, starts the trial     |
-| POST   | `/api/v1/merchant/registration/pin`       | Clerk          | Step 3 — set the PIN                   |
-| POST   | `/api/v1/merchant/pin/verify`             | merchant       | Check the PIN, return an unlock token  |
-| PUT    | `/api/v1/merchant/pin`                    | merchant + fresh Clerk sign-in | Change or reset the PIN |
-| POST   | `/api/v1/merchant/devices`                | merchant       | Register the device's push token       |
-| GET    | `/api/v1/admin/auth/me`                   | Clerk + admin  | Current dashboard user, role, permissions |
-| GET    | `/api/v1/admin/admin-users`               | super admin    | List dashboard accounts                |
-| POST   | `/api/v1/admin/admin-users`               | super admin    | Add a dashboard account                |
-| PATCH  | `/api/v1/admin/admin-users/{id}`          | super admin    | Rename, change role, switch on or off  |
-| DELETE | `/api/v1/admin/admin-users/{id}`          | super admin    | Deactivate a dashboard account         |
+The customer and merchant endpoints follow Deep Code's **API contract**
+(`1.0.0-draft.1`) path for path, with its response shapes and its single error
+shape:
 
-Request bodies, responses and every error are documented in [api.md](api.md).
+```json
+{ "error": { "code": "STAMP_INTERVAL", "message": "…", "details": { "minutes_remaining": 40 } } }
+```
+
+[api.md](api.md) documents every live endpoint — inputs, a real response and its
+errors — plus QR generation for the customer app and the axios setup of each
+app.
+
+| Area | Endpoints |
+| ---- | --------- |
+| Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, notifications, devices |
+| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, notifications, devices |
+| Admin | dashboard accounts, cancelling a stamp |
+| Server | Clerk webhook |
+
+`php artisan route:list --path=api` prints them all.
 
 ## Database
 
@@ -314,12 +303,12 @@ at runtime, so changing them needs no deploy.
 
 | Limiter      | Applies to                    | Limit                                  |
 | ------------ | ----------------------------- | -------------------------------------- |
-| `api`        | every `/api/*` route          | 60 per minute, per user or IP          |
-| `otp`        | `customer/auth/otp/request`   | 5 per hour per phone, 20 per hour per IP |
-| `otp-verify` | `customer/auth/otp/verify`    | 10 per minute per phone, 30 per IP     |
-| `pin`        | `merchant/pin/verify`         | 5 per minute per merchant              |
+| `api`        | every `/api/*` route          | 60 per minute, per bearer token (or IP without one) |
+| `otp`        | `customer/auth/otp`           | 5 per hour per phone, 20 per hour per IP |
+| `otp-verify` | `customer/auth/verify`        | 10 per minute per phone, 30 per IP     |
 
-A new OTP for the same phone also requires a 60-second wait.
+A new OTP for the same phone also requires a 60-second wait. Five wrong PINs in a
+row lock a shop's protected tabs for 15 minutes (`PIN_LOCKED`).
 
 ## Layout
 
@@ -329,9 +318,14 @@ app/Http/Controllers/Api/V1/   API controllers (Customer, Merchant, Admin)
 app/Http/Middleware/           JSON responses, Clerk session, role and app-version checks
 app/Http/Requests/Api/V1/      Validation (form requests)
 app/Http/Resources/            JSON output shaping
+app/Exceptions/                The contract's error shape (ApiException, ApiErrorRenderer)
+app/Notifications/             In-app notifications to customers
 app/Services/Otp/              OTP issuing, verification and delivery drivers
 app/Services/Clerk/            Clerk session token verification
-app/Support/                   Phone number normalization
+app/Services/Customer/         QR codes (TOTP), my cards, account deletion
+app/Services/Merchant/         Subscription state, PIN unlock and lockout
+app/Services/Stamping/         Scan preview, stamps, rewards and their rules
+app/Support/                   Phone numbers, Base32, cursor pagination
 routes/api.php                 Versioned API routes
 tests/Feature/Api/V1/          Endpoint tests
 ```

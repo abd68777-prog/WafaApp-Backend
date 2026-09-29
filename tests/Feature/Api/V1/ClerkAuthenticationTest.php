@@ -14,7 +14,7 @@ class ClerkAuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    private const ENDPOINT = '/api/v1/merchant/auth/me';
+    private const ENDPOINT = '/api/v1/merchant/me';
 
     public function test_a_native_app_token_without_an_origin_is_accepted(): void
     {
@@ -38,14 +38,14 @@ class ClerkAuthenticationTest extends TestCase
 
         $response = $this->withToken($token)->getJson(self::ENDPOINT);
 
-        $response->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
+        $response->assertUnauthorized()->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 
     public function test_a_request_without_a_token_returns_401(): void
     {
         $response = $this->getJson(self::ENDPOINT);
 
-        $response->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
+        $response->assertUnauthorized()->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
 
     public function test_an_expired_token_returns_401(): void

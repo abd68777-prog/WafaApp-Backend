@@ -6,6 +6,8 @@ use App\Enums\MerchantStatus;
 use App\Models\BusinessType;
 use App\Models\Governorate;
 use App\Models\Merchant;
+use App\Models\Package;
+use App\Models\SubscriptionPeriod;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -54,6 +56,19 @@ class MerchantFactory extends Factory
     public function awaitingPin(): static
     {
         return $this->state(fn (array $attributes) => ['pin_hash' => null]);
+    }
+
+    /**
+     * On a package: a trial period by default, which sets the card and
+     * campaign limits.
+     */
+    public function onPackage(?Package $package = null, bool $trial = true): static
+    {
+        return $this->afterCreating(function (Merchant $merchant) use ($package, $trial): void {
+            $period = SubscriptionPeriod::factory()->for($merchant)->for($package ?? Package::factory()->create());
+
+            ($trial ? $period->trial() : $period)->create();
+        });
     }
 
     public function active(): static

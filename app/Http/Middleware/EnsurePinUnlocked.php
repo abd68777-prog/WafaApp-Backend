@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\Merchant;
 use App\Services\Merchant\PinUnlockToken;
 use Closure;
@@ -31,10 +33,7 @@ class EnsurePinUnlocked
         $merchant = $request->user();
 
         if (! $this->pinUnlockToken->isValidFor($merchant, $request->header('X-Pin-Token'))) {
-            return response()->json([
-                'message' => 'Enter the PIN to open this section.',
-                'code' => 'pin_required',
-            ], 403);
+            throw ApiException::of(ErrorCode::PinRequired, 'Enter the PIN to open this section.');
         }
 
         return $next($request);

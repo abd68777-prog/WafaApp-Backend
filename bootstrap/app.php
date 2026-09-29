@@ -1,24 +1,20 @@
 <?php
 
+use App\Exceptions\ApiErrorRenderer;
 use App\Http\Middleware\EnsureAdmin;
 use App\Http\Middleware\EnsureClerkSession;
+use App\Http\Middleware\EnsureCustomerReady;
 use App\Http\Middleware\EnsureMerchant;
 use App\Http\Middleware\EnsurePinUnlocked;
 use App\Http\Middleware\EnsureSupportedAppVersion;
 use App\Http\Middleware\ForceJsonResponse;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Auth\AuthenticationException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\ThrottleRequests;
-use Laravel\Sanctum\Exceptions\MissingAbilityException;
 use Laravel\Sanctum\Http\Middleware\CheckAbilities;
 use Laravel\Sanctum\Http\Middleware\CheckForAnyAbility;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -43,6 +39,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'abilities' => CheckAbilities::class,
             'ability' => CheckForAnyAbility::class,
 
+            // A customer must finish the profile and agree to the current
+            // privacy policy before using the app.
+            'customer.ready' => EnsureCustomerReady::class,
+
             // Merchants and dashboard users: a verified Clerk session, then a
             // role resolved from our own tables.
             'clerk' => EnsureClerkSession::class,
@@ -50,7 +50,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'clerk.merchant' => EnsureMerchant::class,
 
             // The protected tabs of the merchant app need the PIN, proved by
-            // the token `pin/verify` returns.
+            // the token `pin/unlock` returns.
             'merchant.pin' => EnsurePinUnlocked::class,
 
             // The merchant app is not updated by a store, so old builds are
@@ -63,47 +63,7 @@ return Application::configure(basePath: dirname(__DIR__))
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
 
-        // Do not leak model class names to API clients.
-        $exceptions->render(function (ModelNotFoundException $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['message' => 'Resource not found.'], 404);
-            }
-        });
-
-        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['message' => 'Endpoint not found.'], 404);
-            }
-        });
-
-        $exceptions->render(function (AuthenticationException $e, Request $request) {
-            if ($request->is('api/*') || $request->expectsJson()) {
-                return response()->json(['message' => 'Unauthenticated.'], 401);
-            }
-        });
-
-        // Sanctum's MissingAbilityException and the gates' AuthorizationException
-        // are both wrapped in an AccessDeniedHttpException by the time renderers
-        // run, so they are matched through the wrapper — other 403s keep their
-        // own message.
-        $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
-            if (! ($request->is('api/*') || $request->expectsJson())) {
-                return null;
-            }
-
-            // A valid token used on routes it was not issued for.
-            if ($e->getPrevious() instanceof MissingAbilityException) {
-                return response()->json(['message' => 'This token is not allowed to access this resource.'], 403);
-            }
-
-            // A dashboard account whose role lacks the permission (§5.1).
-            if ($e->getPrevious() instanceof AuthorizationException) {
-                return response()->json([
-                    'message' => 'Your role does not allow this action.',
-                    'code' => 'permission_denied',
-                ], 403);
-            }
-
-            return null;
-        });
+        // One error shape for every API response (API contract §1.3):
+        // { "error": { "code", "message", "details" } }.
+        $exceptions->render((new ApiErrorRenderer)(...));
     })->create();

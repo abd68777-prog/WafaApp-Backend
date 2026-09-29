@@ -34,6 +34,14 @@ class Setting extends Model
         return static::query()->where('key', $key)->value('value') ?? $default;
     }
 
+    /**
+     * The privacy policy version customers must have agreed to.
+     */
+    public static function currentPolicyVersion(): string
+    {
+        return (string) static::read('privacy_policy_version', '1.2');
+    }
+
     public static function write(string $key, mixed $value): void
     {
         static::query()->updateOrCreate(['key' => $key], ['value' => $value]);

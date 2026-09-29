@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\ErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\AdminUser;
 use App\Services\AuditLogger;
 use App\Services\Clerk\ClerkSession;
@@ -36,7 +38,7 @@ class EnsureAdmin
             ?? $this->linkOnFirstSignIn($session, $request);
 
         if (! $admin?->is_active) {
-            return response()->json(['message' => 'This account does not have admin access.'], 403);
+            throw ApiException::of(ErrorCode::Forbidden, 'This account does not have admin access.');
         }
 
         // Gates resolve the user through the auth guard, not through the

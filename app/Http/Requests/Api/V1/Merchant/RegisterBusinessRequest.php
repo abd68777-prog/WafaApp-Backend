@@ -39,13 +39,13 @@ class RegisterBusinessRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'business_name' => ['required', 'string', 'max:255'],
+            'business_name' => ['required', 'string', 'min:2', 'max:80'],
             'business_type_id' => ['required', Rule::exists('business_types', 'id')->where('is_active', true)],
             'governorate_id' => ['required', Rule::exists('governorates', 'id')->where('is_active', true)],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'owner_name' => ['required', 'string', 'max:255'],
+            'owner_name' => ['required', 'string', 'min:2', 'max:80'],
             'phone' => ['required', 'string', new SyrianPhone, Rule::unique('merchants', 'phone')],
-            'logo' => ['sometimes', 'nullable', 'image', 'max:2048'],
+            'logo' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,webp', 'max:2048'],
         ];
     }
 }

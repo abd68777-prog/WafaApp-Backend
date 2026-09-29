@@ -2,44 +2,47 @@
 
 namespace App\Http\Controllers\Api\V1\Merchant;
 
+use App\Enums\ErrorCode;
 use App\Enums\MerchantStatus;
 use App\Enums\SubscriptionPeriodType;
+use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Merchant\RegisterBusinessRequest;
 use App\Http\Requests\Api\V1\Merchant\SelectPackageRequest;
 use App\Http\Requests\Api\V1\Merchant\SetPinRequest;
-use App\Http\Resources\MerchantResource;
 use App\Models\Merchant;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\TrialEmailHash;
 use App\Services\Clerk\ClerkSession;
+use App\Services\Merchant\MerchantState;
+use App\Services\Merchant\PinUnlockToken;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
  * The three registration screens of the merchant app: business details, then
- * the package (which starts the free trial), then the PIN.
+ * the package (which starts the free trial), then the PIN (contract §5.2).
  *
  * Each step is its own endpoint so the app can resume where the merchant left
- * off, and `GET /merchant/auth/me` says which step is next.
+ * off; `GET /merchant/me` says which step is next, and a step sent out of turn
+ * is refused with REGISTRATION_STEP_MISMATCH.
  */
 class RegistrationController extends Controller
 {
+    public function __construct(private readonly MerchantState $state) {}
+
     /**
      * Step 1 — create the shop for the signed-in Clerk user.
      */
     public function business(RegisterBusinessRequest $request): JsonResponse
     {
         $session = ClerkSession::fromRequest($request);
-        $clerkUserId = $session->userId;
-
-        if (Merchant::query()->where('clerk_user_id', $clerkUserId)->exists()) {
-            return response()->json(['message' => 'This account already has a registered business.'], 409);
-        }
+        $this->expectStep($this->merchantFor($session), 'business');
 
         $attributes = $request->safe()->only('business_name', 'business_type_id', 'governorate_id', 'address', 'owner_name', 'phone');
 
@@ -50,51 +53,44 @@ class RegistrationController extends Controller
         try {
             $merchant = new Merchant($attributes);
             $merchant->forceFill([
-                'clerk_user_id' => $clerkUserId,
-                'email' => $session->email !== null ? Str::lower($session->email) : null,
+                'clerk_user_id' => $session->userId,
+                'email' => $this->email($session),
             ])->save();
         } catch (UniqueConstraintViolationException $exception) {
-            // Two requests raced past the check above; the unique index is the
-            // final guard.
-            if (Merchant::query()->where('clerk_user_id', $clerkUserId)->exists()) {
-                return response()->json(['message' => 'This account already has a registered business.'], 409);
-            }
+            // Two requests raced past the step check; the unique index on the
+            // Clerk user is the final guard.
+            $this->expectStep($this->merchantFor($session), 'business');
 
             throw $exception;
         }
 
-        return $this->merchantResponse($merchant, 201);
+        return $this->response($merchant, $session, 201);
     }
 
     /**
      * Step 2 — choosing a package starts the free trial immediately.
      *
      * The trial is once per merchant, protected by a hashed fingerprint of the
-     * Clerk email that outlives the account. Without a trial the shop starts
-     * expired and continues through the payment screen.
+     * Clerk email that outlives the account. Without a trial the request still
+     * succeeds: the shop starts expired and goes to payment after the PIN.
      */
     public function package(SelectPackageRequest $request): JsonResponse
     {
         $session = ClerkSession::fromRequest($request);
-        $merchant = $this->merchantFor($session->userId);
-
-        if ($merchant->status !== null) {
-            return response()->json(['message' => 'A package has already been chosen for this business.'], 409);
-        }
+        $merchant = $this->merchantFor($session);
+        $this->expectStep($merchant, 'package');
 
         $package = Package::query()->findOrFail($request->integer('package_id'));
         $trialGranted = $session->email === null || ! TrialEmailHash::alreadyUsed($session->email);
 
         DB::transaction(function () use ($merchant, $package, $session, $trialGranted): void {
             if ($trialGranted) {
-                $days = (int) Setting::read('trial_days', 14);
-
                 $merchant->subscriptionPeriods()->create([
                     'package_id' => $package->id,
                     'type' => SubscriptionPeriodType::Trial,
                     'duration_months' => null,
                     'starts_at' => now(),
-                    'ends_at' => now()->addDays($days),
+                    'ends_at' => now()->addDays((int) Setting::read('trial_days', 14)),
                     'grace_ends_at' => null,
                 ]);
 
@@ -110,45 +106,60 @@ class RegistrationController extends Controller
             ])->save();
         });
 
-        return $this->merchantResponse($merchant->refresh(), 200, ['trial_granted' => $trialGranted]);
+        return $this->response($merchant->refresh(), $session, 200, ['trial_granted' => $trialGranted]);
     }
 
     /**
-     * Step 3 — the owner sets the PIN that guards the sensitive tabs.
+     * Step 3 — the owner sets the PIN that guards the sensitive tabs. The
+     * unlock token comes back too, so the PIN is not asked for right away.
      */
-    public function pin(SetPinRequest $request): JsonResponse
+    public function pin(SetPinRequest $request, PinUnlockToken $pinUnlockToken): JsonResponse
     {
-        $merchant = $this->merchantFor(ClerkSession::fromRequest($request)->userId);
-
-        if ($merchant->status === null) {
-            return response()->json(['message' => 'Choose a package before setting a PIN.'], 409);
-        }
+        $session = ClerkSession::fromRequest($request);
+        $merchant = $this->merchantFor($session);
+        $this->expectStep($merchant, 'pin');
 
         $merchant->forceFill(['pin_hash' => Hash::make($request->string('pin')->value())])->save();
 
-        return $this->merchantResponse($merchant, 200);
+        return response()->json([
+            'data' => [
+                'me' => $this->state->me($merchant, $this->email($session)),
+                'pin' => $pinUnlockToken->describe($merchant),
+            ],
+        ]);
     }
 
-    private function merchantFor(string $clerkUserId): Merchant
+    private function merchantFor(ClerkSession $session): ?Merchant
     {
-        $merchant = Merchant::query()->where('clerk_user_id', $clerkUserId)->first();
+        return Merchant::query()->where('clerk_user_id', $session->userId)->first();
+    }
 
-        abort_if($merchant === null, 403, 'Complete your business registration first.');
+    /**
+     * @throws ApiException REGISTRATION_STEP_MISMATCH with the step to open.
+     */
+    private function expectStep(?Merchant $merchant, string $step): void
+    {
+        $current = $merchant?->registrationStep() ?? 'business';
 
-        return $merchant;
+        if ($current !== $step) {
+            throw ApiException::of(ErrorCode::RegistrationStepMismatch, "Registration is at the {$current} step.", [
+                'registration_step' => $current,
+            ]);
+        }
+    }
+
+    private function email(ClerkSession $session): ?string
+    {
+        return $session->email !== null ? Str::lower($session->email) : null;
     }
 
     /**
      * @param  array<string, mixed>  $extra
      */
-    private function merchantResponse(Merchant $merchant, int $status, array $extra = []): JsonResponse
+    private function response(Merchant $merchant, ClerkSession $session, int $status, array $extra = []): JsonResponse
     {
-        $merchant->load(['businessType', 'governorate', 'subscriptionPeriods.package']);
-
         return response()->json([
-            'registration_step' => $merchant->registrationStep(),
-            'data' => new MerchantResource($merchant),
-            ...$extra,
+            'data' => [...$this->state->me($merchant, $this->email($session)), ...$extra],
         ], $status);
     }
 }

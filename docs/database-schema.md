@@ -3,8 +3,12 @@
 Implements the data model of the Wafa requirements document (v1.0, Deep Code,
 22 Sep 2026) on MySQL 8.4. The domain lives in one migration,
 `database/migrations/2026_09_22_213702_create_wafa_core_schema.php`, followed by
-two small ones (`merchants.email`, and account deletion on `customers`); models
+three small ones (`merchants.email`, account deletion on `customers`, and
+`customers.qr_id`); models
 are in `app/Models` and status values in `app/Enums`.
+
+For every column, type, default, index and foreign key — generated from the live
+database — see [database-full-schema.md](database-full-schema.md).
 
 ## The two ideas behind the design
 
@@ -60,7 +64,7 @@ erDiagram
     customers      ||--o{ device_tokens : "FCM"
     merchants      ||--o{ device_tokens : "FCM"
 
-    customers            { bigint id string phone string name date birthdate string qr_secret bool campaigns_muted timestamp registered_at timestamp last_activity_at timestamp deleted_at }
+    customers            { bigint id string phone string name date birthdate string qr_id string qr_secret bool campaigns_muted timestamp registered_at timestamp last_activity_at timestamp deleted_at }
     policy_consents      { bigint id bigint customer_id string policy_version timestamp consented_at }
     merchants            { bigint id string clerk_user_id string email string business_name bigint business_type_id bigint governorate_id string owner_name string phone string pin_hash string status timestamp deleted_at }
     trial_email_hashes   { bigint id string email_hash }
@@ -96,15 +100,18 @@ them keep resolving. `settings` is a key/JSON store for runtime values.
 ### Identity
 
 **`customers`** — `phone` is unique and is the identity. `registered_at` null
-means a **pending customer**: a row a merchant created from a phone number alone.
-When that person installs the app and verifies the number, the same row is filled
-in — merging is filling fields, never moving stamps. `qr_secret` is the seed the
-app uses to generate a QR code that rotates every `qr_period_seconds`, offline.
+means a **pending customer**: a row a merchant created from a phone number alone,
+when the first stamp by that number is confirmed. When that person installs the
+app and verifies the number, the same row is filled in — merging is filling
+fields, never moving stamps. The QR code reads `W1.{qr_id}.{code}`: `qr_id` is a
+random 12-character id (never the sequential one), and `code` is a TOTP
+(HMAC-SHA256, 8 digits) the app computes offline from the Base32 `qr_secret`,
+rotating every `qr_period_seconds`.
 `last_activity_at` drives the 12-month purge of pending customers required by the
 privacy policy.
 
 Deleting an account (privacy policy §10) empties the row in place — phone, name,
-birthdate and QR secret become null — and soft deletes it; tokens, devices,
+birthdate, QR id and QR secret become null — and soft deletes it; tokens, devices,
 consents and preferences are removed. The row stays so its stamps and cycles keep
 counting in merchant statistics without pointing at anyone. `phone` is nullable
 for that reason, and the same number can sign up again as a new row. Each

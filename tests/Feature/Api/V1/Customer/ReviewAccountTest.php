@@ -44,17 +44,15 @@ class ReviewAccountTest extends TestCase
         Http::preventStrayRequests();
         config(['otp.review_phone' => '0900 000 999', 'otp.review_code' => self::REVIEW_CODE]);
 
-        $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::REVIEW_PHONE])->assertOk();
+        $this->postJson('/api/v1/customer/auth/otp', ['phone' => self::REVIEW_PHONE])->assertAccepted();
 
-        $response = $this->postJson('/api/v1/customer/auth/otp/verify', [
+        $response = $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => self::REVIEW_PHONE,
             'code' => self::REVIEW_CODE,
-            'name' => 'Store Review',
-            'birthdate' => '1990-01-01',
             'policy_version' => '1.2',
         ]);
 
-        $response->assertOk()->assertJsonPath('data.phone', self::REVIEW_PHONE);
+        $response->assertOk()->assertJsonPath('data.customer.phone', self::REVIEW_PHONE);
 
         Http::assertNothingSent();
     }
@@ -64,14 +62,15 @@ class ReviewAccountTest extends TestCase
         config(['otp.review_phone' => self::REVIEW_PHONE, 'otp.review_code' => self::REVIEW_CODE]);
         Http::fake(['api.lightotp.com/SendMessage' => Http::response(['id' => 'a1', 'messageStatus' => 'Sent'])]);
 
-        $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => '+963947123456'])->assertOk();
+        $this->postJson('/api/v1/customer/auth/otp', ['phone' => '+963947123456'])->assertAccepted();
 
         Http::assertSentCount(1);
 
-        $this->postJson('/api/v1/customer/auth/otp/verify', [
+        $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => '+963947123456',
             'code' => self::REVIEW_CODE,
-        ])->assertUnprocessable()->assertJsonValidationErrors('code');
+            'policy_version' => '1.2',
+        ])->assertUnprocessable()->assertJsonPath('error.code', 'OTP_INVALID');
     }
 
     /**
@@ -92,7 +91,7 @@ class ReviewAccountTest extends TestCase
         config(['otp.review_phone' => $phone, 'otp.review_code' => $code]);
         Http::fake(['api.lightotp.com/SendMessage' => Http::response(['id' => 'a1', 'messageStatus' => 'Sent'])]);
 
-        $this->postJson('/api/v1/customer/auth/otp/request', ['phone' => self::REVIEW_PHONE])->assertOk();
+        $this->postJson('/api/v1/customer/auth/otp', ['phone' => self::REVIEW_PHONE])->assertAccepted();
 
         Http::assertSentCount(1);
         $this->assertDatabaseCount('otp_codes', 1);
@@ -109,6 +108,7 @@ class ReviewAccountTest extends TestCase
 
         $reviewer = Customer::query()->where('phone', self::REVIEW_PHONE)->sole();
         $this->assertFalse($reviewer->isPending());
+        $this->assertNotNull($reviewer->qr_id);
         $this->assertNotNull($reviewer->qr_secret);
         $this->assertSame(1, $reviewer->policyConsents()->count());
 
