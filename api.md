@@ -53,15 +53,17 @@
 | 35 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
 | 36 | `PUT /merchant/devices` | تاجر | مسجّل |
 | 37 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
+| 38 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
+| 39 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
-| 38 | `GET /admin/auth/me` | إدارة | حساب فعّال |
-| 39 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 40 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 41 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 42 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 43 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 40 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 41 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 42 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 43 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 44 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 45 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
 | | **للخادم فقط** | | |
-| 44 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+| 46 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
 - **توكن:** توكن الزبون من `auth/verify`.
 - **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
@@ -172,8 +174,10 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `REDEEM_REQUIRES_QR` | 422 | — | التسليم بيحتاج مسح رمز الزبون، مو رقم مكتوب |
 | `REWARD_ALREADY_REDEEMED` | 409 | `cycle_id`, `redeemed_at` | جهاز تاني سلّم الهدية للتو |
 | `CARD_SUSPENDED` | 422 | — | بطاقة موقوفة: لا مشتركين جدد ولا دورات جديدة |
-| `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards`) |
+| `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards` أو `campaigns`) |
 | `CARDS_LIMIT_REACHED` | 422 | `cards_limit` | وصل حد البطاقات الفعّالة بالباقة |
+| `BIRTHDAY_NOT_TODAY` | 422 | — | تهنئة لزبون مو عيد ميلاده اليوم |
+| `CAMPAIGN_CONTAINS_LINK` | 422 | `field` | رابط بنص التهنئة أو الهدية |
 
 ### 1.4 حدود الطلبات
 
@@ -517,8 +521,8 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
     {
       "id": "01a0edae-d3dc-710c-b3f7-4d688299b861",
       "type": "card_completed",
-      "title": "هديتك جاهزة",
-      "body": "هديتك جاهزة عند كافيه الياسمين! اعرض رمزك في زيارتك القادمة.",
+      "title": "هديتك جاهزة!",
+      "body": "اكتملت بطاقتك في كافيه الياسمين. اعرض رمزك للكاشير لتستلم فنجان قهوة مجاني.",
       "data": { "merchant_id": 10, "card_id": 11, "cycle_id": 17 },
       "read_at": null,
       "created_at": "2026-09-29T15:00:52Z"
@@ -531,10 +535,11 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `type` | متى | النص |
 |---|---|---|
 | `stamp_added` | انضافله طابع | «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.» |
-| `card_completed` | اكتملت البطاقة | «هديتك جاهزة عند [المحل]! اعرض رمزك في زيارتك القادمة.» |
+| `card_completed` | اكتملت البطاقة | العنوان «هديتك جاهزة!» والنص «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].» |
+| `birthday_greeting` | تهنئة عيد ميلاد من محل | العنوان «عيد ميلاد سعيد من [المحل]»، والنص رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية |
 | `reward_redeemed` | استلم الهدية | «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.» |
 
-`data` فيها المعرّفات لتفتح البطاقة لما يضغط. الإشعارات هلق **بالصندوق داخل التطبيق بس**.
+`data` فيها المعرّفات لتفتح البطاقة لما يضغط (للتهنئة: `merchant_id` بس). الإشعارات هلق **بالصندوق داخل التطبيق بس**.
 
 ### 3.14 `POST /customer/notifications/{id}/read` 🔒 جاهز
 
@@ -668,7 +673,7 @@ PUT /merchant/devices
 | `subscription.days_remaining` | لنهاية التجربة أو الاشتراك، أو لنهاية المهلة بـ`GRACE`. `null` بباقي الحالات |
 | `subscription.capabilities` | شو مسموح هلق. استعمله للعرض، والخادم بيفرضه على كل حال |
 | `subscription.banner` | شريط التنبيه، أو `null` |
-| `usage.campaigns_resets_at` | بداية أسبوع الحملات الجاي: السبت منتصف الليل بتوقيت دمشق |
+| `usage.campaigns_resets_at` | بداية الأسبوع الجاي: السبت 00:00 بتوقيت دمشق، مكتوب بـUTC متل كل التواريخ (`2026-10-02T21:00:00Z` = السبت 3 تشرين الأول 00:00 بدمشق). الأسبوع تقويمي من السبت للجمعة |
 
 **`banner`:** `{ "code", "level", "params" }`:
 
@@ -692,6 +697,7 @@ PUT /merchant/devices
     "governorates": [ { "id": 1, "name": "دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, … ],
     "icons": [ { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" }, { "id": 2, "key": "tea-glass", "name": "كأس شاي" }, … ],
+    "trial_days": 14,
     "packages": [
       {
         "id": 1,
@@ -724,7 +730,10 @@ PUT /merchant/devices
 }
 ```
 
-`amount_syp` بسعر الصرف الحالي، للعرض بس. ابني قواعد النماذج من `limits`.
+- `trial_days`: مدة التجربة المجانية بالأيام، لجملة «جرّب مجاناً لمدة X يوم». حقل زيادة عن العقد.
+- `amount_syp` بسعر الصرف الحالي، للعرض بس.
+- ابني قواعد النماذج من `limits`.
+- الأسعار وحدود الحملات والتجربة قيم مبدئية لحد ما تنحسم، وبتتعدّل من الإعدادات بدون تغيير بالتطبيق.
 
 ### 4.3 `POST /merchant/registration/business`
 
@@ -1064,6 +1073,63 @@ PUT /merchant/devices
 
 متل الزبون (§3.16–3.17): `{ token, platform }` ← **`204`**، والحذف بالرمز مرمَّز ← **`204`**. التاجر
 بيبعت الحذف عند الخروج من Clerk.
+
+### 4.17 `GET /merchant/customers/birthdays-today` 🔒 PIN
+
+الزبائن المسجّلين يلي عيد ميلادهم اليوم بتوقيت دمشق، ومن زبائن المحل: إلهم دورة على أي بطاقة عنده، حتى لو
+استلموا هديتها. **بدون سنة الميلاد.** مواليد 29 شباط بيطلعوا بـ28 شباط بالسنين غير الكبيسة.
+
+```json
+{
+  "data": [
+    { "id": 20, "name": "سارة", "birthday": "09-30", "greeted_today": true },
+    { "id": 21, "name": "عمر", "birthday": "09-30", "greeted_today": false }
+  ]
+}
+```
+
+### 4.18 `POST /merchant/customers/{customer_id}/birthday-greeting` 🔒 PIN
+
+إرسال تهنئة عيد ميلاد، يدوياً من التاجر.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `message` | string | ✅ | نص التاجر، لحد 300 حرف، بدون روابط |
+| `gift` | string | — | هدية مع التهنئة، لحد 60 حرف، بدون روابط |
+
+**`201`:**
+
+```json
+{
+  "data": {
+    "customer_id": 20,
+    "greeted_on": "2026-09-30",
+    "message": "كل عام وأنت بخير! نورتينا اليوم.",
+    "gift": "قهوة مجانية"
+  }
+}
+```
+
+- الزبون بيوصله إشعار `birthday_greeting`: العنوان «عيد ميلاد سعيد من كافيه الياسمين»، والنص
+  «كل عام وأنت بخير! نورتينا اليوم.» وتحته سطر «هديتك: قهوة مجانية».
+- **بتوصل لكل الزبائن،** حتى لمين موقّف عروض المحل أو كل العروض.
+- مرة وحدة باليوم لكل زبون: الضغطة التانية بنفس اليوم بترجع **`200`** بالتهنئة الأولى، وما بينبعت شي
+  جديد.
+- ما بتنحسب من حد الحملات الأسبوعي.
+
+**أخطاء:**
+- `422 BIRTHDAY_NOT_TODAY`.
+- `422 CAMPAIGN_CONTAINS_LINK` مع `details.field` (`message` أو `gift`):
+
+```json
+{ "error": { "code": "CAMPAIGN_CONTAINS_LINK", "message": "Links are not allowed in greetings.", "details": { "field": "message" } } }
+```
+
+- `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `{ "status": "EXPIRED", "action": "campaigns" }`: للمحل المنتهي أو
+  الموقوف أو بانتظار الحذف.
+- `404 NOT_FOUND`: زبون ما إلو دورة عند المحل.
+- `422 VALIDATION_FAILED`.
+- `403 PIN_REQUIRED`.
 
 ---
 

@@ -280,7 +280,7 @@ app.
 | Area | Endpoints |
 | ---- | --------- |
 | Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, notifications, devices |
-| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, notifications, devices |
+| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, birthday greetings, notifications, devices |
 | Admin | dashboard accounts, cancelling a stamp |
 | Server | Clerk webhook |
 

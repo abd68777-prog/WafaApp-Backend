@@ -21,6 +21,8 @@ class BirthdayGreetingFactory extends Factory
             'merchant_id' => Merchant::factory(),
             'customer_id' => Customer::factory(),
             'greeted_on' => now()->toDateString(),
+            'message' => fake()->sentence(),
+            'gift' => null,
         ];
     }
 }

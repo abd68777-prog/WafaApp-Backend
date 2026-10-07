@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\Customer\ProfileController as CustomerProfileCon
 use App\Http\Controllers\Api\V1\Customer\QrController as CustomerQrController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthController;
+use App\Http\Controllers\Api\V1\Merchant\BirthdayController;
 use App\Http\Controllers\Api\V1\Merchant\CardController as MerchantCardController;
 use App\Http\Controllers\Api\V1\Merchant\LookupController as MerchantLookupController;
 use App\Http\Controllers\Api\V1\Merchant\PinController;
@@ -137,6 +138,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
                 Route::post('cards', [MerchantCardController::class, 'store'])->name('cards.store');
                 Route::post('cards/{card}/suspend', [MerchantCardController::class, 'suspend'])->whereNumber('card')->name('cards.suspend');
+
+                Route::get('customers/birthdays-today', [BirthdayController::class, 'index'])->name('customers.birthdays-today');
+                Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
+                    ->whereNumber('customer')
+                    ->name('customers.birthday-greeting');
             });
         });
     });

@@ -33,8 +33,9 @@ final class MerchantState
     public const ENDING_SOON_DAYS = 3;
 
     /**
-     * Campaign limits count per calendar week, Saturday to Friday, in the
-     * shop's time zone (contract open item 1, until Deep Code decides).
+     * The week campaigns and weekly statistics count in: a calendar week,
+     * Saturday 00:00 to Friday 23:59 in Damascus (contract open item 1,
+     * decided).
      */
     public const CAMPAIGN_WEEK_STARTS_ON = Carbon::SATURDAY;
 

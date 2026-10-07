@@ -9,10 +9,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Birthday greetings are sent by hand, never automatically. The unique triple
- * (merchant, customer, day) means tapping send twice still sends one.
+ * Birthday greetings are sent by hand, never automatically, with the
+ * merchant's own message and an optional gift. The unique triple (merchant,
+ * customer, day) means tapping send twice still sends one.
  */
-#[Fillable(['merchant_id', 'customer_id', 'greeted_on'])]
+#[Fillable(['merchant_id', 'customer_id', 'greeted_on', 'message', 'gift'])]
 class BirthdayGreeting extends Model
 {
     /** @use HasFactory<BirthdayGreetingFactory> */

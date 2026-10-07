@@ -4,6 +4,9 @@ namespace App\Notifications;
 
 /**
  * Notification 02: the card is complete and the reward is waiting.
+ *
+ * Worded for both cases: the cashier may hand the reward over in the same
+ * visit, right after the last stamp, or on a later one.
  */
 class CardCompleted extends CardNotification
 {
@@ -14,11 +17,11 @@ class CardCompleted extends CardNotification
 
     protected function title(): string
     {
-        return 'هديتك جاهزة';
+        return 'هديتك جاهزة!';
     }
 
     protected function body(): string
     {
-        return "هديتك جاهزة عند {$this->shopName()}! اعرض رمزك في زيارتك القادمة.";
+        return "اكتملت بطاقتك في {$this->shopName()}. اعرض رمزك للكاشير لتستلم {$this->card->reward_description}.";
     }
 }

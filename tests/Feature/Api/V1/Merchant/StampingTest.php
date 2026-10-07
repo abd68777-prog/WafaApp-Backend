@@ -263,6 +263,14 @@ class StampingTest extends TestCase
         $this->assertSame(CardCycleStatus::RewardReady, $cycle->fresh()->status);
         // Both in the same second: the inbox still lists them in order.
         $this->assertSame(['card_completed', 'stamp_added'], $customer->notifications()->reorder()->orderByDesc('created_at')->orderByDesc('id')->pluck('type')->all());
+
+        // Worded for a reward handed over in this very visit, too.
+        $completed = $customer->notifications()->where('type', 'card_completed')->sole();
+        $this->assertSame('هديتك جاهزة!', $completed->data['title']);
+        $this->assertSame(
+            "اكتملت بطاقتك في {$this->merchant->business_name}. اعرض رمزك للكاشير لتستلم {$this->card->reward_description}.",
+            $completed->data['body'],
+        );
     }
 
     public function test_the_rules_are_checked_again_at_confirmation(): void
@@ -389,6 +397,34 @@ class StampingTest extends TestCase
         $this->redeem($this->scanToken(['qr' => $this->qrFor($customer)]), $cycle->id)
             ->assertOk()
             ->assertJsonPath('data.next_cycle_available', false);
+    }
+
+    public function test_a_suspended_card_lets_current_customers_finish_and_then_leaves_their_list(): void
+    {
+        $customer = Customer::factory()->consented()->create();
+        CardCycle::factory()->for($this->card)->for($customer)->create(['stamps_count' => 2]);
+        $this->card->forceFill(['status' => CardStatus::Suspended, 'suspended_at' => now()])->save();
+
+        // The customer already collecting gets the last stamp as usual.
+        $preview = $this->resolve(['qr' => $this->qrFor($customer)])->assertOk()->assertJsonPath('data.action', 'stamp');
+        $this->stamp($preview->json('data.scan_token'))->assertCreated()->assertJsonPath('data.cycle.status', 'REWARD_READY');
+
+        // …and the reward, after which no new cycle can open.
+        $preview = $this->resolve(['qr' => $this->qrFor($customer)])->assertOk()->assertJsonPath('data.action', 'redeem');
+        $this->redeem($preview->json('data.scan_token'), $preview->json('data.cycle.id'))
+            ->assertOk()
+            ->assertJsonPath('data.next_cycle_available', false);
+
+        $this->withToken($customer->createToken('phone', ['customer'])->plainTextToken)
+            ->getJson('/api/v1/customer/cards')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        // A newcomer is refused.
+        $this->resolve(['qr' => $this->qrFor(Customer::factory()->create())])
+            ->assertOk()
+            ->assertJsonPath('data.action', 'none')
+            ->assertJsonPath('data.blocked_reason.code', 'CARD_SUSPENDED');
     }
 
     // --- Helpers ----------------------------------------------------------

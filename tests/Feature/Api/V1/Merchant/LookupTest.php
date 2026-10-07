@@ -66,6 +66,7 @@ class LookupTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.limits.card_stamps_max', 12)
             ->assertJsonPath('data.limits.stamp_interval_minutes', 30)
+            ->assertJsonPath('data.trial_days', 14)
             ->assertJsonStructure(['data' => ['links' => ['privacy_policy_url', 'merchant_terms_url']]]);
     }
 

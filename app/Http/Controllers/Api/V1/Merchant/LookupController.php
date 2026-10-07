@@ -32,6 +32,9 @@ class LookupController extends Controller
                 'icons' => LookupResource::collection(
                     Icon::query()->where('is_active', true)->orderBy('sort_order')->get()
                 ),
+                // Not in the contract: the package screen says how long the
+                // free trial lasts.
+                'trial_days' => (int) Setting::read('trial_days', 14),
                 'packages' => PackageResource::collection(
                     Package::query()->with('prices')->where('is_active', true)->orderBy('sort_order')->get()
                 ),
