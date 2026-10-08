@@ -33,50 +33,54 @@
 | 16 | `POST /customer/notifications/read-all` | زبون | توكن + جاهز |
 | 17 | `PUT /customer/devices` | زبون | توكن |
 | 18 | `DELETE /customer/devices/{token}` | زبون | توكن |
+| 19 | `PUT /customer/merchants/{merchant_id}/mute` | زبون | توكن + جاهز |
+| 20 | `DELETE /customer/merchants/{merchant_id}/mute` | زبون | توكن + جاهز |
 | | **تطبيق التاجر** | | |
-| 19 | `GET /merchant/me` | تاجر | Clerk |
-| 20 | `GET /merchant/lookups` | تاجر | Clerk |
-| 21 | `POST /merchant/registration/business` | تاجر | Clerk |
-| 22 | `POST /merchant/registration/package` | تاجر | Clerk |
-| 23 | `POST /merchant/registration/pin` | تاجر | Clerk |
-| 24 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
-| 25 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
-| 26 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
-| 27 | `GET /merchant/cards` | تاجر | مسجّل |
-| 28 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
-| 29 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
-| 30 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
-| 31 | `POST /merchant/stamps` | تاجر | مسجّل |
-| 32 | `POST /merchant/redemptions` | تاجر | مسجّل |
-| 33 | `GET /merchant/notifications` | تاجر | مسجّل |
-| 34 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
-| 35 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
-| 36 | `PUT /merchant/devices` | تاجر | مسجّل |
-| 37 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
-| 38 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
-| 39 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
-| 40 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
-| 41 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
-| 42 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
+| 21 | `GET /merchant/me` | تاجر | Clerk |
+| 22 | `GET /merchant/lookups` | تاجر | Clerk |
+| 23 | `POST /merchant/registration/business` | تاجر | Clerk |
+| 24 | `POST /merchant/registration/package` | تاجر | Clerk |
+| 25 | `POST /merchant/registration/pin` | تاجر | Clerk |
+| 26 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
+| 27 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
+| 28 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
+| 29 | `GET /merchant/cards` | تاجر | مسجّل |
+| 30 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
+| 31 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 32 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
+| 33 | `POST /merchant/stamps` | تاجر | مسجّل |
+| 34 | `POST /merchant/redemptions` | تاجر | مسجّل |
+| 35 | `GET /merchant/notifications` | تاجر | مسجّل |
+| 36 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
+| 37 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
+| 38 | `PUT /merchant/devices` | تاجر | مسجّل |
+| 39 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
+| 40 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
+| 41 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
+| 42 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
+| 43 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
+| 44 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
+| 45 | `GET /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 46 | `POST /merchant/campaigns` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
-| 43 | `GET /admin/auth/me` | إدارة | حساب فعّال |
-| 44 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 45 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 46 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 47 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 48 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
-| 49 | `GET /admin/packages` | إدارة | `manage-packages` |
-| 50 | `POST /admin/packages` | إدارة | `manage-packages` |
-| 51 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
-| 52 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
-| 53 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
-| 54 | `GET /admin/payments` | إدارة | `review-payments` |
-| 55 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
-| 56 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
-| 57 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
-| 58 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
+| 47 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 48 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 49 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 50 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 51 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 52 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 53 | `GET /admin/packages` | إدارة | `manage-packages` |
+| 54 | `POST /admin/packages` | إدارة | `manage-packages` |
+| 55 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
+| 56 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
+| 57 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
+| 58 | `GET /admin/payments` | إدارة | `review-payments` |
+| 59 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
+| 60 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
+| 61 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
+| 62 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
 | | **للخادم فقط** | | |
-| 59 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+| 63 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
 - **توكن:** توكن الزبون من `auth/verify`.
 - **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
@@ -194,7 +198,8 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards` أو `campaigns` أو `payments`) |
 | `CARDS_LIMIT_REACHED` | 422 | `cards_limit` | وصل حد البطاقات الفعّالة بالباقة |
 | `BIRTHDAY_NOT_TODAY` | 422 | — | تهنئة لزبون مو عيد ميلاده اليوم |
-| `CAMPAIGN_CONTAINS_LINK` | 422 | `field` | رابط بنص التهنئة أو الهدية |
+| `CAMPAIGN_WEEKLY_LIMIT_REACHED` | 422 | `weekly_limit`, `resets_at` | خلصت حملات الأسبوع بالباقة |
+| `CAMPAIGN_CONTAINS_LINK` | 422 | `field` | رابط بعنوان الحملة أو نصها، أو بنص التهنئة أو الهدية |
 | `PAYMENT_ALREADY_PENDING` | 409 | `payment_id` | في دفعة سابقة لسا ما انحسمت |
 | `PRICE_NOT_AVAILABLE` | 422 | — | ما في سعر لهالباقة بهالمدة |
 | `KEEP_CARDS_REQUIRED` | 422 | `cards_limit`, `active_cards` | تخفيض لباقة أصغر بدون اختيار البطاقات يلي بتضل |
@@ -558,6 +563,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 |---|---|---|
 | `stamp_added` | انضافله طابع | «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.» |
 | `card_completed` | اكتملت البطاقة | العنوان «هديتك جاهزة!» والنص «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].» |
+| `campaign` | حملة من محل | العنوان «[المحل]: [عنوان الحملة]» والنص نص الحملة. `data`: `merchant_id` و`campaign_id` |
 | `birthday_greeting` | تهنئة عيد ميلاد من محل | العنوان «عيد ميلاد سعيد من [المحل]»، والنص رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية |
 | `reward_redeemed` | استلم الهدية | «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.» |
 
@@ -609,6 +615,15 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
 
 إزالة رمز الجهاز عند الخروج. ابعت الرمز مرمَّز: `encodeURIComponent(token)`، لأن رموز FCM فيها `:`.
 **`204`** حتى لو الرمز مو موجود.
+
+### 3.18 `PUT /customer/merchants/{merchant_id}/mute` · `DELETE /customer/merchants/{merchant_id}/mute` 🔒 جاهز
+
+إيقاف عروض محل واحد وإرجاعها. **`204`** بالحالتين، والتكرار ما بيغيّر شي.
+
+- بيوقف **حملات هالمحل بس**. إشعارات الطوابع والهدايا بتضل توصل، وتهنئة عيد الميلاد كمان.
+- بيبيّن فوراً بـ`merchant_muted` بـ«بطاقاتي» (§3.11).
+- إيقاف عروض **كل** المحلات هو `campaigns_muted` بـ`PATCH /customer/me` (§3.6).
+- **أخطاء:** `404 NOT_FOUND` لمحل مو موجود.
 
 ---
 
@@ -1279,6 +1294,66 @@ PUT /merchant/devices
 - `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `action: payments`: للحساب الموقوف أو يلي بانتظار الحذف.
 - `422 VALIDATION_FAILED`.
 - `403 PIN_REQUIRED`.
+
+### 4.22 `POST /merchant/campaigns` 🔒 PIN
+
+إرسال حملة: عنوان ونص بس، بدون صور ولا روابط.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `title` | string | ✅ | لحد `limits.campaign_title_max` (60) |
+| `body` | string | ✅ | لحد `limits.campaign_body_max` (300) |
+
+**`201`:**
+
+```json
+{
+  "data": {
+    "id": 7,
+    "title": "عرض الخميس",
+    "body": "القهوة التانية مجاناً كل يوم خميس.",
+    "recipients_count": 2,
+    "sent_at": "2026-10-07T12:00:00Z"
+  }
+}
+```
+
+**مين بيوصله (المتطلبات §7.3):**
+- كل زبون مسجّل إلو دورة على أي بطاقة بالمحل، حتى لو استلم هديتها من زمان.
+- **ما بيوصل** لمين موقّف كل العروض (`campaigns_muted`)، ولا لمين موقّف عروض هالمحل (§3.18)، ولا للزبون المعلّق.
+- `recipients_count`: عدد المستلمين لحظة الإرسال.
+- **الإرسال بالخلفية:** الرد بيرجع فوراً، والإشعارات بتطلع خلال ثواني (`worker`)، حتى لو المحل عنده آلاف الزبائن.
+- الزبون بيوصله `campaign` بالعنوان «كافيه الياسمين: عرض الخميس».
+
+**حد الأسبوع:** `weekly_campaigns_limit` تبع الباقة، والأسبوع من السبت للجمعة بتوقيت دمشق (`usage` بـ`me`). التهنئة ما بتنحسب منه.
+
+**أخطاء:**
+- `422 CAMPAIGN_WEEKLY_LIMIT_REACHED`:
+
+```json
+{ "error": { "code": "CAMPAIGN_WEEKLY_LIMIT_REACHED", "message": "This week's campaigns are used up.", "details": { "weekly_limit": 1, "resets_at": "2026-10-09T21:00:00Z" } } }
+```
+
+- `422 CAMPAIGN_CONTAINS_LINK` مع `details.field` (`title` أو `body`).
+- `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `{ "status": "EXPIRED", "action": "campaigns" }`.
+- `422 VALIDATION_FAILED`.
+- `403 PIN_REQUIRED`.
+
+### 4.23 `GET /merchant/campaigns` 🔒 PIN
+
+الحملات المرسلة، الأحدث أول، بالمؤشر. `meta` فيها كمان عدّاد الأسبوع:
+
+```json
+{
+  "data": [ { "id": 7, "title": "عرض الخميس", "body": "…", "recipients_count": 2, "sent_at": "2026-10-07T12:00:00Z" } ],
+  "meta": {
+    "next_cursor": null,
+    "campaigns_used_this_week": 1,
+    "weekly_campaigns_limit": 1,
+    "campaigns_resets_at": "2026-10-09T21:00:00Z"
+  }
+}
+```
 
 ---
 

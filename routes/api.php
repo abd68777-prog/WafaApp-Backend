@@ -12,12 +12,14 @@ use App\Http\Controllers\Api\V1\Customer\AuthController as CustomerAuthControlle
 use App\Http\Controllers\Api\V1\Customer\CardController as CustomerCardController;
 use App\Http\Controllers\Api\V1\Customer\ConfigController as CustomerConfigController;
 use App\Http\Controllers\Api\V1\Customer\MeController as CustomerMeController;
+use App\Http\Controllers\Api\V1\Customer\MerchantMuteController;
 use App\Http\Controllers\Api\V1\Customer\PolicyController as CustomerPolicyController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController as CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\QrController as CustomerQrController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthController;
 use App\Http\Controllers\Api\V1\Merchant\BirthdayController;
+use App\Http\Controllers\Api\V1\Merchant\CampaignController;
 use App\Http\Controllers\Api\V1\Merchant\CardController as MerchantCardController;
 use App\Http\Controllers\Api\V1\Merchant\LookupController as MerchantLookupController;
 use App\Http\Controllers\Api\V1\Merchant\PaymentController as MerchantPaymentController;
@@ -100,6 +102,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('cards', [CustomerCardController::class, 'index'])->name('cards.index');
                 Route::get('cards/{card}', [CustomerCardController::class, 'show'])->whereNumber('card')->name('cards.show');
 
+                Route::put('merchants/{merchant}/mute', [MerchantMuteController::class, 'update'])->whereNumber('merchant')->name('merchants.mute');
+                Route::delete('merchants/{merchant}/mute', [MerchantMuteController::class, 'destroy'])->whereNumber('merchant')->name('merchants.unmute');
+
                 Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
                 Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
                 Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->whereUuid('notification')->name('notifications.read');
@@ -149,6 +154,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
                     ->whereNumber('customer')
                     ->name('customers.birthday-greeting');
+
+                Route::get('campaigns', [CampaignController::class, 'index'])->name('campaigns.index');
+                Route::post('campaigns', [CampaignController::class, 'store'])->name('campaigns.store');
 
                 Route::get('subscription', [SubscriptionController::class, 'show'])->name('subscription');
                 Route::get('payments', [MerchantPaymentController::class, 'index'])->name('payments.index');

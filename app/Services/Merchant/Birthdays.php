@@ -19,17 +19,13 @@ class Birthdays
     }
 
     /**
-     * Registered customers of the shop — anyone with a cycle on one of its
-     * cards, even a redeemed one — who gave a date of birth.
+     * The shop's customers who gave a date of birth.
      *
      * @return Builder<Customer>
      */
     public static function customersOf(Merchant $merchant): Builder
     {
-        return Customer::query()
-            ->whereNotNull('registered_at')
-            ->whereNotNull('birthdate')
-            ->whereHas('cardCycles', fn (Builder $cycles) => $cycles->where('merchant_id', $merchant->id));
+        return ShopCustomers::of($merchant)->whereNotNull('birthdate');
     }
 
     /**

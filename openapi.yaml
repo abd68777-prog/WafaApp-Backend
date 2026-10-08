@@ -29,6 +29,7 @@ tags:
   - name: التاجر — البطاقات
   - name: التاجر — المسح والطوابع
   - name: التاجر — أعياد الميلاد
+  - name: التاجر — الحملات
   - name: التاجر — الاشتراك والدفع
   - name: التاجر — الإشعارات والأجهزة
   - name: الإدارة
@@ -351,6 +352,33 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: '#/components/schemas/CustomerCardDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /customer/merchants/{merchant_id}/mute:
+    parameters:
+      - { name: merchant_id, in: path, required: true, schema: { type: integer } }
+    put:
+      tags: [الزبون — البطاقات]
+      operationId: customerMuteMerchant
+      summary: إيقاف عروض هالمحل
+      description: |
+        بيوقف حملات هالمحل بس. إشعارات الطوابع والهدايا والتهنئة بتضل توصل. التكرار ما بيغيّر شي،
+        وبيبيّن بـ`merchant_muted` بـ«بطاقاتي». (جاهز)
+      security: [{ customerToken: [] }]
+      responses:
+        '204': { description: انوقفت }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [الزبون — البطاقات]
+      operationId: customerUnmuteMerchant
+      summary: إرجاع عروض هالمحل
+      security: [{ customerToken: [] }]
+      responses:
+        '204': { description: رجعت }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CustomerNotReady' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1001,6 +1029,86 @@ paths:
                   value: { error: { code: CAMPAIGN_CONTAINS_LINK, message: Links are not allowed in greetings., details: { field: message } } }
                 MERCHANT_STATUS_BLOCKS_ACTION:
                   value: { error: { code: MERCHANT_STATUS_BLOCKS_ACTION, message: The subscription does not allow greetings now., details: { status: EXPIRED, action: campaigns } } }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/campaigns:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الحملات]
+      operationId: merchantListCampaigns
+      summary: الحملات المرسلة وعدّاد الأسبوع
+      description: الأحدث أول، بالمؤشر. `meta` فيها كمان عدّاد الأسبوع بنفس أسماء `usage`.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من الحملات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Campaign' }
+                  meta:
+                    allOf:
+                      - $ref: '#/components/schemas/CursorMeta'
+                      - type: object
+                        required: [campaigns_used_this_week, weekly_campaigns_limit, campaigns_resets_at]
+                        properties:
+                          campaigns_used_this_week: { type: integer }
+                          weekly_campaigns_limit: { type: integer }
+                          campaigns_resets_at: { $ref: '#/components/schemas/DateTime' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+    post:
+      tags: [التاجر — الحملات]
+      operationId: merchantSendCampaign
+      summary: إرسال حملة
+      description: |
+        نص بس. المستلمون: كل زبون مسجّل إلو دورة على أي بطاقة بالمحل (حتى لو مستلمة)، إلا يلي موقّف العروض كلها
+        أو عروض هالمحل. الإرسال بالخلفية، والرد بيرجع فوراً مع `recipients_count`.
+        الحد: `weekly_campaigns_limit` تبع الباقة، والأسبوع من السبت للجمعة بتوقيت دمشق.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 60, description: لحد `limits.campaign_title_max` }
+                body: { type: string, minLength: 1, maxLength: 300, description: لحد `limits.campaign_body_max` }
+      responses:
+        '201':
+          description: انبعتت
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Campaign' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422':
+          description: '`CAMPAIGN_WEEKLY_LIMIT_REACHED` · `CAMPAIGN_CONTAINS_LINK` · `MERCHANT_STATUS_BLOCKS_ACTION` (`action: campaigns`) · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                CAMPAIGN_WEEKLY_LIMIT_REACHED:
+                  value: { error: { code: CAMPAIGN_WEEKLY_LIMIT_REACHED, message: "This week's campaigns are used up.", details: { weekly_limit: 1, resets_at: '2026-10-09T21:00:00Z' } } }
+                CAMPAIGN_CONTAINS_LINK:
+                  value: { error: { code: CAMPAIGN_CONTAINS_LINK, message: Links are not allowed in campaigns., details: { field: title } } }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   /merchant/subscription:
@@ -1979,6 +2087,7 @@ components:
         - MERCHANT_STATUS_BLOCKS_ACTION
         - CARDS_LIMIT_REACHED
         - BIRTHDAY_NOT_TODAY
+        - CAMPAIGN_WEEKLY_LIMIT_REACHED
         - CAMPAIGN_CONTAINS_LINK
         - PAYMENT_ALREADY_PENDING
         - PRICE_NOT_AVAILABLE
@@ -2146,11 +2255,12 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [stamp_added, card_completed, reward_redeemed, birthday_greeting, birthdays_today, trial_ending, subscription_ending, grace_started, subscription_expired, payment_approved, payment_rejected]
+          enum: [stamp_added, card_completed, reward_redeemed, campaign, birthday_greeting, birthdays_today, trial_ending, subscription_ending, grace_started, subscription_expired, payment_approved, payment_rejected]
           description: |
             `stamp_added`: «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.»
             `card_completed`: «هديتك جاهزة!» / «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].»
             `reward_redeemed`: «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.»
+            `campaign`: «[المحل]: [عنوان الحملة]» / نص الحملة، و`data` فيها `merchant_id` و`campaign_id`.
             `birthday_greeting`: «عيد ميلاد سعيد من [المحل]» / رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية.
             `birthdays_today` (للتاجر): «أعياد ميلاد اليوم» / «اليوم عيد ميلاد N من زبائنك. هنّئهم من التطبيق.»
             للتاجر كمان: `trial_ending` و`subscription_ending` (قبل 3 أيام)، و`grace_started`، و`subscription_expired`،
@@ -2168,6 +2278,7 @@ components:
             card_id: { type: integer }
             cycle_id: { type: integer }
             count: { type: integer }
+            campaign_id: { type: integer }
             period_id: { type: integer }
             payment_id: { type: integer }
             reason: { $ref: '#/components/schemas/PaymentRejectionReason' }
@@ -2446,6 +2557,15 @@ components:
       required: [next_cursor]
       properties:
         next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+    Campaign:
+      type: object
+      required: [id, title, body, recipients_count, sent_at]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        recipients_count: { type: integer, description: عدد المستلمين لحظة الإرسال }
+        sent_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
     PaymentMethod:
       type: string
       enum: [syriatel_cash, transfer]

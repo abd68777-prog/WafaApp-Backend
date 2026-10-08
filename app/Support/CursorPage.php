@@ -22,8 +22,9 @@ final class CursorPage
 
     /**
      * @param  class-string<JsonResource>  $resource
+     * @param  array<string, mixed>  $meta  Extra fields next to `next_cursor`.
      */
-    public static function respond(Request $request, Builder $query, string $resource): JsonResponse
+    public static function respond(Request $request, Builder $query, string $resource, array $meta = []): JsonResponse
     {
         $validated = $request->validate([
             'cursor' => ['sometimes', 'string'],
@@ -34,7 +35,7 @@ final class CursorPage
 
         return response()->json([
             'data' => $resource::collection($page->getCollection()),
-            'meta' => ['next_cursor' => $page->nextCursor()?->encode()],
+            'meta' => ['next_cursor' => $page->nextCursor()?->encode(), ...$meta],
         ]);
     }
 }

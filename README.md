@@ -297,6 +297,7 @@ Without credentials nothing is pushed and the inbox still works.
 | Type | To | When |
 | ---- | -- | ---- |
 | `stamp_added`, `card_completed`, `reward_redeemed` | Customer | Stamp and reward events |
+| `campaign` | Customer | A shop's campaign, unless the customer muted that shop or all offers |
 | `birthday_greeting` | Customer | A shop's greeting, even when offers are muted |
 | `birthdays_today` | Merchant | 09:00 Damascus, when customers have their birthday |
 | `trial_ending`, `subscription_ending`, `grace_started`, `subscription_expired` | Merchant | `subscriptions:sync`, hourly |
@@ -320,8 +321,8 @@ Postman or generating TypeScript types.
 
 | Area | Endpoints |
 | ---- | --------- |
-| Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, notifications, devices |
-| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, birthday greetings, subscription and payments, notifications, devices |
+| Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, muting a shop, notifications, devices |
+| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, campaigns, birthday greetings, subscription and payments, notifications, devices |
 | Admin | dashboard accounts, cancelling a stamp, packages and prices, billing settings, payment review, trial extension |
 | Server | Clerk webhook |
 
