@@ -59,6 +59,7 @@ final class ApiErrorRenderer
         'Mimes' => 'format',
         'Mimetypes' => 'format',
         'Enum' => 'format',
+        'In' => 'format',
         'SyrianPhone' => 'format',
     ];
 

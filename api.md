@@ -55,15 +55,28 @@
 | 37 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
 | 38 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
 | 39 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
+| 40 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
+| 41 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
+| 42 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
-| 40 | `GET /admin/auth/me` | إدارة | حساب فعّال |
-| 41 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 42 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 43 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 44 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 45 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 43 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 44 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 45 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 46 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 47 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 48 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 49 | `GET /admin/packages` | إدارة | `manage-packages` |
+| 50 | `POST /admin/packages` | إدارة | `manage-packages` |
+| 51 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
+| 52 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
+| 53 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
+| 54 | `GET /admin/payments` | إدارة | `review-payments` |
+| 55 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
+| 56 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
+| 57 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
+| 58 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
 | | **للخادم فقط** | | |
-| 46 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+| 59 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
 - **توكن:** توكن الزبون من `auth/verify`.
 - **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
@@ -178,10 +191,15 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `REDEEM_REQUIRES_QR` | 422 | — | التسليم بيحتاج مسح رمز الزبون، مو رقم مكتوب |
 | `REWARD_ALREADY_REDEEMED` | 409 | `cycle_id`, `redeemed_at` | جهاز تاني سلّم الهدية للتو |
 | `CARD_SUSPENDED` | 422 | — | بطاقة موقوفة: لا مشتركين جدد ولا دورات جديدة |
-| `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards` أو `campaigns`) |
+| `MERCHANT_STATUS_BLOCKS_ACTION` | 422 | `status`, `action` | حالة الاشتراك بتمنع العملية (`action`: `stamps` أو `cards` أو `campaigns` أو `payments`) |
 | `CARDS_LIMIT_REACHED` | 422 | `cards_limit` | وصل حد البطاقات الفعّالة بالباقة |
 | `BIRTHDAY_NOT_TODAY` | 422 | — | تهنئة لزبون مو عيد ميلاده اليوم |
 | `CAMPAIGN_CONTAINS_LINK` | 422 | `field` | رابط بنص التهنئة أو الهدية |
+| `PAYMENT_ALREADY_PENDING` | 409 | `payment_id` | في دفعة سابقة لسا ما انحسمت |
+| `PRICE_NOT_AVAILABLE` | 422 | — | ما في سعر لهالباقة بهالمدة |
+| `KEEP_CARDS_REQUIRED` | 422 | `cards_limit`, `active_cards` | تخفيض لباقة أصغر بدون اختيار البطاقات يلي بتضل |
+| `PAYMENT_NOT_PENDING` | 409 | `status` | لوحة الإدارة: الدفعة انحسمت قبل |
+| `TRIAL_NOT_EXTENDABLE` | 422 | `reason` | لوحة الإدارة: ما في تجربة بتتمدد (`paid` أو `no_trial` أو `status`) |
 
 ### 1.4 حدود الطلبات
 
@@ -1094,9 +1112,16 @@ PUT /merchant/devices
 | `type` | متى | النص |
 |---|---|---|
 | `birthdays_today` | كل يوم الساعة 9 الصبح بتوقيت دمشق، إذا في زبائن عيد ميلادهم اليوم | العنوان «أعياد ميلاد اليوم» والنص «اليوم عيد ميلاد 2 من زبائنك. هنّئهم من التطبيق.» (ولزبون واحد: «اليوم عيد ميلاد أحد زبائنك. هنّئه من التطبيق.») |
+| `trial_ending` | قبل 3 أيام من نهاية التجربة، مرة وحدة | «تنتهي تجربتك المجانية بعد 3 أيام. اشترك لتكمل.» |
+| `subscription_ending` | قبل 3 أيام من نهاية الاشتراك، مرة وحدة | «ينتهي اشتراكك بعد 3 أيام.» |
+| `grace_started` | خلص الاشتراك المدفوع وبلّشت المهلة | «انتهى اشتراكك، ولديك مهلة 3 أيام قبل توقف الطوابع.» |
+| `subscription_expired` | خلصت التجربة أو المهلة | «اشتراكك منتهٍ والطوابع متوقفة. تسليم الهدايا ما زال متاحاً.» |
+| `payment_approved` | المراجع قبل الدفعة | «قُبلت دفعتك، واشتراكك فعّال حتى 2027/01/10.» |
+| `payment_rejected` | المراجع رفض الدفعة | «لم تُقبل دفعتك: المبلغ ناقص.» |
 
-- `data` فيها `count`، عدد الزبائن.
-- مرة وحدة باليوم، وما بيوصل للمحل يلي حالته ما بتسمح بالتهنئة (منتهي، موقوف، بانتظار الحذف).
+- `data`: لـ`birthdays_today` فيها `count`. لإشعارات الاشتراك `period_id`، وللدفعات `payment_id` (والرفض كمان `reason`).
+- عدد الأيام بالنص بيتبع الواقع: «يوم واحد» و«يومين» و«3 أيام».
+- `birthdays_today` مرة وحدة باليوم، وما بيوصل للمحل يلي حالته ما بتسمح بالتهنئة (منتهي، موقوف، بانتظار الحذف).
 - الأسماء ما بتطلع بالإشعار: بتنعرض بـ`GET /merchant/customers/birthdays-today` ورا الـPIN.
 
 ### 4.16 `PUT /merchant/devices` · `DELETE /merchant/devices/{token}`
@@ -1161,6 +1186,100 @@ PUT /merchant/devices
 - `422 VALIDATION_FAILED`.
 - `403 PIN_REQUIRED`.
 
+### 4.19 `GET /merchant/subscription` 🔒 PIN
+
+تبويب الاشتراك: نفس `subscription` يلي بـ`me`، ومعها `periods`، كل الفترات الأحدث أول، حتى التجديد يلي لسا ما بلّش.
+
+```json
+{
+  "data": {
+    "status": "ACTIVE",
+    "package": { "id": 2, "name": "المتوسطة", "cards_limit": 2, "weekly_campaigns_limit": 2 },
+    "current_period": { "id": 12, "type": "trial", "package": { … }, "duration_months": null, "starts_at": "2026-09-26T12:39:10Z", "ends_at": "2026-10-10T12:39:10Z", "grace_ends_at": null },
+    "trial_used": true,
+    "days_remaining": 94,
+    "capabilities": { … },
+    "banner": null,
+    "pending_payment": null,
+    "periods": [
+      { "id": 13, "type": "paid", "package": { … }, "duration_months": 3, "starts_at": "2026-10-10T12:39:10Z", "ends_at": "2027-01-10T12:39:10Z", "grace_ends_at": "2027-01-13T12:39:10Z" },
+      { "id": 12, "type": "trial", "package": { … }, "duration_months": null, "starts_at": "2026-09-26T12:39:10Z", "ends_at": "2026-10-10T12:39:10Z", "grace_ends_at": null }
+    ]
+  }
+}
+```
+
+بالمثال: التاجر دفع خلال التجربة. الحالة صارت `ACTIVE` فوراً، والفترة المدفوعة بتبلّش لما تخلص التجربة، فما خسر أيام.
+
+**كيف بتمشي الحالة (بتتحدّث كل ساعة):**
+
+| من | لـ | متى |
+|---|---|---|
+| `TRIAL` | `EXPIRED` | خلصت التجربة. ما في مهلة بعد التجربة |
+| `TRIAL` · `GRACE` · `EXPIRED` | `ACTIVE` | انقبلت دفعة |
+| `ACTIVE` | `GRACE` | خلص الاشتراك المدفوع: مهلة `grace_days` (افتراضياً 3) والطوابع شغّالة |
+| `GRACE` | `EXPIRED` | خلصت المهلة |
+
+- **`current_period`** هي الفترة يلي شغّالة هلق، وهي يلي بتحدد الباقة والحدود. التجديد المدفوع سلفاً ما بيغيّر شي قبل ما يبلّش.
+- **`days_remaining` والشريط** بيعدّوا لآخر الاشتراك كله، مع التجديدات، فيلي جدّد بكير ما بيطلعله «ينتهي قريباً».
+- **وين بتبلّش الفترة الجديدة لما تنقبل الدفعة:**
+  - إذا الاشتراك شغّال أو بالمهلة: من تاريخ الانتهاء القديم. يلي بيدفع بكير ما بيخسر شي، ويلي بيدفع بالمهلة ما بيربح أيامها.
+  - إذا منتهي: من يوم القبول.
+  - **الترقية** (باقة ببطاقات أكتر): بتشتغل فوراً، وبتخلص بنفس التاريخ يلي كان رح يخلص فيه التجديد. يعني الباقة الأعلى بتغطي كمان الأيام المدفوعة.
+  - **التخفيض** بيبلّش بس بالتجديد، يعني بعد ما تخلص الفترة الحالية.
+
+### 4.20 `GET /merchant/payments` 🔒 PIN
+
+سجل الدفعات، الأحدث أول، بالمؤشر (`?limit=20` و`?cursor=`): `{ "data": [ Payment, … ], "meta": { "next_cursor" } }`.
+
+### 4.21 `POST /merchant/payments` 🔒 PIN
+
+رفع إثبات دفع، بـ`multipart/form-data`. التاجر بيحوّل برّا التطبيق (المعلومات بـ`lookups.payment`)، وبعدين بيرفع الصورة هون.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `package_id` | integer | ✅ | باقة فعّالة من `lookups.packages` |
+| `duration_months` | integer | ✅ | `1` أو `3` أو `12` |
+| `method` | string | ✅ | `syriatel_cash` أو `transfer` |
+| `reference` | string | — | رقم العملية، لحد 100 حرف |
+| `proof` | ملف | ✅ | صورة JPEG أو PNG أو WebP لحد 5 MB |
+| `keep_card_ids[]` | integer[] | للتخفيض بس | البطاقات يلي بتضل فعّالة. بالـmultipart ابعتها `keep_card_ids[]` مكررة |
+
+**`201`:**
+
+```json
+{
+  "data": {
+    "id": 1,
+    "package": { "id": 2, "name": "المتوسطة", "cards_limit": 2, "weekly_campaigns_limit": 2 },
+    "duration_months": 3,
+    "price_usd": "46.00",
+    "exchange_rate": "13000.0000",
+    "amount_syp": "598000.00",
+    "method": "syriatel_cash",
+    "reference": "SC-778812",
+    "proof_url": "http://…/storage/payments/proofs/UHur….png?expires=1791464950&signature=9bb3…",
+    "status": "PENDING",
+    "rejection_reason": null,
+    "created_at": "2026-10-08T12:39:10Z",
+    "reviewed_at": null
+  }
+}
+```
+
+- **الخادم بينسخ** السعر بالدولار وسعر الصرف والمبلغ بالليرة لحظة الرفع، وما بيقرأ أي مبلغ من الطلب. إذا تغيّر السعر بعدين، الدفعة بتضل على سعرها.
+- `proof_url` رابط موقّع بيعيش 30 دقيقة. اطلبه من جديد إذا بدك تعرض الصورة.
+- `status`: `PENDING` ← `APPROVED` أو `REJECTED`. و`rejection_reason`: `transfer_not_received` · `amount_short` · `unclear_image` · `invalid_proof`.
+- **التخفيض:** إذا حد الباقة الجديدة أقل من البطاقات الفعّالة، لازم `keep_card_ids` (لحد الحد الجديد). باقي البطاقات بتتوقف لما تبلّش الفترة الجديدة، مو وقت الرفع.
+
+**أخطاء:**
+- `409 PAYMENT_ALREADY_PENDING` مع `payment_id`: في دفعة لسا ما انحسمت.
+- `422 PRICE_NOT_AVAILABLE`.
+- `422 KEEP_CARDS_REQUIRED` مع `{ "cards_limit": 1, "active_cards": 2 }`.
+- `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `action: payments`: للحساب الموقوف أو يلي بانتظار الحذف.
+- `422 VALIDATION_FAILED`.
+- `403 PIN_REQUIRED`.
+
 ---
 
 ## 5. لوحة الإدارة
@@ -1181,8 +1300,15 @@ PUT /merchant/devices
 |---|---|---|---|---|
 | `manage-admin-accounts` — حسابات الإدارة | ✓ | – | – | – |
 | `cancel-stamps` — إلغاء طابع | ✓ | ✓ | – | – |
+| `manage-packages` — الباقات والأسعار | ✓ | – | – | – |
+| `manage-settings` — إعدادات الدفع والتجربة | ✓ | – | – | – |
+| `review-payments` — قبول الدفعات ورفضها | – | – | ✓ | – |
+| `grant-extensions` — تمديد التجربة | ✓ | – | – | – |
 
-هدول الصلاحيتين يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
+هدول الصلاحيات يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
+
+**مبدأ (المتطلبات §5.1):** يلي بيقبل الدفعات ما بيعدّل أسعار ولا بيمدد، ولا حتى الـSuper Admin بيقبل دفعات بنفسه. إذا
+صاحب المشروع بدو يراجع الدفعات، بياخد حساب تاني بدور مراجع المدفوعات.
 
 ### 5.1 `GET /admin/auth/me`
 
@@ -1289,6 +1415,149 @@ PUT /merchant/devices
 - `422 VALIDATION_FAILED`: بدون سبب.
 
 إلغاء نفس الطابع مرة تانية بيرجّعه متل ما هو.
+
+كل عمليات القسم الجاي بتنكتب بسجل التدقيق مع «قبل وبعد»: مين، ومتى، وعلى أي تاجر أو باقة.
+
+### 5.7 `GET /admin/packages` 🔒 `manage-packages`
+
+كل الباقات حتى المعطّلة، مرتبة بـ`sort_order`:
+
+```json
+{
+  "data": [
+    {
+      "id": 2,
+      "name": "المتوسطة",
+      "cards_limit": 2,
+      "weekly_campaigns_limit": 2,
+      "is_active": true,
+      "sort_order": 2,
+      "prices": [
+        { "duration_months": 1, "price_usd": "18.00" },
+        { "duration_months": 3, "price_usd": "46.00" },
+        { "duration_months": 12, "price_usd": "163.00" }
+      ]
+    }
+  ]
+}
+```
+
+### 5.8 `POST /admin/packages` 🔒 `manage-packages`
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `name` | string | ✅ | 2–100، فريد |
+| `cards_limit` | integer | ✅ | 1–20 |
+| `weekly_campaigns_limit` | integer | ✅ | 0–20 |
+| `is_active` | boolean | — | افتراضياً `true` |
+| `sort_order` | integer | — | 0–1000 |
+| `prices` | array | ✅ | `[{ "duration_months": 1, "price_usd": 20 }]`، المدد `1` و`3` و`12`، والسعر من 0.01 |
+
+**`201`:** الباقة بنفس شكل §5.7. الباقة الفعّالة بتطلع فوراً بـ`GET /merchant/lookups`.
+
+### 5.9 `PATCH /admin/packages/{id}` 🔒 `manage-packages`
+
+أي حقل من §5.8. بـ`prices` كل مدة بتنبعت بتتعدّل، و`"price_usd": null` بيشيلها. المدد يلي ما انبعتت ما بتتغيّر.
+
+```json
+{ "prices": [ { "duration_months": 1, "price_usd": 18 }, { "duration_months": 12, "price_usd": null } ] }
+```
+
+- **ما في حذف للباقة:** `is_active: false` بيخبّيها من التطبيق، والفترات القديمة بتضل مربوطة فيها.
+- **تغيير السعر** بيأثر على الدفعات الجاية بس، لأنو كل دفعة محفوظ فيها سعرها.
+- **تغيير الحدود** (البطاقات والحملات) بيأثر فوراً على كل التجار يلي على الباقة.
+
+### 5.10 `GET /admin/settings/billing` · `PATCH /admin/settings/billing` 🔒 `manage-settings`
+
+يلي بتعرضه شاشة الدفع بتطبيق التاجر، ومدة التجربة والمهلة. بالتعديل ابعت الحقول يلي بدك تغيّرها بس.
+
+```json
+{
+  "data": {
+    "exchange_rate_syp": "13000.00",
+    "syriatel_cash_number": "0933000111",
+    "bank_transfer_details": "بنك سورية الدولي الإسلامي — حساب 12345",
+    "payment_review_sla_hours": 24,
+    "trial_days": 14,
+    "grace_days": 3
+  }
+}
+```
+
+| الحقل | القيم |
+|---|---|
+| `exchange_rate_syp` | من 1 |
+| `syriatel_cash_number` | لحد 30 حرف |
+| `bank_transfer_details` | لحد 1000 حرف |
+| `payment_review_sla_hours` | 1–168. بعدها الدفعة بتنعلّم متأخرة (`overdue`) |
+| `trial_days` | 1–90، للتجارب الجديدة |
+| `grace_days` | 0–30، للدفعات يلي بتنقبل بعدين |
+
+### 5.11 `GET /admin/payments` 🔒 `review-payments`
+
+طابور المراجعة: `?status=PENDING` (الافتراضي، الأقدم أول) أو `APPROVED` أو `REJECTED` (الأحدث أول). بالمؤشر متل باقي القوائم.
+كل عنصر هو `Payment` (§4.21)، ومعه:
+
+```json
+{
+  "merchant": { "id": 13, "business_name": "كافيه الياسمين", "email": "shop@example.com", "status": "TRIAL" },
+  "overdue": false,
+  "duplicate_reference": false,
+  "reviewed_by": null,
+  "subscription_period_id": null
+}
+```
+
+- `overdue`: مرّت `payment_review_sla_hours` والدفعة لسا معلّقة.
+- `duplicate_reference`: نفس رقم المرجع انستعمل بدفعة تانية. **انتبه:** ممكن يكون نفس الإيصال انرفع مرتين.
+- **الصورة مو الدليل.** الدليل إنو المبلغ وصل للحساب، فطابق مع سيريتل كاش أو دفتر الحوالات قبل ما تقبل.
+
+### 5.12 `GET /admin/payments/{id}` 🔒 `review-payments`
+
+دفعة وحدة بنفس الشكل، مع `proof_url` جديد.
+
+### 5.13 `POST /admin/payments/{id}/approve` 🔒 `review-payments`
+
+بيعمل فترة مدفوعة حسب قواعد §4.19، وبيرجّع التاجر `ACTIVE`، وبيبعتله `payment_approved`. **`200`:** الدفعة مع
+`status: "APPROVED"` و`reviewed_by` و`subscription_period_id`.
+
+**أخطاء:** `409 PAYMENT_NOT_PENDING` مع `details.status`، إذا انحسمت قبل (حتى لو مراجعين ضغطوا سوا، واحد بس بينجح).
+
+### 5.14 `POST /admin/payments/{id}/reject` 🔒 `review-payments`
+
+| الحقل | النوع | مطلوب | القيم |
+|---|---|---|---|
+| `reason` | string | ✅ | `transfer_not_received` · `amount_short` · `unclear_image` · `invalid_proof` |
+
+**`200`:** الدفعة مع `status: "REJECTED"`. التاجر بيوصله `payment_rejected` بالسبب، وبيقدر يرفع دفعة جديدة.
+**أخطاء:** `409 PAYMENT_NOT_PENDING`.
+
+### 5.15 `POST /admin/merchants/{id}/trial-extension` 🔒 `grant-extensions`
+
+تمديد التجربة المجانية لتاجر **ما دفع أبداً**.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `days` | integer | ✅ | 1–90 |
+| `reason` | string | ✅ | 3–255، بينكتب بسجل التدقيق |
+
+- الأيام بتنضاف لنهاية التجربة، أو لليوم إذا كانت خلصت. فالتاجر المنتهي بيرجع `TRIAL` فوراً.
+- تذكير «تنتهي تجربتك» بيرجع ينبعت قبل النهاية الجديدة.
+
+**`200`:** اشتراك التاجر بعد التمديد، بنفس شكل `subscription` بـ`GET /merchant/me`:
+
+```json
+{ "data": { "status": "TRIAL", "current_period": { "type": "trial", "ends_at": "2026-10-15T12:39:10Z", … }, "days_remaining": 7, … } }
+```
+
+**أخطاء:** `422 TRIAL_NOT_EXTENDABLE` مع `details.reason`:
+- `paid`: التاجر دفع قبل.
+- `no_trial`: ما أخد تجربة أصلاً، لأنو بريده أخد تجربة بحساب قديم.
+- `status`: حسابه موقوف أو بانتظار الحذف.
+
+```json
+{ "error": { "code": "TRIAL_NOT_EXTENDABLE", "message": "This shop has paid; only a trial can be extended.", "details": { "reason": "paid" } } }
+```
 
 ---
 

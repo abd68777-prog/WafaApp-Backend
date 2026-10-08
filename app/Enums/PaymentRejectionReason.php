@@ -12,4 +12,17 @@ enum PaymentRejectionReason: string
     case AmountShort = 'amount_short';
     case UnclearImage = 'unclear_image';
     case InvalidProof = 'invalid_proof';
+
+    /**
+     * How the merchant's notification words the reason.
+     */
+    public function label(): string
+    {
+        return match ($this) {
+            self::TransferNotReceived => 'الحوالة لم تصل',
+            self::AmountShort => 'المبلغ ناقص',
+            self::UnclearImage => 'الصورة غير واضحة',
+            self::InvalidProof => 'الإثبات غير صحيح',
+        };
+    }
 }

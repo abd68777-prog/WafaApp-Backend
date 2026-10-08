@@ -101,6 +101,7 @@ class PinTest extends TestCase
 
     public function test_a_wrong_pin_says_how_many_tries_remain_and_five_lock_the_shop_out(): void
     {
+        $this->freezeSecond();
         Merchant::factory()->create(['clerk_user_id' => self::CLERK_USER]);
 
         foreach ([4, 3, 2, 1, 0] as $remaining) {

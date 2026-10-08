@@ -155,6 +155,8 @@ trial.
 **`payments`** — prices are copied in when the proof is uploaded. `status` is
 `PENDING` / `APPROVED` / `REJECTED` with `rejection_reason` from a closed list,
 and approval links the row to the `subscription_period` it created.
+`keep_card_ids` holds the cards a merchant moving to a smaller package chose to keep;
+the others are suspended when that period starts.
 
 ### Cards, cycles and stamps
 

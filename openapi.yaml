@@ -29,8 +29,11 @@ tags:
   - name: التاجر — البطاقات
   - name: التاجر — المسح والطوابع
   - name: التاجر — أعياد الميلاد
+  - name: التاجر — الاشتراك والدفع
   - name: التاجر — الإشعارات والأجهزة
   - name: الإدارة
+  - name: الإدارة — الباقات والإعدادات
+  - name: الإدارة — مراجعة الدفعات
   - name: للخادم فقط
 
 paths:
@@ -1000,6 +1003,125 @@ paths:
                   value: { error: { code: MERCHANT_STATUS_BLOCKS_ACTION, message: The subscription does not allow greetings now., details: { status: EXPIRED, action: campaigns } } }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
+  /merchant/subscription:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الاشتراك والدفع]
+      operationId: merchantGetSubscription
+      summary: الاشتراك وسجل الفترات
+      description: |
+        نفس `subscription` يلي بـ`me`، ومعها `periods` الأحدث أول (حتى التجديد يلي لسا ما بلّش).
+        `current_period` هي الفترة الشغّالة هلق وبتحدد الباقة، و`days_remaining` بيعدّ لآخر الاشتراك كله.
+      security: [{ clerkSession: [], pinToken: [] }]
+      responses:
+        '200':
+          description: الاشتراك
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Subscription'
+                      - type: object
+                        required: [periods]
+                        properties:
+                          periods:
+                            type: array
+                            items: { $ref: '#/components/schemas/SubscriptionPeriod' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/payments:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الاشتراك والدفع]
+      operationId: merchantListPayments
+      summary: سجل الدفعات
+      description: الأحدث أول، بالمؤشر.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من الدفعات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Payment' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+    post:
+      tags: [التاجر — الاشتراك والدفع]
+      operationId: merchantSubmitPayment
+      summary: رفع إثبات دفع
+      description: |
+        الخادم بينسخ السعر بالدولار وسعر الصرف والمبلغ بالليرة لحظة الرفع، وما بيقرأ أي مبلغ من الطلب.
+        دفعة معلّقة وحدة لكل تاجر. **التخفيض:** إذا حد الباقة الجديدة أقل من البطاقات الفعّالة، لازم `keep_card_ids`،
+        والباقي بيتوقف لما تبلّش الفترة الجديدة.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [package_id, duration_months, method, proof]
+              properties:
+                package_id: { type: integer }
+                duration_months: { type: integer, enum: [1, 3, 12] }
+                method: { $ref: '#/components/schemas/PaymentMethod' }
+                reference: { type: string, maxLength: 100 }
+                proof: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 5 MB }
+                'keep_card_ids[]':
+                  type: array
+                  items: { type: integer }
+                  description: للتخفيض بس، لحد حد الباقة الجديدة
+      responses:
+        '201':
+          description: بطابور المراجعة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Payment' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '409':
+          description: '`PAYMENT_ALREADY_PENDING` مع `payment_id`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: { code: PAYMENT_ALREADY_PENDING, message: A payment is already waiting for review., details: { payment_id: 1 } } }
+        '422':
+          description: '`PRICE_NOT_AVAILABLE` · `KEEP_CARDS_REQUIRED` · `MERCHANT_STATUS_BLOCKS_ACTION` (`action: payments`) · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                KEEP_CARDS_REQUIRED:
+                  value: { error: { code: KEEP_CARDS_REQUIRED, message: Choose which cards stay active on the smaller package., details: { cards_limit: 1, active_cards: 2 } } }
+                PRICE_NOT_AVAILABLE:
+                  value: { error: { code: PRICE_NOT_AVAILABLE, message: This package has no price for this duration. } }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
   /merchant/notifications:
     parameters:
       - $ref: '#/components/parameters/AppVersion'
@@ -1009,8 +1131,8 @@ paths:
       operationId: merchantNotifications
       summary: صندوق إشعارات التاجر
       description: |
-        بنفس شكل وتصفح ونفس push إشعارات الزبون. هلق فيها `birthdays_today`: كل يوم 9 الصبح بتوقيت دمشق إذا في
-        زبائن عيد ميلادهم اليوم، و`data.count` عددهم.
+        بنفس شكل وتصفح ونفس push إشعارات الزبون. فيها `birthdays_today` (كل يوم 9 الصبح بتوقيت دمشق)، وإشعارات
+        الاشتراك والدفع: `trial_ending` · `subscription_ending` · `grace_started` · `subscription_expired` · `payment_approved` · `payment_rejected`.
       security: [{ clerkSession: [] }]
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -1241,6 +1363,235 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/packages:
+    get:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminListPackages
+      summary: الباقات مع مصفوفة الأسعار
+      description: كل الباقات حتى المعطّلة. الصلاحية `manage-packages` (Super Admin).
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: الباقات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminPackage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminCreatePackage
+      summary: إضافة باقة
+      description: بتطلع فوراً بـ`GET /merchant/lookups` إذا فعّالة. بتنكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PackageInput'
+                - type: object
+                  required: [name, cards_limit, weekly_campaigns_limit, prices]
+      responses:
+        '201': { $ref: '#/components/responses/AdminPackageData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/packages/{id}:
+    patch:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminUpdatePackage
+      summary: تعديل باقة أو أسعارها
+      description: |
+        أي حقل. بـ`prices` كل مدة بتنبعت بتتعدّل، و`price_usd: null` بيشيلها، والباقي ما بيتغيّر.
+        ما في حذف: `is_active: false`. تغيير السعر للدفعات الجاية بس، وتغيير الحدود فوري لكل التجار على الباقة.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PackageInput' }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPackageData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/settings/billing:
+    get:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminGetBillingSettings
+      summary: إعدادات الدفع والتجربة
+      description: الصلاحية `manage-settings` (Super Admin).
+      security: [{ clerkSession: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/BillingSettingsData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminUpdateBillingSettings
+      summary: تعديل إعدادات الدفع والتجربة
+      description: ابعت الحقول يلي بدك تغيّرها بس. بتنكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                exchange_rate_syp: { type: number, minimum: 1 }
+                syriatel_cash_number: { type: [string, 'null'], maxLength: 30 }
+                bank_transfer_details: { type: [string, 'null'], maxLength: 1000 }
+                payment_review_sla_hours: { type: integer, minimum: 1, maximum: 168 }
+                trial_days: { type: integer, minimum: 1, maximum: 90 }
+                grace_days: { type: integer, minimum: 0, maximum: 30 }
+      responses:
+        '200': { $ref: '#/components/responses/BillingSettingsData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/payments:
+    get:
+      tags: [الإدارة — مراجعة الدفعات]
+      operationId: adminListPayments
+      summary: طابور المراجعة
+      description: |
+        `PENDING` (الافتراضي) الأقدم أول، والباقي الأحدث أول. الصلاحية `review-payments` (مراجع المدفوعات بس).
+        الصورة مو الدليل: طابق وصول المبلغ مع الحساب قبل القبول.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [PENDING, APPROVED, REJECTED], default: PENDING } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من الدفعات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminPayment' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/payments/{id}:
+    get:
+      tags: [الإدارة — مراجعة الدفعات]
+      operationId: adminGetPayment
+      summary: تفاصيل دفعة
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/payments/{id}/approve:
+    post:
+      tags: [الإدارة — مراجعة الدفعات]
+      operationId: adminApprovePayment
+      summary: قبول دفعة
+      description: |
+        بيعمل فترة مدفوعة: من تاريخ الانتهاء القديم إذا الاشتراك شغّال أو بالمهلة، ومن اليوم إذا منتهي، والترقية فوراً
+        وبتخلص وين كان رح يخلص التجديد. التاجر بيرجع `ACTIVE` وبيوصله `payment_approved`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PaymentNotPending' }
+
+  /admin/payments/{id}/reject:
+    post:
+      tags: [الإدارة — مراجعة الدفعات]
+      operationId: adminRejectPayment
+      summary: رفض دفعة
+      description: التاجر بيوصله `payment_rejected` بالسبب، وبيقدر يرفع دفعة جديدة.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { $ref: '#/components/schemas/PaymentRejectionReason' }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/PaymentNotPending' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/trial-extension:
+    post:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminExtendTrial
+      summary: تمديد التجربة المجانية
+      description: |
+        لتاجر ما دفع أبداً. الأيام بتنضاف لنهاية التجربة، أو لليوم إذا خلصت (فالمنتهي بيرجع `TRIAL`).
+        الصلاحية `grant-extensions` (Super Admin)، والسبب بينكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [days, reason]
+              properties:
+                days: { type: integer, minimum: 1, maximum: 90 }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200':
+          description: الاشتراك بعد التمديد
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Subscription' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: '`TRIAL_NOT_EXTENDABLE` مع `reason`: `paid` · `no_trial` · `status`. أو `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: { code: TRIAL_NOT_EXTENDABLE, message: This shop has paid; only a trial can be extended., details: { reason: paid } } }
 
   # ─────────────────────────── للخادم فقط ───────────────────────────
   /webhooks/clerk:
@@ -1476,6 +1827,48 @@ components:
             required: [data]
             properties:
               data: { $ref: '#/components/schemas/AdminUser' }
+    AdminPackageData:
+      description: الباقة
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminPackage' }
+    AdminPaymentData:
+      description: الدفعة
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminPayment' }
+    BillingSettingsData:
+      description: الإعدادات
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: object
+                required: [exchange_rate_syp, syriatel_cash_number, bank_transfer_details, payment_review_sla_hours, trial_days, grace_days]
+                properties:
+                  exchange_rate_syp: { $ref: '#/components/schemas/Money' }
+                  syriatel_cash_number: { type: string }
+                  bank_transfer_details: { type: string }
+                  payment_review_sla_hours: { type: integer }
+                  trial_days: { type: integer }
+                  grace_days: { type: integer }
+    PaymentNotPending:
+      description: '`PAYMENT_NOT_PENDING`: الدفعة انحسمت قبل'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: PAYMENT_NOT_PENDING, message: This payment was already reviewed., details: { status: APPROVED } } }
     NotificationPage:
       description: صفحة إشعارات
       content:
@@ -1587,6 +1980,11 @@ components:
         - CARDS_LIMIT_REACHED
         - BIRTHDAY_NOT_TODAY
         - CAMPAIGN_CONTAINS_LINK
+        - PAYMENT_ALREADY_PENDING
+        - PRICE_NOT_AVAILABLE
+        - KEEP_CARDS_REQUIRED
+        - PAYMENT_NOT_PENDING
+        - TRIAL_NOT_EXTENDABLE
     Error:
       type: object
       required: [code, message]
@@ -1748,13 +2146,15 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [stamp_added, card_completed, reward_redeemed, birthday_greeting, birthdays_today]
+          enum: [stamp_added, card_completed, reward_redeemed, birthday_greeting, birthdays_today, trial_ending, subscription_ending, grace_started, subscription_expired, payment_approved, payment_rejected]
           description: |
             `stamp_added`: «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.»
             `card_completed`: «هديتك جاهزة!» / «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].»
             `reward_redeemed`: «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.»
             `birthday_greeting`: «عيد ميلاد سعيد من [المحل]» / رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية.
             `birthdays_today` (للتاجر): «أعياد ميلاد اليوم» / «اليوم عيد ميلاد N من زبائنك. هنّئهم من التطبيق.»
+            للتاجر كمان: `trial_ending` و`subscription_ending` (قبل 3 أيام)، و`grace_started`، و`subscription_expired`،
+            و`payment_approved` و`payment_rejected` (مع `payment_id`، والرفض مع `reason`).
 
             كل إشعار بينبعت كمان push عن طريق FCM بنفس العنوان والنص، و`data` فيها `type` و`notification_id`
             والمعرّفات، **كلها نصوص**.
@@ -1768,6 +2168,9 @@ components:
             card_id: { type: integer }
             cycle_id: { type: integer }
             count: { type: integer }
+            period_id: { type: integer }
+            payment_id: { type: integer }
+            reason: { $ref: '#/components/schemas/PaymentRejectionReason' }
         read_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
         created_at: { $ref: '#/components/schemas/DateTime' }
 
@@ -1825,11 +2228,11 @@ components:
         price_usd: { $ref: '#/components/schemas/Money' }
         exchange_rate: { $ref: '#/components/schemas/Money' }
         amount_syp: { $ref: '#/components/schemas/Money' }
-        method: { type: string, enum: [syriatel_cash, transfer] }
+        method: { $ref: '#/components/schemas/PaymentMethod' }
         reference: { type: [string, 'null'] }
         proof_url: { type: string, format: uri }
         status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
-        rejection_reason: { type: [string, 'null'], enum: [transfer_not_received, amount_short, unclear_image, invalid_proof, null] }
+        rejection_reason: { oneOf: [{ $ref: '#/components/schemas/PaymentRejectionReason' }, { type: 'null' }] }
         created_at: { $ref: '#/components/schemas/DateTime' }
         reviewed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
     Capabilities:
@@ -2037,6 +2440,74 @@ components:
         greeted_on: { type: string, format: date, example: '2026-09-30' }
         message: { type: string }
         gift: { type: [string, 'null'] }
+
+    CursorMeta:
+      type: object
+      required: [next_cursor]
+      properties:
+        next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+    PaymentMethod:
+      type: string
+      enum: [syriatel_cash, transfer]
+    PaymentRejectionReason:
+      type: string
+      enum: [transfer_not_received, amount_short, unclear_image, invalid_proof]
+    PackageInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        cards_limit: { type: integer, minimum: 1, maximum: 20 }
+        weekly_campaigns_limit: { type: integer, minimum: 0, maximum: 20 }
+        is_active: { type: boolean }
+        sort_order: { type: integer, minimum: 0, maximum: 1000 }
+        prices:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [duration_months, price_usd]
+            properties:
+              duration_months: { type: integer, enum: [1, 3, 12] }
+              price_usd: { type: [number, 'null'], minimum: 0.01, maximum: 99999, description: '`null` بالتعديل بيشيل المدة' }
+    AdminPackage:
+      type: object
+      required: [id, name, cards_limit, weekly_campaigns_limit, is_active, sort_order, prices]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        cards_limit: { type: integer }
+        weekly_campaigns_limit: { type: integer }
+        is_active: { type: boolean }
+        sort_order: { type: integer }
+        prices:
+          type: array
+          items:
+            type: object
+            required: [duration_months, price_usd]
+            properties:
+              duration_months: { type: integer, enum: [1, 3, 12] }
+              price_usd: { $ref: '#/components/schemas/Money' }
+    AdminPayment:
+      allOf:
+        - $ref: '#/components/schemas/Payment'
+        - type: object
+          required: [merchant, overdue, duplicate_reference, reviewed_by, subscription_period_id]
+          properties:
+            merchant:
+              type: [object, 'null']
+              properties:
+                id: { type: integer }
+                business_name: { type: string }
+                email: { type: [string, 'null'] }
+                status: { $ref: '#/components/schemas/MerchantStatus' }
+            overdue: { type: boolean, description: مرّت مدة المراجعة والدفعة لسا معلّقة }
+            duplicate_reference: { type: boolean, description: نفس رقم المرجع بدفعة تانية }
+            reviewed_by:
+              type: [object, 'null']
+              properties:
+                id: { type: integer }
+                name: { type: string }
+            subscription_period_id: { type: [integer, 'null'] }
 
     # ── الإدارة ──
     AdminUser:

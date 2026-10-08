@@ -59,6 +59,10 @@ enum ErrorCode: string
     case KeepCardsRequired = 'KEEP_CARDS_REQUIRED';
     case PriceNotAvailable = 'PRICE_NOT_AVAILABLE';
 
+    // Dashboard (outside the contract).
+    case PaymentNotPending = 'PAYMENT_NOT_PENDING';
+    case TrialNotExtendable = 'TRIAL_NOT_EXTENDABLE';
+
     public function status(): int
     {
         return match ($this) {
@@ -73,7 +77,8 @@ enum ErrorCode: string
             self::ProfileAlreadyCompleted,
             self::RegistrationStepMismatch,
             self::RewardAlreadyRedeemed,
-            self::PaymentAlreadyPending => 409,
+            self::PaymentAlreadyPending,
+            self::PaymentNotPending => 409,
             self::AppVersionUnsupported => 426,
             self::RateLimited,
             self::OtpResendTooSoon,

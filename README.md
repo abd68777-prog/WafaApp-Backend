@@ -40,7 +40,7 @@ php artisan db:seed # lists, packages, settings, admin link — plus demo data l
 ```sh
 composer dev          # serve + queue worker together
 php artisan serve     # HTTP only, http://127.0.0.1:8000
-php artisan schedule:work   # daily jobs (birthday reminders, idle-token cleanup)
+php artisan schedule:work   # subscription statuses (hourly), birthday reminders, idle-token cleanup
 ```
 
 | Command                  | Purpose                     |
@@ -86,7 +86,7 @@ loads demo data. Later starts reuse the existing data.
 | `docker compose down -v`                   | Stop and delete all data; the next start re-seeds |
 
 Besides `app`, `web` and `db`, the stack runs `worker` (the queue, which sends
-push notifications) and `scheduler` (the daily jobs).
+push notifications) and `scheduler` (subscription statuses every hour, and the daily jobs).
 
 MySQL runs inside the stack and is not published on the host, so it does not
 clash with a local MySQL on port 3306. Change the API port with `API_PORT=8080`
@@ -299,6 +299,8 @@ Without credentials nothing is pushed and the inbox still works.
 | `stamp_added`, `card_completed`, `reward_redeemed` | Customer | Stamp and reward events |
 | `birthday_greeting` | Customer | A shop's greeting, even when offers are muted |
 | `birthdays_today` | Merchant | 09:00 Damascus, when customers have their birthday |
+| `trial_ending`, `subscription_ending`, `grace_started`, `subscription_expired` | Merchant | `subscriptions:sync`, hourly |
+| `payment_approved`, `payment_rejected` | Merchant | The payments reviewer's decision |
 
 ## Endpoints
 
@@ -319,11 +321,19 @@ Postman or generating TypeScript types.
 | Area | Endpoints |
 | ---- | --------- |
 | Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, notifications, devices |
-| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, birthday greetings, notifications, devices |
-| Admin | dashboard accounts, cancelling a stamp |
+| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, birthday greetings, subscription and payments, notifications, devices |
+| Admin | dashboard accounts, cancelling a stamp, packages and prices, billing settings, payment review, trial extension |
 | Server | Clerk webhook |
 
 `php artisan route:list --path=api` prints them all.
+
+## Subscriptions and payments
+
+A shop moves `TRIAL → ACTIVE → GRACE → EXPIRED` by its dates; `subscriptions:sync` applies them every hour
+and sends the reminders. The merchant transfers outside the app and uploads the proof; the price and exchange
+rate are copied into the payment at that moment. Only the **payments reviewer** approves or rejects; only the
+**Super Admin** sets packages, prices and billing settings and extends trials — nobody holds both
+(requirements §5.1). Every decision is in `audit_logs`.
 
 ## Database
 
@@ -364,6 +374,7 @@ app/Services/Otp/              OTP issuing, verification and delivery drivers
 app/Services/Clerk/            Clerk session token verification
 app/Services/Customer/         QR codes (TOTP), my cards, account deletion
 app/Services/Merchant/         Subscription state, PIN unlock and lockout
+app/Services/Billing/          Subscription periods, lifecycle, payment review
 app/Services/Stamping/         Scan preview, stamps, rewards and their rules
 app/Support/                   Phone numbers, Base32, cursor pagination
 routes/api.php                 Versioned API routes

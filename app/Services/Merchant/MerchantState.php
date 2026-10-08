@@ -13,7 +13,9 @@ use App\Http\Resources\SubscriptionPeriodResource;
 use App\Models\Merchant;
 use App\Models\SubscriptionPeriod;
 use App\Models\TrialEmailHash;
+use App\Services\Billing\SubscriptionLedger;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Carbon;
 
 /**
@@ -40,6 +42,8 @@ final class MerchantState
     public const CAMPAIGN_WEEK_STARTS_ON = Carbon::SATURDAY;
 
     public const TIMEZONE = 'Asia/Damascus';
+
+    public function __construct(private readonly SubscriptionLedger $ledger) {}
 
     /**
      * @return array<string, mixed>
@@ -74,9 +78,9 @@ final class MerchantState
             'package' => $period ? new PackageSummaryResource($period->package) : null,
             'current_period' => $period ? new SubscriptionPeriodResource($period) : null,
             'trial_used' => $this->trialUsed($merchant),
-            'days_remaining' => $this->daysRemaining($merchant, $period),
+            'days_remaining' => $this->daysRemaining($merchant),
             'capabilities' => $this->capabilities($merchant->status),
-            'banner' => $this->banner($merchant, $period),
+            'banner' => $this->banner($merchant),
             'pending_payment' => $pendingPayment ? new PaymentResource($pendingPayment) : null,
         ];
     }
@@ -117,11 +121,12 @@ final class MerchantState
     }
 
     /**
-     * The period that decides the package and the dates: the one ending last.
+     * The period that decides the package and its limits: the one covering
+     * now, not a renewal paid in advance.
      */
     public function currentPeriod(Merchant $merchant): ?SubscriptionPeriod
     {
-        return $merchant->subscriptionPeriods()->with('package')->orderByDesc('ends_at')->orderByDesc('id')->first();
+        return $this->ledger->activePeriod($merchant);
     }
 
     /**
@@ -161,16 +166,25 @@ final class MerchantState
     }
 
     /**
-     * Days until the trial or the paid period ends, or until the grace days
-     * run out. Null in the other statuses.
+     * When the countdown ends: the whole subscription, renewals included,
+     * or the grace days. Null in the other statuses.
      */
-    private function daysRemaining(Merchant $merchant, ?SubscriptionPeriod $period): ?int
+    private function countdownEnd(Merchant $merchant): ?CarbonInterface
     {
-        $endsAt = match ($merchant->status) {
-            MerchantStatus::Trial, MerchantStatus::Active => $period?->ends_at,
-            MerchantStatus::Grace => $period?->grace_ends_at,
+        return match ($merchant->status) {
+            MerchantStatus::Trial, MerchantStatus::Active => $this->ledger->chainEnd($merchant),
+            MerchantStatus::Grace => $this->ledger->lastPeriod($merchant)?->grace_ends_at,
             default => null,
         };
+    }
+
+    /**
+     * Days until the trial or the subscription ends, or until the grace days
+     * run out. Null in the other statuses.
+     */
+    private function daysRemaining(Merchant $merchant): ?int
+    {
+        $endsAt = $this->countdownEnd($merchant);
 
         if ($endsAt === null) {
             return null;
@@ -185,19 +199,20 @@ final class MerchantState
      *
      * @return array{code: string, level: string, params: object}|null
      */
-    private function banner(Merchant $merchant, ?SubscriptionPeriod $period): ?array
+    private function banner(Merchant $merchant): ?array
     {
-        $daysRemaining = $this->daysRemaining($merchant, $period);
+        $daysRemaining = $this->daysRemaining($merchant);
+        $endsAt = $this->countdownEnd($merchant)?->toIso8601ZuluString();
 
         [$code, $level, $params] = match (true) {
             $merchant->status === MerchantStatus::Trial && $daysRemaining !== null && $daysRemaining <= self::ENDING_SOON_DAYS => [
-                'TRIAL_ENDING', 'warning', ['days_remaining' => $daysRemaining, 'ends_at' => $period?->ends_at?->toIso8601ZuluString()],
+                'TRIAL_ENDING', 'warning', ['days_remaining' => $daysRemaining, 'ends_at' => $endsAt],
             ],
             $merchant->status === MerchantStatus::Active && $daysRemaining !== null && $daysRemaining <= self::ENDING_SOON_DAYS => [
-                'SUBSCRIPTION_ENDING', 'warning', ['days_remaining' => $daysRemaining, 'ends_at' => $period?->ends_at?->toIso8601ZuluString()],
+                'SUBSCRIPTION_ENDING', 'warning', ['days_remaining' => $daysRemaining, 'ends_at' => $endsAt],
             ],
             $merchant->status === MerchantStatus::Grace => [
-                'GRACE', 'danger', ['days_remaining' => $daysRemaining, 'ends_at' => $period?->grace_ends_at?->toIso8601ZuluString()],
+                'GRACE', 'danger', ['days_remaining' => $daysRemaining, 'ends_at' => $endsAt],
             ],
             $merchant->status === MerchantStatus::Expired => ['EXPIRED', 'danger', []],
             $merchant->status === MerchantStatus::Suspended => ['SUSPENDED', 'danger', []],

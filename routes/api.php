@@ -3,7 +3,11 @@
 use App\Enums\AdminPermission;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
 use App\Http\Controllers\Api\V1\Admin\AuthController as AdminAuthController;
+use App\Http\Controllers\Api\V1\Admin\BillingSettingsController;
+use App\Http\Controllers\Api\V1\Admin\PackageController as AdminPackageController;
+use App\Http\Controllers\Api\V1\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\StampController as AdminStampController;
+use App\Http\Controllers\Api\V1\Admin\TrialExtensionController;
 use App\Http\Controllers\Api\V1\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\V1\Customer\CardController as CustomerCardController;
 use App\Http\Controllers\Api\V1\Customer\ConfigController as CustomerConfigController;
@@ -16,11 +20,13 @@ use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthControlle
 use App\Http\Controllers\Api\V1\Merchant\BirthdayController;
 use App\Http\Controllers\Api\V1\Merchant\CardController as MerchantCardController;
 use App\Http\Controllers\Api\V1\Merchant\LookupController as MerchantLookupController;
+use App\Http\Controllers\Api\V1\Merchant\PaymentController as MerchantPaymentController;
 use App\Http\Controllers\Api\V1\Merchant\PinController;
 use App\Http\Controllers\Api\V1\Merchant\RedemptionController;
 use App\Http\Controllers\Api\V1\Merchant\RegistrationController;
 use App\Http\Controllers\Api\V1\Merchant\ScanController;
 use App\Http\Controllers\Api\V1\Merchant\StampController;
+use App\Http\Controllers\Api\V1\Merchant\SubscriptionController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Webhooks\ClerkWebhookController;
 use Illuminate\Support\Facades\Route;
@@ -143,6 +149,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
                     ->whereNumber('customer')
                     ->name('customers.birthday-greeting');
+
+                Route::get('subscription', [SubscriptionController::class, 'show'])->name('subscription');
+                Route::get('payments', [MerchantPaymentController::class, 'index'])->name('payments.index');
+                Route::post('payments', [MerchantPaymentController::class, 'store'])->name('payments.store');
             });
         });
     });
@@ -162,5 +172,29 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('stamps/{stamp}/cancel', [AdminStampController::class, 'cancel'])
             ->middleware('can:'.AdminPermission::CancelStamps->value)
             ->name('stamps.cancel');
+
+        // Prices and settings belong to the Super Admin; reviewing payments to
+        // the payments reviewer. Nobody holds both (requirements §5.1).
+        Route::middleware('can:'.AdminPermission::ManagePackages->value)->group(function () {
+            Route::get('packages', [AdminPackageController::class, 'index'])->name('packages.index');
+            Route::post('packages', [AdminPackageController::class, 'store'])->name('packages.store');
+            Route::patch('packages/{package}', [AdminPackageController::class, 'update'])->name('packages.update');
+        });
+
+        Route::middleware('can:'.AdminPermission::ManageSettings->value)->group(function () {
+            Route::get('settings/billing', [BillingSettingsController::class, 'show'])->name('settings.billing.show');
+            Route::patch('settings/billing', [BillingSettingsController::class, 'update'])->name('settings.billing.update');
+        });
+
+        Route::middleware('can:'.AdminPermission::ReviewPayments->value)->group(function () {
+            Route::get('payments', [AdminPaymentController::class, 'index'])->name('payments.index');
+            Route::get('payments/{payment}', [AdminPaymentController::class, 'show'])->name('payments.show');
+            Route::post('payments/{payment}/approve', [AdminPaymentController::class, 'approve'])->name('payments.approve');
+            Route::post('payments/{payment}/reject', [AdminPaymentController::class, 'reject'])->name('payments.reject');
+        });
+
+        Route::post('merchants/{merchant}/trial-extension', [TrialExtensionController::class, 'store'])
+            ->middleware('can:'.AdminPermission::GrantExtensions->value)
+            ->name('merchants.trial-extension');
     });
 });

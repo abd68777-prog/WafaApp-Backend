@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'method',
     'reference',
     'proof_path',
+    'keep_card_ids',
 ])]
 class Payment extends Model
 {
@@ -49,6 +50,7 @@ class Payment extends Model
             'status' => PaymentStatus::class,
             'rejection_reason' => PaymentRejectionReason::class,
             'reviewed_at' => 'datetime',
+            'keep_card_ids' => 'array',
         ];
     }
 

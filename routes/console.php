@@ -17,3 +17,7 @@ Schedule::command('birthdays:notify-merchants')
 Schedule::command('customer-tokens:prune-idle')
     ->dailyAt('04:00')
     ->timezone(MerchantState::TIMEZONE);
+
+Schedule::command('subscriptions:sync')
+    ->hourly()
+    ->withoutOverlapping();

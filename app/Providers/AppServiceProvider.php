@@ -6,6 +6,8 @@ use App\Enums\AdminPermission;
 use App\Models\AdminUser;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Models\Package;
+use App\Models\Payment;
 use App\Models\Stamp;
 use App\Services\Clerk\ClerkBackendApi;
 use App\Services\Clerk\ClerkTokenVerifier;
@@ -115,6 +117,8 @@ class AppServiceProvider extends ServiceProvider
             'merchant' => Merchant::class,
             'customer' => Customer::class,
             'stamp' => Stamp::class,
+            'payment' => Payment::class,
+            'package' => Package::class,
         ]);
     }
 
