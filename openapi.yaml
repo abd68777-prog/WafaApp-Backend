@@ -1,0 +1,2060 @@
+openapi: 3.1.0
+
+info:
+  title: وفاء — Wafa API
+  version: 1.0.0
+  description: |
+    كل endpoint شغّال حالياً بالباك إند، مطابق لـ`api.md` ولعقد Deep Code (`1.0.0-draft.1`).
+
+    - **الطلبات والردود:** JSON فقط، إلا رفع الشعار بالتسجيل (`multipart/form-data`).
+    - **التواريخ:** ISO 8601 بتوقيت UTC، مثل `2026-09-29T15:00:52Z`. وتاريخ الميلاد لحاله: `1998-05-20`.
+    - **الهاتف:** `+9639XXXXXXXX`، والخادم بيقبل كمان `0933123456` وبيحوّلها.
+    - **المبالغ:** نصوص عشرية مو أرقام، مثل `"10.00"`.
+    - **الأخطاء:** `{ "error": { "code", "message", "details" } }`. اعرض للمستخدم نصاً حسب `error.code`،
+      والـ`message` للتطوير بس، بالإنجليزي.
+    - **حدود الطلبات:** 60 بالدقيقة لكل توكن (أو لكل IP بدون توكن). الرد `429` فيه `Retry-After`.
+
+servers:
+  - url: http://127.0.0.1:8000/api/v1
+    description: محلي (ومن موبايل على نفس الشبكة استعمل IP الكمبيوتر)
+
+tags:
+  - name: عام
+  - name: الزبون — الدخول
+  - name: الزبون — الحساب
+  - name: الزبون — البطاقات
+  - name: الزبون — الإشعارات والأجهزة
+  - name: التاجر — الحساب والتسجيل
+  - name: التاجر — الـPIN
+  - name: التاجر — البطاقات
+  - name: التاجر — المسح والطوابع
+  - name: التاجر — أعياد الميلاد
+  - name: التاجر — الإشعارات والأجهزة
+  - name: الإدارة
+  - name: للخادم فقط
+
+paths:
+  # ───────────────────────────── عام ─────────────────────────────
+  /ping:
+    get:
+      tags: [عام]
+      operationId: ping
+      summary: فحص الاتصال
+      security: []
+      responses:
+        '200':
+          description: الخادم شغّال
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message, version, time]
+                properties:
+                  message: { type: string, const: pong }
+                  version: { type: string, example: v1 }
+                  time: { $ref: '#/components/schemas/DateTime' }
+
+  # ─────────────────────────── تطبيق الزبون ───────────────────────────
+  /customer/config:
+    get:
+      tags: [الزبون — الدخول]
+      operationId: customerConfig
+      summary: إعدادات التطبيق والقوائم
+      description: بدون مصادقة. بيتقرأ عند فتح التطبيق وبيتخزّن محلياً.
+      security: []
+      responses:
+        '200':
+          description: الإعدادات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CustomerConfig' }
+
+  /customer/auth/otp:
+    post:
+      tags: [الزبون — الدخول]
+      operationId: customerRequestOtp
+      summary: طلب رمز دخول على واتساب
+      description: |
+        بيبعت رمز من 6 أرقام على واتساب، صالح 5 دقائق. الرد نفسه سواء الرقم مسجّل أو لأ.
+        الحد: 5 بالساعة لكل رقم، و20 لكل IP، ومهلة 60 ثانية بين رمز ورمز.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { $ref: '#/components/schemas/Phone' }
+      responses:
+        '202':
+          description: انبعت الرمز
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [expires_in_seconds, resend_after_seconds]
+                    properties:
+                      expires_in_seconds: { type: integer, example: 300 }
+                      resend_after_seconds: { type: integer, example: 60 }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429':
+          description: '`OTP_RESEND_TOO_SOON` قبل انتهاء المهلة، أو `RATE_LIMITED`'
+          headers:
+            Retry-After: { $ref: '#/components/headers/RetryAfter' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: { code: OTP_RESEND_TOO_SOON, message: Please wait before requesting another code., details: { retry_after_seconds: 42 } }
+        '503':
+          description: '`SERVER_ERROR`: ما قدرنا نبعت الرسالة'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /customer/auth/verify:
+    post:
+      tags: [الزبون — الدخول]
+      operationId: customerVerifyOtp
+      summary: التحقق من الرمز وإصدار التوكن
+      description: |
+        إذا الرقم جديد بينشئ الحساب، وإذا كان «زبون معلّق» (تاجر أضافله طوابع برقمه) بيكمّل نفس الحساب
+        وطوابعه معه. وبيسجّل الموافقة على السياسة. `POLICY_VERSION_OUTDATED` بيتفحص قبل الرمز، فالرمز بيضل صالح.
+        الحد: 10 بالدقيقة لكل رقم، و30 لكل IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code, policy_version]
+              properties:
+                phone: { $ref: '#/components/schemas/Phone' }
+                code: { type: string, pattern: '^\d{6}$', example: '123456' }
+                policy_version: { type: string, maxLength: 16, example: '1.2', description: الإصدار يلي شافه الزبون، من `config` }
+      responses:
+        '200':
+          description: دخل الزبون
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CustomerSession' }
+        '422':
+          description: '`OTP_INVALID` · `OTP_EXPIRED` · `OTP_ATTEMPTS_EXCEEDED` · `POLICY_VERSION_OUTDATED` · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                OTP_INVALID:
+                  value: { error: { code: OTP_INVALID, message: The verification code is not correct., details: { attempts_remaining: 4 } } }
+                OTP_EXPIRED:
+                  value: { error: { code: OTP_EXPIRED, message: No valid code for this number; request a new one. } }
+                POLICY_VERSION_OUTDATED:
+                  value: { error: { code: POLICY_VERSION_OUTDATED, message: This is not the current privacy policy., details: { current_version: '1.2' } } }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /customer/auth/logout:
+    post:
+      tags: [الزبون — الدخول]
+      operationId: customerLogout
+      summary: الخروج
+      description: بيبطل التوكن الحالي بس. ابعت `DELETE /customer/devices/{token}` **قبله** لتوقف الإشعارات على الجهاز.
+      security: [{ customerToken: [] }]
+      responses:
+        '204': { description: طلع }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /customer/me:
+    get:
+      tags: [الزبون — الحساب]
+      operationId: customerMe
+      summary: حساب الزبون
+      description: |
+        بيشتغل حتى لو الملف ناقص أو الموافقة قديمة، وهو يلي بيقرر أي شاشة تنعرض:
+        `profile_complete = false` ← شاشة الاسم وتاريخ الميلاد،
+        `consented_policy_version ≠ config.privacy_policy_version` ← شاشة الموافقة.
+      security: [{ customerToken: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/CustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    patch:
+      tags: [الزبون — الحساب]
+      operationId: customerUpdateMe
+      summary: إيقاف عروض كل التجار
+      description: الحقل الوحيد القابل للتعديل. الاسم وتاريخ الميلاد ما بيتعدّلوا من التطبيق. (جاهز)
+      security: [{ customerToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [campaigns_muted]
+              properties:
+                campaigns_muted: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/CustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [الزبون — الحساب]
+      operationId: customerDeleteMe
+      summary: حذف الحساب فوراً
+      description: |
+        بينمسحوا الرقم، والاسم، وتاريخ الميلاد، ورمز الـQR، والأجهزة، والتوكنات، والإشعارات، والموافقات.
+        الطوابع بتضل بدون ما تدل على حدا. الطوابع والهدايا يلي ما استلمها بتضيع، فنبّهه قبل الحذف.
+        نفس الرقم بيقدر يسجّل بعدين كحساب جديد فاضي.
+      security: [{ customerToken: [] }]
+      responses:
+        '204': { description: انحذف }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  /customer/me/profile:
+    post:
+      tags: [الزبون — الحساب]
+      operationId: customerCompleteProfile
+      summary: إكمال الاسم وتاريخ الميلاد
+      description: مرة وحدة بعد أول دخول.
+      security: [{ customerToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, birthdate]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 60 }
+                birthdate: { type: string, format: date, description: بالماضي, example: '1998-05-20' }
+      responses:
+        '200': { $ref: '#/components/responses/CustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '409':
+          description: '`PROFILE_ALREADY_COMPLETED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422':
+          description: '`UNDER_AGE` (أقل من 13) · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: { code: UNDER_AGE, message: Customers must be at least 13 years old., details: { min_age: 13 } }
+
+  /customer/me/policy-consents:
+    post:
+      tags: [الزبون — الحساب]
+      operationId: customerAcceptPolicy
+      summary: الموافقة على إصدار جديد من سياسة الخصوصية
+      description: لما يطلع إصدار جديد، كل المسارات «الجاهزة» بترجع `403 POLICY_CONSENT_REQUIRED` لحد ما يوافق.
+      security: [{ customerToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [policy_version]
+              properties:
+                policy_version: { type: string, maxLength: 16, example: '1.2' }
+      responses:
+        '200': { $ref: '#/components/responses/CustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422':
+          description: '`POLICY_VERSION_OUTDATED` مع `current_version` · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /customer/me/qr:
+    get:
+      tags: [الزبون — الحساب]
+      operationId: customerQrSecret
+      summary: سرّ توليد رمز QR
+      description: |
+        اطلبه مرة بعد الدخول وخزّنه بـ`expo-secure-store`. الرمز TOTP (RFC 6238) بـHMAC-SHA256 و8 أرقام،
+        ومحتوى الـQR: `W1.{qr_id}.{code}`. الخادم بيقبل النافذة الحالية والسابقة بس. (جاهز)
+      security: [{ customerToken: [] }]
+      responses:
+        '200':
+          description: السر
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/QrSecret' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+
+  /customer/cards:
+    get:
+      tags: [الزبون — البطاقات]
+      operationId: customerCards
+      summary: بطاقاتي
+      description: |
+        كل البطاقات مرة وحدة بدون تصفح. الهدايا الجاهزة أول شي، بعدين حسب آخر طابع.
+        بعد استلام هدية على بطاقة فعّالة: البطاقة بتضل بتقدّم 0 و`cycle.id: null`.
+        بعد استلام هدية على بطاقة موقوفة: البطاقة بتختفي. (جاهز)
+      security: [{ customerToken: [] }]
+      responses:
+        '200':
+          description: البطاقات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/CustomerCard' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+
+  /customer/cards/{card_id}:
+    get:
+      tags: [الزبون — البطاقات]
+      operationId: customerCard
+      summary: تفاصيل بطاقة
+      description: نفس حقول عنصر القائمة، ومعها طوابع الدورة الحالية (الأقدم أول) وعنوان المحل. (جاهز)
+      security: [{ customerToken: [] }]
+      parameters:
+        - { name: card_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: البطاقة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CustomerCardDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /customer/notifications:
+    get:
+      tags: [الزبون — الإشعارات والأجهزة]
+      operationId: customerNotifications
+      summary: صندوق الإشعارات
+      description: الأحدث أول، بالمؤشر. الإشعارات هلق بالصندوق داخل التطبيق بس. (جاهز)
+      security: [{ customerToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { $ref: '#/components/responses/NotificationPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /customer/notifications/{id}/read:
+    post:
+      tags: [الزبون — الإشعارات والأجهزة]
+      operationId: customerReadNotification
+      summary: تعليم إشعار كمقروء
+      security: [{ customerToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '204': { description: انعلّم }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /customer/notifications/read-all:
+    post:
+      tags: [الزبون — الإشعارات والأجهزة]
+      operationId: customerReadAllNotifications
+      summary: تعليم الكل كمقروء
+      security: [{ customerToken: [] }]
+      responses:
+        '204': { description: انعلّموا }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+
+  /customer/devices:
+    put:
+      tags: [الزبون — الإشعارات والأجهزة]
+      operationId: customerRegisterDevice
+      summary: تسجيل رمز FCM للجهاز
+      description: بعد الدخول وكل ما يتغيّر. إذا الرمز كان لحساب تاني بينتقل لهالحساب.
+      security: [{ customerToken: [] }]
+      requestBody: { $ref: '#/components/requestBodies/Device' }
+      responses:
+        '204': { description: انسجّل }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /customer/devices/{token}:
+    delete:
+      tags: [الزبون — الإشعارات والأجهزة]
+      operationId: customerRemoveDevice
+      summary: إزالة رمز الجهاز
+      description: عند الخروج. `204` حتى لو الرمز مو موجود.
+      security: [{ customerToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceToken'
+      responses:
+        '204': { description: انشال }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+
+  # ─────────────────────────── تطبيق التاجر ───────────────────────────
+  /merchant/me:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الحساب والتسجيل]
+      operationId: merchantMe
+      summary: حالة التاجر والاشتراك
+      description: |
+        أول طلب عند فتح التطبيق. بيشتغل قبل التسجيل، وبيسجّل آخر دخول وبيحدّث البريد من توكن Clerk.
+        `registration_step`: `business` ← `package` ← `pin` ← `done`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MerchantMeData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/lookups:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الحساب والتسجيل]
+      operationId: merchantLookups
+      summary: القوائم والباقات والحدود
+      description: |
+        كل شي بتحتاجه نماذج التطبيق، مفتوح قبل التسجيل. ابني قواعد النماذج من `limits`.
+        الأسعار وحدود الحملات والتجربة قيم مبدئية لحد ما تنحسم، وبتتعدّل من الإعدادات بدون تغيير بالتطبيق.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: القوائم
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/MerchantLookups' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/registration/business:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الحساب والتسجيل]
+      operationId: merchantRegisterBusiness
+      summary: 'التسجيل 1: بيانات النشاط'
+      description: مقبولة بس لما `registration_step = business`. مع الشعار ابعت الطلب `multipart/form-data`.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterBusinessInput' }
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/RegisterBusinessInput'
+                - type: object
+                  properties:
+                    logo: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
+      responses:
+        '201':
+          description: '`registration_step: "package"` و`subscription: null`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/MerchantMe' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '409': { $ref: '#/components/responses/RegistrationStepMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/registration/package:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الحساب والتسجيل]
+      operationId: merchantSelectPackage
+      summary: 'التسجيل 2: اختيار الباقة وبدء التجربة'
+      description: |
+        إذا البريد أخد تجربة قبل (حتى بحساب محذوف)، الطلب ما بينرفض: `trial_granted: false`
+        و`subscription.status: "EXPIRED"`. بعد الـPIN بتوجّهه للدفع.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [package_id]
+              properties:
+                package_id: { type: integer }
+      responses:
+        '200':
+          description: '`registration_step: "pin"`'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/MerchantMe'
+                      - type: object
+                        required: [trial_granted]
+                        properties:
+                          trial_granted: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '409': { $ref: '#/components/responses/RegistrationStepMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/registration/pin:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الحساب والتسجيل]
+      operationId: merchantRegisterPin
+      summary: 'التسجيل 3: إنشاء الـPIN'
+      description: فيها بيكتمل التسجيل، وبترجع `pin_token` كمان حتى ما ينطلب الـPIN فوراً.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin: { $ref: '#/components/schemas/Pin' }
+      responses:
+        '200':
+          description: اكتمل التسجيل
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [me, pin]
+                    properties:
+                      me: { $ref: '#/components/schemas/MerchantMe' }
+                      pin: { $ref: '#/components/schemas/PinToken' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '409': { $ref: '#/components/responses/RegistrationStepMismatch' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/pin/unlock:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الـPIN]
+      operationId: merchantUnlockPin
+      summary: فتح التبويبات المحمية
+      description: |
+        ابعت `pin_token` بـ`X-Pin-Token` مع التبويبات المحمية، وخزّنه بالذاكرة بس. صالح `pin_unlock_hours` ساعة.
+        5 محاولات غلط ورا بعض بتقفل 15 دقيقة، والـPIN الصح بيصفّر العداد.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin: { $ref: '#/components/schemas/Pin' }
+      responses:
+        '200': { $ref: '#/components/responses/PinTokenData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '422': { $ref: '#/components/responses/PinInvalid' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+        '429': { $ref: '#/components/responses/PinLocked' }
+
+  /merchant/pin:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    put:
+      tags: [التاجر — الـPIN]
+      operationId: merchantChangePin
+      summary: تغيير الـPIN
+      description: كل `pin_token` قديم على كل الأجهزة بيوقف، وهالجهاز بياخد واحد جديد. الرمز الحالي الغلط بيتحسب من محاولات القفل.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_pin, new_pin]
+              properties:
+                current_pin: { $ref: '#/components/schemas/Pin' }
+                new_pin: { $ref: '#/components/schemas/Pin' }
+      responses:
+        '200': { $ref: '#/components/responses/PinTokenData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/PinInvalid' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+        '429': { $ref: '#/components/responses/PinLocked' }
+
+  /merchant/pin/reset:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الـPIN]
+      operationId: merchantResetPin
+      summary: إعادة ضبط الـPIN بعد دخول حديث
+      description: |
+        لصاحب المحل يلي نسي الـPIN: `signOut()` ثم `signIn` ثم هالطلب **خلال 5 دقائق** من الدخول.
+        الكاشير الفايت على جهاز المحل ما بيقدر.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_pin]
+              properties:
+                new_pin: { $ref: '#/components/schemas/Pin' }
+      responses:
+        '200': { $ref: '#/components/responses/PinTokenData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403':
+          description: '`PIN_RESET_REQUIRES_RECENT_LOGIN` · `REGISTRATION_INCOMPLETE`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: { code: PIN_RESET_REQUIRES_RECENT_LOGIN, message: Sign in again to reset the PIN., details: { max_age_seconds: 300 } }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/cards:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — البطاقات]
+      operationId: merchantCards
+      summary: بطاقات المحل
+      description: بدون تصفح، والفعّالة أول شي. **بدون PIN** لأن شاشة المسح بتستعمله بـ`?status=active`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/CardStatus' }
+      responses:
+        '200':
+          description: البطاقات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MerchantCard' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+    post:
+      tags: [التاجر — البطاقات]
+      operationId: merchantPublishCard
+      summary: نشر بطاقة
+      description: '**ما بتتعدّل بعد النشر، وما في مسار تعديل.** البطاقات الموقوفة ما بتنحسب من حد الباقة.'
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, stamps_required, reward_description, icon_id]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 60 }
+                stamps_required: { type: integer, minimum: 3, maximum: 10, description: بين `limits.card_stamps_min` و`card_stamps_max` }
+                reward_description: { type: string, minLength: 2, maxLength: 120 }
+                terms: { type: [string, 'null'], maxLength: 500 }
+                icon_id: { type: integer, description: من `lookups.icons` }
+      responses:
+        '201': { $ref: '#/components/responses/MerchantCardData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422':
+          description: '`CARDS_LIMIT_REACHED` · `MERCHANT_STATUS_BLOCKS_ACTION` (`action: cards`) · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                CARDS_LIMIT_REACHED:
+                  value: { error: { code: CARDS_LIMIT_REACHED, message: The package allows no more active cards., details: { cards_limit: 2 } } }
+                MERCHANT_STATUS_BLOCKS_ACTION:
+                  value: { error: { code: MERCHANT_STATUS_BLOCKS_ACTION, message: The subscription does not allow new cards now., details: { status: EXPIRED, action: cards } } }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/cards/{card_id}/suspend:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — البطاقات]
+      operationId: merchantSuspendCard
+      summary: إيقاف بطاقة نهائياً
+      description: |
+        ما في رجعة. الزبائن الحاليين بيكمّلوا دوراتهم وبيستلموا هداياهم، وما في مشتركين جدد ولا دورات جديدة.
+        التكرار بيرجّع البطاقة متل ما هي.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: card_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantCardData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/scan/resolve:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — المسح والطوابع]
+      operationId: merchantResolveScan
+      summary: معاينة ما قبل التأكيد
+      description: |
+        بعد مسح الرمز أو كتابة الرقم. **ما بتكتب شي بقاعدة البيانات.** بترجع `scan_token` صالح **3 دقائق**.
+        ابعت `qr` أو `phone`، واحد منهم بس. الزبون المعلّق ما بينعمل هون، بينعمل عند تأكيد الطابع.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [card_id]
+              properties:
+                card_id: { type: integer, description: البطاقة المختارة (فعّالة أو موقوفة) }
+                qr: { type: string, maxLength: 64, example: W1.Q1Pa9zblIBzE.19687500, description: المحتوى الخام من الكاميرا }
+                phone: { $ref: '#/components/schemas/Phone' }
+              oneOf:
+                - required: [qr]
+                - required: [phone]
+      responses:
+        '200':
+          description: المعاينة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/ScanPreview' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: '`QR_INVALID` · `QR_EXPIRED` · `VALIDATION_FAILED` (لا `qr` ولا `phone`، أو التنين سوا)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/stamps:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — المسح والطوابع]
+      operationId: merchantAddStamp
+      summary: تأكيد إضافة طابع
+      description: |
+        **طابع واحد بكل طلب.** الخادم بيعيد فحص كل القواعد لحظة التأكيد. الرقم الجديد بيصير هون زبون معلّق.
+        الزبون المسجّل بيوصله إشعار بالطابع، وإشعار «هديتك جاهزة!» إذا اكتملت البطاقة.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scan_token, client_uuid]
+              properties:
+                scan_token: { type: string, description: من المعاينة }
+                client_uuid: { type: string, format: uuid, description: ولّده مرة وحدة لكل ضغطة «تأكيد»، وأعد استعماله نفسه إذا أعدت المحاولة }
+      responses:
+        '201':
+          description: طابع جديد
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/StampResult' }
+        '200':
+          description: نفس الطلب انبعت قبل بنفس `client_uuid`، وهي النتيجة الأصلية. ما بينضاف طابع تاني.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/StampResult' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '422':
+          description: '`SCAN_TOKEN_EXPIRED` · `STAMP_INTERVAL` · `REWARD_READY_REDEEM_FIRST` · `CARD_SUSPENDED` · `MERCHANT_STATUS_BLOCKS_ACTION` · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                STAMP_INTERVAL:
+                  value:
+                    error:
+                      code: STAMP_INTERVAL
+                      message: Stamp interval not elapsed.
+                      details: { last_stamp_at: '2026-09-29T15:00:52Z', next_allowed_at: '2026-09-29T16:00:52Z', minutes_since_last: 0, minutes_remaining: 60 }
+                REWARD_READY_REDEEM_FIRST:
+                  value: { error: { code: REWARD_READY_REDEEM_FIRST, message: The card is complete; hand over the reward first., details: { cycle_id: 17 } } }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/redemptions:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — المسح والطوابع]
+      operationId: merchantRedeemReward
+      summary: تأكيد تسليم الهدية
+      description: |
+        ذرّية: إذا ضغط جهازين سوا، واحد بس بينجح. مسموح بكل حالات الاشتراك، حتى المنتهي.
+        ممكن بنفس زيارة الطابع الأخير وبنفس `scan_token`. الزبون بيوصله إشعار `reward_redeemed`.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scan_token, cycle_id]
+              properties:
+                scan_token: { type: string, description: من معاينة **مسح رمز** (`method = qr`) }
+                cycle_id: { type: integer, description: '`cycle.id` من المعاينة، أو `cycle_id` من `other_ready_rewards`' }
+      responses:
+        '200':
+          description: انسلّمت
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/RedemptionResult' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`REWARD_ALREADY_REDEEMED`: جهاز تاني سلّمها للتو'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example:
+                error: { code: REWARD_ALREADY_REDEEMED, message: This reward was just handed over., details: { cycle_id: 17, redeemed_at: '2026-09-29T15:00:52Z' } }
+        '422':
+          description: '`REDEEM_REQUIRES_QR` · `NO_REWARD_READY` · `SCAN_TOKEN_EXPIRED` · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/customers/birthdays-today:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — أعياد الميلاد]
+      operationId: merchantBirthdaysToday
+      summary: أعياد ميلاد اليوم
+      description: |
+        الزبائن المسجّلين يلي عيد ميلادهم اليوم بتوقيت دمشق، ومن زبائن المحل (إلهم دورة على أي بطاقة عنده،
+        حتى لو استلموا هديتها). **بدون سنة الميلاد.** مواليد 29 شباط بيطلعوا بـ28 شباط بالسنين غير الكبيسة.
+      security: [{ clerkSession: [], pinToken: [] }]
+      responses:
+        '200':
+          description: القائمة، مرتبة بالاسم
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/BirthdayCustomer' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/customers/{customer_id}/birthday-greeting:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — أعياد الميلاد]
+      operationId: merchantSendBirthdayGreeting
+      summary: إرسال تهنئة عيد ميلاد
+      description: |
+        الزبون بيوصله إشعار `birthday_greeting`، **حتى لو موقّف عروض المحل أو كل العروض.**
+        مرة وحدة باليوم لكل زبون، وما بتنحسب من حد الحملات الأسبوعي.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: customer_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string, maxLength: 300, description: نص التاجر، بدون روابط }
+                gift: { type: [string, 'null'], maxLength: 60, description: هدية مع التهنئة، بدون روابط }
+      responses:
+        '201':
+          description: انبعتت
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/BirthdayGreeting' }
+        '200':
+          description: انبعتت تهنئة اليوم من قبل. بترجع التهنئة الأولى وما بينبعت شي جديد.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/BirthdayGreeting' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: '`BIRTHDAY_NOT_TODAY` · `CAMPAIGN_CONTAINS_LINK` · `MERCHANT_STATUS_BLOCKS_ACTION` (`action: campaigns`) · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                BIRTHDAY_NOT_TODAY:
+                  value: { error: { code: BIRTHDAY_NOT_TODAY, message: It is not this customer’s birthday today. } }
+                CAMPAIGN_CONTAINS_LINK:
+                  value: { error: { code: CAMPAIGN_CONTAINS_LINK, message: Links are not allowed in greetings., details: { field: message } } }
+                MERCHANT_STATUS_BLOCKS_ACTION:
+                  value: { error: { code: MERCHANT_STATUS_BLOCKS_ACTION, message: The subscription does not allow greetings now., details: { status: EXPIRED, action: campaigns } } }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/notifications:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الإشعارات والأجهزة]
+      operationId: merchantNotifications
+      summary: صندوق إشعارات التاجر
+      description: |
+        بنفس شكل وتصفح ونفس push إشعارات الزبون. هلق فيها `birthdays_today`: كل يوم 9 الصبح بتوقيت دمشق إذا في
+        زبائن عيد ميلادهم اليوم، و`data.count` عددهم.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200': { $ref: '#/components/responses/NotificationPage' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/notifications/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الإشعارات والأجهزة]
+      operationId: merchantReadNotification
+      summary: تعليم إشعار كمقروء
+      security: [{ clerkSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '204': { description: انعلّم }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/notifications/read-all:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — الإشعارات والأجهزة]
+      operationId: merchantReadAllNotifications
+      summary: تعليم الكل كمقروء
+      security: [{ clerkSession: [] }]
+      responses:
+        '204': { description: انعلّموا }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/devices:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    put:
+      tags: [التاجر — الإشعارات والأجهزة]
+      operationId: merchantRegisterDevice
+      summary: تسجيل رمز FCM للجهاز
+      security: [{ clerkSession: [] }]
+      requestBody: { $ref: '#/components/requestBodies/Device' }
+      responses:
+        '204': { description: انسجّل }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/devices/{token}:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    delete:
+      tags: [التاجر — الإشعارات والأجهزة]
+      operationId: merchantRemoveDevice
+      summary: إزالة رمز الجهاز
+      description: التاجر بيبعته عند الخروج من Clerk. `204` حتى لو الرمز مو موجود.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceToken'
+      responses:
+        '204': { description: انشال }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/RegistrationIncomplete' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  # ─────────────────────────── لوحة الإدارة ───────────────────────────
+  /admin/auth/me:
+    get:
+      tags: [الإدارة]
+      operationId: adminMe
+      summary: الحساب والدور والصلاحيات
+      description: |
+        بأول دخول لصاحب البريد، الحساب بينربط بحساب Clerk تلقائياً. اللوحة بتستعمل `permissions` بس
+        لتخبّي الشاشات والأزرار، والخادم بيفحص الصلاحية على كل طلب.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: الحساب
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, permissions]
+                properties:
+                  data: { $ref: '#/components/schemas/AdminUser' }
+                  permissions:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminPermission' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/admin-users:
+    get:
+      tags: [الإدارة]
+      operationId: adminListAdminUsers
+      summary: حسابات الإدارة
+      description: الفعّالة أول، مرتبة بالاسم. الصلاحية `manage-admin-accounts`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: الحسابات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminUser' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [الإدارة]
+      operationId: adminCreateAdminUser
+      summary: إضافة حساب إدارة
+      description: '`linked: false` لحد ما يفوت صاحب البريد على اللوحة بـClerk بنفس البريد. الصلاحية `manage-admin-accounts`.'
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, role]
+              properties:
+                name: { type: string, maxLength: 255 }
+                email: { type: string, format: email, maxLength: 255, description: فريد، بدون فرق بالأحرف الكبيرة والصغيرة }
+                role: { $ref: '#/components/schemas/AdminRole' }
+      responses:
+        '201': { $ref: '#/components/responses/AdminUserData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/admin-users/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    patch:
+      tags: [الإدارة]
+      operationId: adminUpdateAdminUser
+      summary: تعديل حساب إدارة
+      description: |
+        أي حقل من الحقول. `email` بس **قبل الربط** (بعده `prohibits`). ما حدا بيغيّر دوره أو بيعطّل حسابه
+        بنفسه: `VALIDATION_FAILED` مع `fields.admin_user: ["invalid"]`. الصلاحية `manage-admin-accounts`.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 255 }
+                email: { type: string, format: email, maxLength: 255 }
+                role: { $ref: '#/components/schemas/AdminRole' }
+                is_active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/AdminUserData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [الإدارة]
+      operationId: adminDeactivateAdminUser
+      summary: تعطيل حساب إدارة
+      description: |
+        بيعطّل الحساب (`is_active: false`) وما بيحذفه، حتى يضل سجل التدقيق يدل على مين عمل شو.
+        بيرجع يتفعّل بـ`PATCH` مع `is_active: true`. الصلاحية `manage-admin-accounts`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/AdminUserData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/stamps/{id}/cancel:
+    post:
+      tags: [الإدارة]
+      operationId: adminCancelStamp
+      summary: إلغاء طابع غلط
+      description: |
+        الطابع ما بينحذف، بينعلّم ملغى. إذا كان هو يلي كمّل البطاقة، الدورة بترجع `COLLECTING`.
+        العملية بتنكتب بسجل التدقيق، والتكرار بيرجّعه متل ما هو. الصلاحية `cancel-stamps`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200':
+          description: انلغى
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CancelledStamp' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`REWARD_ALREADY_REDEEMED`: ممنوع بعد تسليم الهدية'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ─────────────────────────── للخادم فقط ───────────────────────────
+  /webhooks/clerk:
+    post:
+      tags: [للخادم فقط]
+      operationId: clerkWebhook
+      summary: أحداث Clerk
+      description: |
+        **التطبيقات ما بتستعمله.** موقّع بتوقيع Svix.
+        `user.updated`: البريد الأساسي الجديد بيتحدّث للتاجر ولحساب الإدارة المربوط.
+        `user.deleted`: حساب الإدارة بينفك ربطه، وبيانات التاجر ما بتنلمس (بس سطر بسجل التدقيق).
+      security: []
+      parameters:
+        - { name: svix-id, in: header, required: true, schema: { type: string } }
+        - { name: svix-timestamp, in: header, required: true, schema: { type: string } }
+        - { name: svix-signature, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, data]
+              properties:
+                type: { type: string, examples: [user.updated, user.deleted] }
+                data: { type: object }
+      responses:
+        '200': { description: انستلم أي حدث موقّع }
+        '400': { description: توقيع غلط أو أقدم من 5 دقائق }
+
+components:
+  securitySchemes:
+    customerToken:
+      type: http
+      scheme: bearer
+      description: |
+        توكن الزبون من `POST /customer/auth/verify`. خزّنه بـ`expo-secure-store`.
+        ما إلو مدة ثابتة، بس بيوقف إذا ما انستعمل 90 يوم (`CUSTOMER_TOKEN_IDLE_DAYS`)، وكل طلب بيجدّد العداد.
+    clerkSession:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: توكن جلسة Clerk من `getToken()` **قبل كل طلب**، وما بيتخزّن. للتاجر ولوحة الإدارة.
+    pinToken:
+      type: apiKey
+      in: header
+      name: X-Pin-Token
+      description: '`pin_token` من `POST /merchant/pin/unlock`. بالذاكرة بس، بيروح لما ينسكّر التطبيق.'
+
+  parameters:
+    AppVersion:
+      name: X-App-Version
+      in: header
+      required: true
+      description: نسخة تطبيق التاجر. الأقدم من الحد الأدنى بياخد `426 APP_VERSION_UNSUPPORTED`.
+      schema: { type: string, example: 1.0.0 }
+    AppPlatform:
+      name: X-App-Platform
+      in: header
+      required: true
+      schema: { $ref: '#/components/schemas/Platform' }
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: '`meta.next_cursor` من الصفحة السابقة'
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    NotificationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DeviceToken:
+      name: token
+      in: path
+      required: true
+      description: رمز FCM مرمَّز بـ`encodeURIComponent` لأنو فيه `:`
+      schema: { type: string }
+
+  headers:
+    RetryAfter:
+      description: الثواني لحد ما يصير مسموح
+      schema: { type: integer }
+
+  requestBodies:
+    Device:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [token, platform]
+            properties:
+              token: { type: string, maxLength: 255 }
+              platform: { $ref: '#/components/schemas/Platform' }
+
+  responses:
+    Unauthenticated:
+      description: '`UNAUTHENTICATED`: توكن مفقود أو منتهي أو غلط'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: UNAUTHENTICATED, message: Unauthenticated. } }
+    Forbidden:
+      description: '`FORBIDDEN`: الحساب ما إلو صلاحية (دور بلوحة الإدارة، أو توكن لتطبيق تاني)'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: FORBIDDEN, message: Your role does not allow this action. } }
+    NotFound:
+      description: '`NOT_FOUND`: العنصر مو موجود أو مو تبع هالحساب'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationFailed:
+      description: '`VALIDATION_FAILED`: أخطاء الحقول'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error:
+              code: VALIDATION_FAILED
+              message: The business name field must be at least 2 characters. (and 2 more errors)
+              details:
+                fields:
+                  business_name: [min]
+                  business_type_id: [required]
+                  phone: [format]
+    RateLimited:
+      description: '`RATE_LIMITED`'
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: RATE_LIMITED, message: Too many requests., details: { retry_after_seconds: 30 } } }
+    AppVersionUnsupported:
+      description: '`APP_VERSION_UNSUPPORTED`: شاشة التحديث الإجباري'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            error: { code: APP_VERSION_UNSUPPORTED, message: A newer version of the app is required., details: { min_version: 1.0.0, download_url: 'https://…/wafa-merchant.apk' } }
+    CustomerNotReady:
+      description: '`PROFILE_INCOMPLETE` · `POLICY_CONSENT_REQUIRED` (مع `current_version`)'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            PROFILE_INCOMPLETE:
+              value: { error: { code: PROFILE_INCOMPLETE, message: Enter your name and date of birth first. } }
+            POLICY_CONSENT_REQUIRED:
+              value: { error: { code: POLICY_CONSENT_REQUIRED, message: Agree to the current privacy policy first., details: { current_version: '1.2' } } }
+    RegistrationIncomplete:
+      description: '`REGISTRATION_INCOMPLETE`: التاجر ما كمّل خطوات التسجيل'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: REGISTRATION_INCOMPLETE, message: Finish the registration steps first., details: { registration_step: business } } }
+    RegistrationStepMismatch:
+      description: '`REGISTRATION_STEP_MISMATCH`: خطوة تسجيل بغير وقتها'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: REGISTRATION_STEP_MISMATCH, message: Registration is at the pin step., details: { registration_step: pin } } }
+    PinRequired:
+      description: '`PIN_REQUIRED` (`X-Pin-Token` مفقود أو منتهي) · `REGISTRATION_INCOMPLETE`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: PIN_REQUIRED, message: Enter the PIN to open this section. } }
+    PinInvalid:
+      description: '`PIN_INVALID` (الخامسة بترجع `attempts_remaining: 0`) · `VALIDATION_FAILED`'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: PIN_INVALID, message: This PIN is not correct., details: { attempts_remaining: 4 } } }
+    PinLocked:
+      description: '`PIN_LOCKED`: 5 محاولات غلط ورا بعض، قفل 15 دقيقة'
+      headers:
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: PIN_LOCKED, message: Too many wrong PINs; try again later., details: { retry_after_seconds: 900 } } }
+    CustomerData:
+      description: الزبون
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/Customer' }
+    MerchantMeData:
+      description: التاجر
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/MerchantMe' }
+    MerchantCardData:
+      description: البطاقة
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/MerchantCard' }
+    PinTokenData:
+      description: توكن الـPIN
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/PinToken' }
+    AdminUserData:
+      description: حساب الإدارة
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminUser' }
+    NotificationPage:
+      description: صفحة إشعارات
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, meta]
+            properties:
+              data:
+                type: array
+                items: { $ref: '#/components/schemas/Notification' }
+              meta:
+                type: object
+                required: [next_cursor]
+                properties:
+                  next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+
+  schemas:
+    # ── أساسيات ──
+    DateTime:
+      type: string
+      format: date-time
+      example: '2026-09-29T15:00:52Z'
+    Phone:
+      type: string
+      description: '`+9639XXXXXXXX`، والخادم بيقبل كمان `09XXXXXXXX`'
+      example: '+963933123456'
+    Pin:
+      type: string
+      pattern: '^\d{4,6}$'
+      example: '1234'
+    Money:
+      type: string
+      pattern: '^\d+\.\d{2}$'
+      example: '10.00'
+    Platform:
+      type: string
+      enum: [android, ios]
+    CardStatus:
+      type: string
+      enum: [active, suspended]
+    CycleStatus:
+      type: string
+      enum: [COLLECTING, REWARD_READY]
+    StampMethod:
+      type: string
+      enum: [qr, phone]
+      description: '`qr` مسح الرمز، `phone` برقمه'
+    MerchantStatus:
+      type: string
+      enum: [TRIAL, ACTIVE, GRACE, EXPIRED, SUSPENDED, PENDING_DELETION]
+    AdminRole:
+      type: string
+      enum: [super_admin, admin, payments_reviewer, support]
+    AdminPermission:
+      type: string
+      enum:
+        - manage-admin-accounts
+        - manage-packages
+        - manage-settings
+        - grant-extensions
+        - view-audit-log
+        - review-payments
+        - view-financials
+        - suspend-merchants
+        - execute-deletion-requests
+        - cancel-stamps
+        - manage-lookups
+        - edit-business-identity
+        - edit-customer-birthdate
+        - view-merchants-and-customers
+        - reveal-customer-phone
+
+    ErrorCode:
+      type: string
+      enum:
+        - UNAUTHENTICATED
+        - FORBIDDEN
+        - NOT_FOUND
+        - VALIDATION_FAILED
+        - RATE_LIMITED
+        - APP_VERSION_UNSUPPORTED
+        - SERVER_ERROR
+        - OTP_INVALID
+        - OTP_EXPIRED
+        - OTP_ATTEMPTS_EXCEEDED
+        - OTP_RESEND_TOO_SOON
+        - POLICY_VERSION_OUTDATED
+        - POLICY_CONSENT_REQUIRED
+        - PROFILE_INCOMPLETE
+        - PROFILE_ALREADY_COMPLETED
+        - UNDER_AGE
+        - REGISTRATION_INCOMPLETE
+        - REGISTRATION_STEP_MISMATCH
+        - PIN_REQUIRED
+        - PIN_INVALID
+        - PIN_LOCKED
+        - PIN_RESET_REQUIRES_RECENT_LOGIN
+        - QR_INVALID
+        - QR_EXPIRED
+        - SCAN_TOKEN_EXPIRED
+        - STAMP_INTERVAL
+        - REWARD_READY_REDEEM_FIRST
+        - NO_REWARD_READY
+        - REDEEM_REQUIRES_QR
+        - REWARD_ALREADY_REDEEMED
+        - CARD_SUSPENDED
+        - MERCHANT_STATUS_BLOCKS_ACTION
+        - CARDS_LIMIT_REACHED
+        - BIRTHDAY_NOT_TODAY
+        - CAMPAIGN_CONTAINS_LINK
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        message: { type: string, description: للتطوير بس، بالإنجليزي }
+        details:
+          type: object
+          additionalProperties: true
+          description: |
+            القيم يلي بيحتاجها النص حسب الرمز. `VALIDATION_FAILED`: `fields` كل حقل مع قائمة أسماء قواعد:
+            `required` · `min` · `max` · `size` · `format` · `taken` · `exists` · `before` · `prohibits` · `invalid`.
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/Error' }
+
+    # ── قوائم ──
+    Lookup:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    Icon:
+      type: object
+      required: [id, key, name]
+      properties:
+        id: { type: integer }
+        key: { type: string, example: coffee-cup, description: التطبيق بيرسم الأيقونة من مكتبته حسب `key` }
+        name: { type: string, example: فنجان قهوة }
+
+    # ── الزبون ──
+    CustomerConfig:
+      type: object
+      required: [qr_period_seconds, privacy_policy_version, privacy_policy_url, customer_terms_url, governorates, business_types]
+      properties:
+        qr_period_seconds: { type: integer, example: 60 }
+        privacy_policy_version: { type: string, example: '1.2' }
+        privacy_policy_url: { type: string, format: uri }
+        customer_terms_url: { type: string, format: uri }
+        governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
+        business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
+    Customer:
+      type: object
+      description: للزبون نفسه بس
+      required: [id, phone, name, birthdate, campaigns_muted, profile_complete, consented_policy_version, registered_at]
+      properties:
+        id: { type: integer, example: 18 }
+        phone: { $ref: '#/components/schemas/Phone' }
+        name: { type: [string, 'null'], description: '`null` لحتى يكمّل ملفه' }
+        birthdate: { type: [string, 'null'], format: date, example: '1998-05-20' }
+        campaigns_muted: { type: boolean, description: إيقاف عروض كل التجار }
+        profile_complete: { type: boolean }
+        consented_policy_version: { type: [string, 'null'], example: '1.2' }
+        registered_at: { $ref: '#/components/schemas/DateTime' }
+    CustomerSession:
+      type: object
+      required: [token, token_type, customer, needs_profile, claimed_stamps]
+      properties:
+        token: { type: string, example: 10|FJ2HL4cWxpQLwZuDeeAcBWDcAgBc3fuOGaPqmWE5ab4dc686 }
+        token_type: { type: string, const: Bearer }
+        customer: { $ref: '#/components/schemas/Customer' }
+        needs_profile: { type: boolean }
+        claimed_stamps:
+          type: array
+          description: فيها عناصر بس بأول دخول لرقم كان زبون معلّق، لـ«طوابعك وصلت»
+          items:
+            type: object
+            required: [merchant, card, stamps_count, status]
+            properties:
+              merchant: { $ref: '#/components/schemas/MerchantSummary' }
+              card: { $ref: '#/components/schemas/CardSummary' }
+              stamps_count: { type: integer }
+              status: { $ref: '#/components/schemas/CycleStatus' }
+    QrSecret:
+      type: object
+      required: [qr_id, secret, algorithm, digits, period_seconds]
+      properties:
+        qr_id: { type: string, example: Q1Pa9zblIBzE }
+        secret: { type: string, description: Base32, example: 4XDGTVZPZAQC34IDCLK7GPZOMBYPLY3Q }
+        algorithm: { type: string, const: SHA256 }
+        digits: { type: integer, const: 8 }
+        period_seconds: { type: integer, example: 60 }
+
+    # ── البطاقات ──
+    CardSummary:
+      type: object
+      required: [id, name, stamps_required, reward_description, terms, icon, status]
+      properties:
+        id: { type: integer, example: 11 }
+        name: { type: string, example: بطاقة القهوة }
+        stamps_required: { type: integer, example: 3 }
+        reward_description: { type: string, example: فنجان قهوة مجاني }
+        terms: { type: [string, 'null'] }
+        icon: { $ref: '#/components/schemas/Icon' }
+        status: { $ref: '#/components/schemas/CardStatus' }
+    MerchantSummary:
+      type: object
+      required: [id, business_name, logo_url, business_type, governorate]
+      properties:
+        id: { type: integer, example: 10 }
+        business_name: { type: string, example: كافيه الياسمين }
+        logo_url: { type: [string, 'null'], format: uri }
+        business_type: { $ref: '#/components/schemas/Lookup' }
+        governorate: { $ref: '#/components/schemas/Lookup' }
+    CycleProgress:
+      type: object
+      description: '`id: null` مع `stamps_count: 0` يعني ما في دورة مفتوحة، والدورة الجديدة بتنفتح مع الطابع الجاي.'
+      required: [id, stamps_count, status, completed_at]
+      properties:
+        id: { type: [integer, 'null'], example: 17 }
+        stamps_count: { type: integer, example: 1 }
+        status: { $ref: '#/components/schemas/CycleStatus' }
+        completed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+    CustomerCard:
+      type: object
+      required: [card, merchant, cycle, completed_cycles_count, last_stamp_at, merchant_muted]
+      properties:
+        card: { $ref: '#/components/schemas/CardSummary' }
+        merchant: { $ref: '#/components/schemas/MerchantSummary' }
+        cycle: { $ref: '#/components/schemas/CycleProgress' }
+        completed_cycles_count: { type: integer, description: كم مرة استلم هدية هالبطاقة }
+        last_stamp_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }], description: آخر طابع غير ملغى }
+        merchant_muted: { type: boolean, description: موقّف عروض هالمحل }
+    CustomerCardDetail:
+      allOf:
+        - $ref: '#/components/schemas/CustomerCard'
+        - type: object
+          required: [stamps, merchant_address]
+          properties:
+            stamps:
+              type: array
+              description: طوابع الدورة الحالية، الأقدم أول
+              items:
+                type: object
+                required: [stamped_at, method]
+                properties:
+                  stamped_at: { $ref: '#/components/schemas/DateTime' }
+                  method: { $ref: '#/components/schemas/StampMethod' }
+            merchant_address: { type: [string, 'null'], example: دمشق، شارع الحمرا }
+    MerchantCard:
+      allOf:
+        - $ref: '#/components/schemas/CardSummary'
+        - type: object
+          required: [created_at, suspended_at, active_customers, rewards_ready]
+          properties:
+            created_at: { $ref: '#/components/schemas/DateTime' }
+            suspended_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+            active_customers: { type: integer, description: زبائن إلهم دورة مفتوحة على البطاقة }
+            rewards_ready: { type: integer, description: هدايا جاهزة ما انسلّمت }
+
+    # ── الإشعارات ──
+    Notification:
+      type: object
+      required: [id, type, title, body, data, read_at, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [stamp_added, card_completed, reward_redeemed, birthday_greeting, birthdays_today]
+          description: |
+            `stamp_added`: «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.»
+            `card_completed`: «هديتك جاهزة!» / «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].»
+            `reward_redeemed`: «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.»
+            `birthday_greeting`: «عيد ميلاد سعيد من [المحل]» / رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية.
+            `birthdays_today` (للتاجر): «أعياد ميلاد اليوم» / «اليوم عيد ميلاد N من زبائنك. هنّئهم من التطبيق.»
+
+            كل إشعار بينبعت كمان push عن طريق FCM بنفس العنوان والنص، و`data` فيها `type` و`notification_id`
+            والمعرّفات، **كلها نصوص**.
+        title: { type: string }
+        body: { type: string }
+        data:
+          type: object
+          description: المعرّفات لتفتح البطاقة لما يضغط (للتهنئة `merchant_id` بس، ولـ`birthdays_today` بس `count`)
+          properties:
+            merchant_id: { type: integer }
+            card_id: { type: integer }
+            cycle_id: { type: integer }
+            count: { type: integer }
+        read_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+
+    # ── التاجر ──
+    RegisterBusinessInput:
+      type: object
+      required: [business_name, business_type_id, governorate_id, owner_name, phone]
+      properties:
+        business_name: { type: string, minLength: 2, maxLength: 80, description: ما بيتعدّل بعدين إلا من الدعم }
+        business_type_id: { type: integer, description: من `lookups.business_types` }
+        governorate_id: { type: integer, description: من `lookups.governorates` }
+        address: { type: [string, 'null'], maxLength: 255 }
+        owner_name: { type: string, minLength: 2, maxLength: 80 }
+        phone: { $ref: '#/components/schemas/Phone', description: رقم تواصل المحل، مو للدخول. فريد بين التجار }
+    MerchantProfile:
+      type: object
+      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, logo_url, created_at]
+      properties:
+        id: { type: integer }
+        email: { type: string, format: email }
+        business_name: { type: string }
+        business_type: { $ref: '#/components/schemas/Lookup' }
+        governorate: { $ref: '#/components/schemas/Lookup' }
+        address: { type: [string, 'null'] }
+        owner_name: { type: string }
+        phone: { $ref: '#/components/schemas/Phone' }
+        logo_url: { type: [string, 'null'], format: uri }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+    PackageSummary:
+      type: object
+      required: [id, name, cards_limit, weekly_campaigns_limit]
+      properties:
+        id: { type: integer }
+        name: { type: string, example: المتوسطة }
+        cards_limit: { type: integer }
+        weekly_campaigns_limit: { type: integer }
+    SubscriptionPeriod:
+      type: object
+      required: [id, type, package, duration_months, starts_at, ends_at, grace_ends_at]
+      properties:
+        id: { type: integer }
+        type: { type: string, enum: [trial, paid] }
+        package: { $ref: '#/components/schemas/PackageSummary' }
+        duration_months: { type: [integer, 'null'], enum: [1, 3, 12, null] }
+        starts_at: { $ref: '#/components/schemas/DateTime' }
+        ends_at: { $ref: '#/components/schemas/DateTime' }
+        grace_ends_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+    Payment:
+      type: object
+      required: [id, package, duration_months, price_usd, exchange_rate, amount_syp, method, reference, proof_url, status, rejection_reason, created_at, reviewed_at]
+      properties:
+        id: { type: integer }
+        package: { $ref: '#/components/schemas/PackageSummary' }
+        duration_months: { type: integer, enum: [1, 3, 12] }
+        price_usd: { $ref: '#/components/schemas/Money' }
+        exchange_rate: { $ref: '#/components/schemas/Money' }
+        amount_syp: { $ref: '#/components/schemas/Money' }
+        method: { type: string, enum: [syriatel_cash, transfer] }
+        reference: { type: [string, 'null'] }
+        proof_url: { type: string, format: uri }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        rejection_reason: { type: [string, 'null'], enum: [transfer_not_received, amount_short, unclear_image, invalid_proof, null] }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+        reviewed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+    Capabilities:
+      type: object
+      description: |
+        شو مسموح هلق، للعرض. `TRIAL` و`ACTIVE` و`GRACE` كلها `true`. وبـ`EXPIRED` و`SUSPENDED` و`PENDING_DELETION`
+        بس `redemptions: true`.
+      required: [stamps, new_customers, campaigns, redemptions, create_cards, directory_visible]
+      properties:
+        stamps: { type: boolean }
+        new_customers: { type: boolean }
+        campaigns: { type: boolean }
+        redemptions: { type: boolean }
+        create_cards: { type: boolean }
+        directory_visible: { type: boolean }
+    Banner:
+      type: object
+      description: |
+        `TRIAL_ENDING` / `SUBSCRIPTION_ENDING`: باقي 3 أيام أو أقل (`warning`). `GRACE`: مهلة السماح (`danger`).
+        `EXPIRED` · `SUSPENDED` · `PENDING_DELETION`: الحالة نفسها (`danger`، بدون `params`).
+      required: [code, level, params]
+      properties:
+        code: { type: string, enum: [TRIAL_ENDING, SUBSCRIPTION_ENDING, GRACE, EXPIRED, SUSPENDED, PENDING_DELETION] }
+        level: { type: string, enum: [warning, danger] }
+        params:
+          type: [object, 'null']
+          properties:
+            days_remaining: { type: integer }
+            ends_at: { $ref: '#/components/schemas/DateTime' }
+    Subscription:
+      type: object
+      required: [status, package, current_period, trial_used, days_remaining, capabilities, banner, pending_payment]
+      properties:
+        status: { $ref: '#/components/schemas/MerchantStatus' }
+        package: { $ref: '#/components/schemas/PackageSummary' }
+        current_period: { oneOf: [{ $ref: '#/components/schemas/SubscriptionPeriod' }, { type: 'null' }] }
+        trial_used: { type: boolean }
+        days_remaining: { type: [integer, 'null'], description: لنهاية التجربة أو الاشتراك، أو لنهاية المهلة بـ`GRACE`. `null` بباقي الحالات }
+        capabilities: { $ref: '#/components/schemas/Capabilities' }
+        banner: { oneOf: [{ $ref: '#/components/schemas/Banner' }, { type: 'null' }] }
+        pending_payment: { oneOf: [{ $ref: '#/components/schemas/Payment' }, { type: 'null' }] }
+    Usage:
+      type: object
+      required: [active_cards, cards_limit, campaigns_used_this_week, weekly_campaigns_limit, campaigns_resets_at]
+      properties:
+        active_cards: { type: integer }
+        cards_limit: { type: integer }
+        campaigns_used_this_week: { type: integer }
+        weekly_campaigns_limit: { type: integer }
+        campaigns_resets_at:
+          $ref: '#/components/schemas/DateTime'
+          description: |
+            بداية الأسبوع الجاي: السبت 00:00 بتوقيت دمشق، مكتوب بـUTC (`2026-10-02T21:00:00Z` = السبت 3 تشرين الأول
+            00:00 بدمشق). الأسبوع تقويمي من السبت للجمعة.
+    MerchantMe:
+      type: object
+      description: قبل ما يكمّل الخطوة الأولى `merchant` و`subscription` و`usage` كلها `null`.
+      required: [registration_step, email, merchant, subscription, usage]
+      properties:
+        registration_step: { type: string, enum: [business, package, pin, done] }
+        email: { type: string, format: email }
+        merchant: { oneOf: [{ $ref: '#/components/schemas/MerchantProfile' }, { type: 'null' }] }
+        subscription: { oneOf: [{ $ref: '#/components/schemas/Subscription' }, { type: 'null' }] }
+        usage: { oneOf: [{ $ref: '#/components/schemas/Usage' }, { type: 'null' }] }
+    MerchantLookups:
+      type: object
+      required: [governorates, business_types, icons, trial_days, packages, payment, limits, links]
+      properties:
+        governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
+        business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
+        icons: { type: array, items: { $ref: '#/components/schemas/Icon' } }
+        trial_days: { type: integer, example: 14, description: مدة التجربة المجانية بالأيام. حقل زيادة عن العقد }
+        packages:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/PackageSummary'
+              - type: object
+                required: [prices]
+                properties:
+                  prices:
+                    type: array
+                    items:
+                      type: object
+                      required: [duration_months, price_usd, amount_syp]
+                      properties:
+                        duration_months: { type: integer, enum: [1, 3, 12] }
+                        price_usd: { $ref: '#/components/schemas/Money' }
+                        amount_syp: { $ref: '#/components/schemas/Money', description: بسعر الصرف الحالي، للعرض بس }
+        payment:
+          type: object
+          required: [exchange_rate_syp, syriatel_cash_number, bank_transfer_details, review_sla_hours]
+          properties:
+            exchange_rate_syp: { $ref: '#/components/schemas/Money' }
+            syriatel_cash_number: { type: string }
+            bank_transfer_details: { type: string }
+            review_sla_hours: { type: integer, example: 24 }
+        limits:
+          type: object
+          required: [card_stamps_min, card_stamps_max, campaign_title_max, campaign_body_max, stamp_interval_minutes, pin_unlock_hours]
+          properties:
+            card_stamps_min: { type: integer, example: 3 }
+            card_stamps_max: { type: integer, example: 10 }
+            campaign_title_max: { type: integer, example: 60 }
+            campaign_body_max: { type: integer, example: 300 }
+            stamp_interval_minutes: { type: integer, example: 60 }
+            pin_unlock_hours: { type: integer, example: 12 }
+        links:
+          type: object
+          required: [privacy_policy_url, merchant_terms_url]
+          properties:
+            privacy_policy_url: { type: string, format: uri }
+            merchant_terms_url: { type: string, format: uri }
+    PinToken:
+      type: object
+      required: [pin_token, expires_at]
+      properties:
+        pin_token: { type: string, example: eyJpdiI6IjI5ZGgzSWRKQzdI… }
+        expires_at: { $ref: '#/components/schemas/DateTime' }
+
+    # ── المسح والطوابع ──
+    ScanCustomer:
+      type: object
+      description: |
+        `registered`: زبون مسجّل، بيظهر `name` و`phone_masked`.
+        `pending`: رقم انضافله طوابع قبل وما سجّل، بالمعاينة `phone_full` بس.
+        `new`: رقم ما إلو أي حساب (`id: null`)، `phone_full` بس ليتأكد الكاشير من الرقم.
+        بعد حفظ الطابع الرقم دايماً مخفي.
+      required: [id, kind, name, phone_full, phone_masked]
+      properties:
+        id: { type: [integer, 'null'] }
+        kind: { type: string, enum: [registered, pending, new] }
+        name: { type: [string, 'null'] }
+        phone_full: { type: [string, 'null'] }
+        phone_masked: { type: [string, 'null'], example: 0933***456 }
+    ScanPreview:
+      type: object
+      required: [scan_token, expires_at, method, customer, card, cycle, action, blocked_reason, other_ready_rewards]
+      properties:
+        scan_token: { type: string }
+        expires_at: { $ref: '#/components/schemas/DateTime' }
+        method: { $ref: '#/components/schemas/StampMethod' }
+        customer: { $ref: '#/components/schemas/ScanCustomer' }
+        card: { $ref: '#/components/schemas/CardSummary' }
+        cycle: { $ref: '#/components/schemas/CycleProgress' }
+        action:
+          type: string
+          enum: [stamp, redeem, none]
+          description: |
+            الزر الوحيد بشاشة التأكيد. `stamp` ← `POST /merchant/stamps`. `redeem` ← `POST /merchant/redemptions`
+            بـ`cycle.id`. `none` ← ما في زر، اعرض `blocked_reason`.
+        blocked_reason:
+          description: |
+            مع `action: none` بس. `STAMP_INTERVAL` · `CARD_SUSPENDED` (بطاقة موقوفة وما في دورة مفتوحة) ·
+            `MERCHANT_STATUS_BLOCKS_ACTION` (`action: stamps`) · `REDEEM_REQUIRES_QR`.
+          oneOf: [{ $ref: '#/components/schemas/Error' }, { type: 'null' }]
+        other_ready_rewards:
+          type: array
+          description: هدايا جاهزة لنفس الزبون على بطاقات تانية بالمحل. بتنسلّم بنفس `scan_token` إذا `method = qr`.
+          items:
+            type: object
+            required: [cycle_id, card, completed_at]
+            properties:
+              cycle_id: { type: integer }
+              card: { $ref: '#/components/schemas/CardSummary' }
+              completed_at: { $ref: '#/components/schemas/DateTime' }
+    StampResult:
+      type: object
+      description: إذا اكتملت البطاقة بهالطابع `cycle.status = REWARD_READY` مع `completed_at`.
+      required: [stamp, cycle, card, customer]
+      properties:
+        stamp:
+          type: object
+          required: [id, stamped_at, method]
+          properties:
+            id: { type: integer }
+            stamped_at: { $ref: '#/components/schemas/DateTime' }
+            method: { $ref: '#/components/schemas/StampMethod' }
+        cycle: { $ref: '#/components/schemas/CycleProgress' }
+        card: { $ref: '#/components/schemas/CardSummary' }
+        customer: { $ref: '#/components/schemas/ScanCustomer' }
+    RedemptionResult:
+      type: object
+      required: [cycle_id, redeemed_at, card, next_cycle_available]
+      properties:
+        cycle_id: { type: integer }
+        redeemed_at: { $ref: '#/components/schemas/DateTime' }
+        card: { $ref: '#/components/schemas/CardSummary' }
+        next_cycle_available: { type: boolean, description: '`false` إذا البطاقة موقوفة، فما في دورة جديدة' }
+
+    # ── أعياد الميلاد ──
+    BirthdayCustomer:
+      type: object
+      required: [id, name, birthday, greeted_today]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        birthday: { type: string, pattern: '^\d{2}-\d{2}$', example: 09-30, description: الشهر واليوم، بدون سنة }
+        greeted_today: { type: boolean }
+    BirthdayGreeting:
+      type: object
+      required: [customer_id, greeted_on, message, gift]
+      properties:
+        customer_id: { type: integer }
+        greeted_on: { type: string, format: date, example: '2026-09-30' }
+        message: { type: string }
+        gift: { type: [string, 'null'] }
+
+    # ── الإدارة ──
+    AdminUser:
+      type: object
+      required: [id, name, email, role, is_active, linked, last_login_at]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { $ref: '#/components/schemas/AdminRole' }
+        is_active: { type: boolean }
+        linked: { type: boolean, description: '`false` لحد ما يفوت صاحب البريد على اللوحة بـClerk' }
+        last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+    CancelledStamp:
+      type: object
+      required: [id, cancelled_at, cancel_reason, cycle]
+      properties:
+        id: { type: integer }
+        cancelled_at: { $ref: '#/components/schemas/DateTime' }
+        cancel_reason: { type: string }
+        cycle: { $ref: '#/components/schemas/CycleProgress' }

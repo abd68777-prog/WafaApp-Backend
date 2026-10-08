@@ -22,6 +22,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\Sanctum;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -64,8 +66,23 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureModels();
+        $this->configureAuthentication();
         $this->configureAuthorization();
         $this->configureRateLimiting();
+    }
+
+    /**
+     * A customer's token stops working once it has gone unused for
+     * `sanctum.customer_idle_days`; Sanctum renews `last_used_at` on every
+     * request it accepts. Refused tokens get 401 like any invalid one.
+     */
+    protected function configureAuthentication(): void
+    {
+        Sanctum::authenticateAccessTokensUsing(
+            fn (PersonalAccessToken $token, bool $isValid): bool => $isValid
+                && ($token->tokenable_type !== (new Customer)->getMorphClass()
+                    || ($token->last_used_at ?? $token->created_at)->isAfter(Customer::tokenIdleCutoff())),
+        );
     }
 
     /**

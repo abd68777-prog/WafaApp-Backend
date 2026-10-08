@@ -24,4 +24,7 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
-openapi.yaml
+
+# Firebase service account (push notifications); never committed.
+/secrets/
+firebase-credentials*.json

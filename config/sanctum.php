@@ -54,6 +54,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Customer Idle Days
+    |--------------------------------------------------------------------------
+    |
+    | A customer's token has no fixed lifetime, but it stops working once it
+    | has gone unused for this many days. Every request renews it, so someone
+    | who opens the app now and then never notices.
+    |
+    */
+
+    'customer_idle_days' => (int) env('CUSTOMER_TOKEN_IDLE_DAYS', 90),
+
+    /*
+    |--------------------------------------------------------------------------
     | Token Prefix
     |--------------------------------------------------------------------------
     |

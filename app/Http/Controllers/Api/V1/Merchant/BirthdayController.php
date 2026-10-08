@@ -10,10 +10,9 @@ use App\Models\BirthdayGreeting;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Notifications\BirthdayGreetingReceived;
-use App\Services\Merchant\MerchantState;
+use App\Services\Merchant\Birthdays;
 use App\Support\LinkDetector;
 use Carbon\CarbonImmutable;
-use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -35,9 +34,9 @@ class BirthdayController extends Controller
     {
         /** @var Merchant $merchant */
         $merchant = $request->user();
-        $today = $this->today();
+        $today = Birthdays::today();
 
-        $customers = $this->birthdaysOn($today, $this->customersOf($merchant))->orderBy('name')->get();
+        $customers = Birthdays::on($today, Birthdays::customersOf($merchant))->orderBy('name')->get();
 
         $greeted = BirthdayGreeting::query()
             ->where('merchant_id', $merchant->id)
@@ -67,7 +66,7 @@ class BirthdayController extends Controller
             ]);
         }
 
-        $customer = $this->customersOf($merchant)->whereKey($customer)->first()
+        $customer = Birthdays::customersOf($merchant)->whereKey($customer)->first()
             ?? throw ApiException::of(ErrorCode::NotFound, 'This customer is not a customer of the shop.');
 
         foreach (['message', 'gift'] as $field) {
@@ -76,13 +75,13 @@ class BirthdayController extends Controller
             }
         }
 
-        $today = $this->today();
+        $today = Birthdays::today();
 
         if ($existing = $this->greetingOn($merchant, $customer, $today)) {
             return $this->greetingResponse($existing, 200);
         }
 
-        if (! $this->birthdaysOn($today, Customer::query()->whereKey($customer->id))->exists()) {
+        if (! Birthdays::on($today, Customer::query()->whereKey($customer->id))->exists()) {
             throw ApiException::of(ErrorCode::BirthdayNotToday, 'It is not this customer’s birthday today.');
         }
 
@@ -104,35 +103,6 @@ class BirthdayController extends Controller
         return $this->greetingResponse($greeting, 201);
     }
 
-    /**
-     * @return Builder<Customer>
-     */
-    private function customersOf(Merchant $merchant): Builder
-    {
-        return Customer::query()
-            ->whereNotNull('registered_at')
-            ->whereNotNull('birthdate')
-            ->whereHas('cardCycles', fn (Builder $cycles) => $cycles->where('merchant_id', $merchant->id));
-    }
-
-    /**
-     * Customers born on this day and month. In a year without 29 February,
-     * those born on it celebrate on the 28th.
-     *
-     * @param  Builder<Customer>  $customers
-     * @return Builder<Customer>
-     */
-    private function birthdaysOn(CarbonImmutable $day, Builder $customers): Builder
-    {
-        $leapDayMovesHere = $day->month === 2 && $day->day === 28 && ! $day->isLeapYear();
-
-        return $customers
-            ->whereMonth('birthdate', $day->month)
-            ->where(fn (Builder $query) => $query
-                ->whereDay('birthdate', $day->day)
-                ->when($leapDayMovesHere, fn (Builder $query) => $query->orWhereDay('birthdate', 29)));
-    }
-
     private function greetingOn(Merchant $merchant, Customer $customer, CarbonImmutable $day): ?BirthdayGreeting
     {
         return BirthdayGreeting::query()
@@ -140,11 +110,6 @@ class BirthdayController extends Controller
             ->where('customer_id', $customer->id)
             ->whereDate('greeted_on', $day->toDateString())
             ->first();
-    }
-
-    private function today(): CarbonImmutable
-    {
-        return CarbonImmutable::now(MerchantState::TIMEZONE)->startOfDay();
     }
 
     private function greetingResponse(BirthdayGreeting $greeting, int $status): JsonResponse

@@ -5,7 +5,9 @@ namespace App\Notifications;
 use App\Models\BirthdayGreeting;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Notifications\Concerns\PushedToDevices;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
@@ -17,9 +19,9 @@ use Illuminate\Support\Str;
  * shop or all offers: it is one message a year to one person, not an
  * advertisement.
  */
-class BirthdayGreetingReceived extends Notification
+class BirthdayGreetingReceived extends Notification implements ShouldQueueAfterCommit
 {
-    use Queueable;
+    use PushedToDevices, Queueable;
 
     public function __construct(
         private readonly Merchant $merchant,
@@ -31,16 +33,6 @@ class BirthdayGreetingReceived extends Notification
     public function databaseType(object $notifiable): string
     {
         return 'birthday_greeting';
-    }
-
-    /**
-     * Get the notification's delivery channels.
-     *
-     * @return array<int, string>
-     */
-    public function via(Customer $notifiable): array
-    {
-        return ['database'];
     }
 
     /**

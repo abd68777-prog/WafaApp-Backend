@@ -33,6 +33,9 @@
         <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array" force="true"/>
         <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <!-- Never push to real phones from the tests. -->
+        <env name="FIREBASE_CREDENTIALS" value="" force="true"/>
+        <env name="GOOGLE_APPLICATION_CREDENTIALS" value="" force="true"/>
         <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="LOG_CHANNEL" value="null" force="true"/>
         <env name="OTP_DRIVER" value="log" force="true"/>
@@ -50,6 +53,8 @@
         <server name="DB_URL" value=""/>
         <server name="MAIL_MAILER" value="array"/>
         <server name="QUEUE_CONNECTION" value="sync"/>
+        <server name="FIREBASE_CREDENTIALS" value=""/>
+        <server name="GOOGLE_APPLICATION_CREDENTIALS" value=""/>
         <server name="SESSION_DRIVER" value="array"/>
         <server name="LOG_CHANNEL" value="null"/>
         <server name="OTP_DRIVER" value="log"/>

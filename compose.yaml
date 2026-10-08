@@ -7,7 +7,7 @@
 name: loyalty-cards
 
 services:
-  app:
+  app: &app
     build:
       context: .
       target: app
@@ -42,13 +42,32 @@ services:
       ADMIN_NAME: ${ADMIN_NAME:-Platform Admin}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_CLERK_USER_ID: ${ADMIN_CLERK_USER_ID:-}
+      CUSTOMER_TOKEN_IDLE_DAYS: ${CUSTOMER_TOKEN_IDLE_DAYS:-90}
+      # Push notifications: the Firebase service account JSON, placed in
+      # ./secrets (never committed). Empty = notifications stay in the inbox.
+      FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
     volumes:
       # Keeps the generated app key, logs and uploads across rebuilds.
       - storage:/var/www/html/storage
+      - ./secrets:/var/www/html/secrets:ro
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
+
+  # Sends push notifications from the queue.
+  worker:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "--tries=3", "--max-time=3600"]
+    depends_on:
+      - app
+
+  # Daily jobs: the merchants' birthday reminder and idle-token cleanup.
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      - app
 
   web:
     build:

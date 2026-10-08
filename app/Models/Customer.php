@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -42,6 +43,14 @@ class Customer extends Authenticatable
             'last_activity_at' => 'datetime',
             'last_login_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A token last used before this moment no longer signs the customer in.
+     */
+    public static function tokenIdleCutoff(): CarbonInterface
+    {
+        return now()->subDays((int) config('sanctum.customer_idle_days'));
     }
 
     /**

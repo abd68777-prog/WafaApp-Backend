@@ -40,6 +40,7 @@ php artisan db:seed # lists, packages, settings, admin link — plus demo data l
 ```sh
 composer dev          # serve + queue worker together
 php artisan serve     # HTTP only, http://127.0.0.1:8000
+php artisan schedule:work   # daily jobs (birthday reminders, idle-token cleanup)
 ```
 
 | Command                  | Purpose                     |
@@ -79,9 +80,13 @@ loads demo data. Later starts reuse the existing data.
 | ------------------------------------------ | ----------------------------------------------- |
 | `docker compose ps`                        | Service status                                  |
 | `docker compose logs -f app`               | Application logs and OTP codes                  |
+| `docker compose logs -f worker`            | Push notifications leaving through the queue    |
 | `docker compose exec app php artisan test` | Run the test suite (in-memory database)         |
 | `docker compose down`                      | Stop, keep data                                 |
 | `docker compose down -v`                   | Stop and delete all data; the next start re-seeds |
+
+Besides `app`, `web` and `db`, the stack runs `worker` (the queue, which sends
+push notifications) and `scheduler` (the daily jobs).
 
 MySQL runs inside the stack and is not published on the host, so it does not
 clash with a local MySQL on port 3306. Change the API port with `API_PORT=8080`
@@ -263,6 +268,38 @@ carries `X-App-Version`. Anything older than the `merchant_min_app_version`
 setting is refused with `426` and `APP_VERSION_UNSUPPORTED`, which drives the
 forced-update screen. Requests without the header pass.
 
+### Customer session length
+
+A customer's token has no fixed lifetime: it stops working after
+`CUSTOMER_TOKEN_IDLE_DAYS` (default 90) days without any request, and every
+request starts the count again. A refused token gets `401 UNAUTHENTICATED`, and
+the app returns to the phone screen. `customer-tokens:prune-idle` deletes those
+tokens every night. Merchant and admin sessions belong to Clerk and are not
+affected.
+
+## Push notifications
+
+Every notification goes to the in-app inbox at once and is pushed through
+Firebase Cloud Messaging to all the account's devices from the queue. FCM
+reaches iOS through APNs on its own, so both apps on both platforms share one
+path. Tokens FCM reports as unregistered are deleted.
+
+1. Firebase → Project settings → **Service accounts** → generate a private key.
+2. Save it as `secrets/firebase-credentials.json` (the folder is never committed
+   or copied into the Docker image) and set
+   `FIREBASE_CREDENTIALS=secrets/firebase-credentials.json` in `.env`.
+3. Keep a queue worker running: `composer dev`, `php artisan queue:work`, or the
+   Docker `worker` service.
+4. Check a phone end to end: `php artisan push:test <fcm-token>`.
+
+Without credentials nothing is pushed and the inbox still works.
+
+| Type | To | When |
+| ---- | -- | ---- |
+| `stamp_added`, `card_completed`, `reward_redeemed` | Customer | Stamp and reward events |
+| `birthday_greeting` | Customer | A shop's greeting, even when offers are muted |
+| `birthdays_today` | Merchant | 09:00 Damascus, when customers have their birthday |
+
 ## Endpoints
 
 The customer and merchant endpoints follow Deep Code's **API contract**
@@ -276,6 +313,8 @@ shape:
 [api.md](api.md) documents every live endpoint — inputs, a real response and its
 errors — plus QR generation for the customer app and the axios setup of each
 app.
+[openapi.yaml](openapi.yaml) describes the same endpoints as OpenAPI 3.1, for Swagger,
+Postman or generating TypeScript types.
 
 | Area | Endpoints |
 | ---- | --------- |
@@ -319,7 +358,8 @@ app/Http/Middleware/           JSON responses, Clerk session, role and app-versi
 app/Http/Requests/Api/V1/      Validation (form requests)
 app/Http/Resources/            JSON output shaping
 app/Exceptions/                The contract's error shape (ApiException, ApiErrorRenderer)
-app/Notifications/             In-app notifications to customers
+app/Notifications/             Inbox notifications and their FCM push channel
+app/Console/Commands/          push:test, birthday reminders, idle-token cleanup
 app/Services/Otp/              OTP issuing, verification and delivery drivers
 app/Services/Clerk/            Clerk session token verification
 app/Services/Customer/         QR codes (TOTP), my cards, account deletion
