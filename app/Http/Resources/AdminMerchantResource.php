@@ -33,6 +33,7 @@ class AdminMerchantResource extends JsonResource
             'owner_name' => $this->owner_name,
             'email' => $this->email,
             'phone' => $this->phone,
+            'contact_phone' => $this->contact_phone,
             'logo_url' => $this->logoUrl(),
             'business_type' => ['id' => $this->businessType->id, 'name' => $this->businessType->name],
             'governorate' => ['id' => $this->governorate->id, 'name' => $this->governorate->name],

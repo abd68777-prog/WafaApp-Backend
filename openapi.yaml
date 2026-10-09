@@ -392,6 +392,35 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CustomerNotReady' }
 
+  /customer/shop-contacts:
+    get:
+      tags: [الزبون — دليل المحلات]
+      operationId: customerListShopContacts
+      summary: المحلات المشتركة مع عناوينها وأرقام التواصل
+      description: |
+        كل محل حالته TRIAL أو ACTIVE أو GRACE، حتى لو ما عنده بطاقة فعّالة، مرتب بالاسم. مو جزء من العقد.
+        `contact_phone` هو الرقم يلي المحل اختار ينشره، ورقم التسجيل ما بيطلع. فيه `ETag` و`304` متل الدليل.
+      security: [{ customerToken: [] }]
+      parameters:
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: المحلات
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ShopContact' }
+        '304': { description: ما تغيّر شي }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+
   /customer/merchants/{merchant_id}:
     get:
       tags: [الزبون — دليل المحلات]
@@ -1173,6 +1202,7 @@ paths:
                 owner_name: { type: string, minLength: 2, maxLength: 80 }
                 phone: { $ref: '#/components/schemas/Phone' }
                 address: { type: [string, 'null'], maxLength: 255, description: '`null` بيمسح العنوان' }
+                contact_phone: { type: [string, 'null'], description: 'رقم التواصل يلي بيشوفه كل الزبائن: موبايل أو أرضي، وبيرجع `+963…`. `null` بيخبّيه', example: 011 222 3344 }
       responses:
         '200': { $ref: '#/components/responses/MerchantProfileData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -3026,7 +3056,7 @@ components:
         phone: { $ref: '#/components/schemas/Phone', description: رقم تواصل المحل، مو للدخول. فريد بين التجار }
     MerchantProfile:
       type: object
-      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, logo_url, created_at]
+      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, logo_url, created_at]
       properties:
         id: { type: integer }
         email: { type: string, format: email }
@@ -3036,6 +3066,7 @@ components:
         address: { type: [string, 'null'] }
         owner_name: { type: string }
         phone: { $ref: '#/components/schemas/Phone' }
+        contact_phone: { type: [string, 'null'], description: الرقم المنشور للزبائن }
         logo_url: { type: [string, 'null'], format: uri }
         created_at: { $ref: '#/components/schemas/DateTime' }
     PackageSummary:
@@ -3293,6 +3324,14 @@ components:
           properties:
             address: { type: [string, 'null'] }
             active_cards_count: { type: integer }
+    ShopContact:
+      allOf:
+        - $ref: '#/components/schemas/MerchantSummary'
+        - type: object
+          required: [address, contact_phone]
+          properties:
+            address: { type: [string, 'null'] }
+            contact_phone: { type: [string, 'null'], example: '+963112223344' }
     MerchantPage:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'
@@ -3464,13 +3503,14 @@ components:
         reason: { type: string, minLength: 3, maxLength: 255, description: بينكتب بسجل التدقيق }
     AdminMerchant:
       type: object
-      required: [id, business_name, owner_name, email, phone, logo_url, business_type, governorate, status, registration_step, package, subscription_ends_at, suspended_at, suspension_reason, registered_at]
+      required: [id, business_name, owner_name, email, phone, contact_phone, logo_url, business_type, governorate, status, registration_step, package, subscription_ends_at, suspended_at, suspension_reason, registered_at]
       properties:
         id: { type: integer }
         business_name: { type: string }
         owner_name: { type: string }
         email: { type: [string, 'null'], format: email }
         phone: { $ref: '#/components/schemas/Phone' }
+        contact_phone: { type: [string, 'null'] }
         logo_url: { type: [string, 'null'], format: uri }
         business_type: { $ref: '#/components/schemas/Lookup' }
         governorate: { $ref: '#/components/schemas/Lookup' }

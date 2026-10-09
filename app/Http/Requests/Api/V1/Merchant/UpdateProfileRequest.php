@@ -28,6 +28,10 @@ class UpdateProfileRequest extends FormRequest
                 $this->merge(['phone' => $normalized]);
             }
         }
+
+        if (filled($this->input('contact_phone'))) {
+            $this->merge(['contact_phone' => PhoneNumber::normalizeContact((string) $this->input('contact_phone')) ?? $this->input('contact_phone')]);
+        }
     }
 
     /**
@@ -39,6 +43,8 @@ class UpdateProfileRequest extends FormRequest
             'owner_name' => ['sometimes', 'string', 'min:2', 'max:80'],
             'phone' => ['sometimes', 'string', new SyrianPhone, Rule::unique('merchants', 'phone')->ignore($this->user())],
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
+            // Shown to every customer in the shops list; null hides it.
+            'contact_phone' => ['sometimes', 'nullable', 'string', 'regex:/^\+963[1-9]\d{7,8}$/'],
         ];
     }
 }

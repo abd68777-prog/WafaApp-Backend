@@ -55,6 +55,25 @@ final class PhoneNumber
         return substr($local, 0, 4).'***'.substr($local, -3);
     }
 
+    /**
+     * A shop's public contact number: a mobile, normalized as above, or a
+     * landline such as `011 222 3344` — an area code starting 1–5 and six
+     * or seven digits — as `+963112223344`. Null when it is neither.
+     */
+    public static function normalizeContact(string $value): ?string
+    {
+        $mobile = self::normalize($value);
+
+        if ($mobile !== null) {
+            return $mobile;
+        }
+
+        $digits = preg_replace('/\D/', '', $value) ?? '';
+        $digits = preg_replace('/^(00)?'.self::COUNTRY_CODE.'|^0/', '', $digits) ?? '';
+
+        return preg_match('/^[1-5]\d{7,8}$/', $digits) === 1 ? '+'.self::COUNTRY_CODE.$digits : null;
+    }
+
     public static function isValid(string $value): bool
     {
         return self::normalize($value) !== null;

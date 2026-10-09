@@ -33,6 +33,7 @@ use Illuminate\Notifications\Notifiable;
     'address',
     'owner_name',
     'phone',
+    'contact_phone',
     'logo_path',
 ])]
 #[Hidden(['pin_hash'])]

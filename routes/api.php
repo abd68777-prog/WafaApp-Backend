@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\Customer\MerchantMuteController;
 use App\Http\Controllers\Api\V1\Customer\PolicyController as CustomerPolicyController;
 use App\Http\Controllers\Api\V1\Customer\ProfileController as CustomerProfileController;
 use App\Http\Controllers\Api\V1\Customer\QrController as CustomerQrController;
+use App\Http\Controllers\Api\V1\Customer\ShopContactController;
 use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthController;
 use App\Http\Controllers\Api\V1\Merchant\BirthdayController;
@@ -116,6 +117,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('cards/{card}', [CustomerCardController::class, 'show'])->whereNumber('card')->name('cards.show');
 
                 Route::get('directory', [DirectoryController::class, 'index'])->name('directory');
+                Route::get('shop-contacts', [ShopContactController::class, 'index'])->name('shop-contacts');
                 Route::get('merchants/{merchant}', [DirectoryController::class, 'show'])->whereNumber('merchant')->name('merchants.show');
                 Route::put('merchants/{merchant}/mute', [MerchantMuteController::class, 'update'])->whereNumber('merchant')->name('merchants.mute');
                 Route::delete('merchants/{merchant}/mute', [MerchantMuteController::class, 'destroy'])->whereNumber('merchant')->name('merchants.unmute');

@@ -37,76 +37,77 @@
 | 20 | `DELETE /customer/merchants/{merchant_id}/mute` | زبون | توكن + جاهز |
 | 21 | `GET /customer/directory` | زبون | توكن + جاهز |
 | 22 | `GET /customer/merchants/{merchant_id}` | زبون | توكن + جاهز |
+| 23 | `GET /customer/shop-contacts` | زبون | توكن + جاهز |
 | | **تطبيق التاجر** | | |
-| 23 | `GET /merchant/me` | تاجر | Clerk |
-| 24 | `GET /merchant/lookups` | تاجر | Clerk |
-| 25 | `POST /merchant/registration/business` | تاجر | Clerk |
-| 26 | `POST /merchant/registration/package` | تاجر | Clerk |
-| 27 | `POST /merchant/registration/pin` | تاجر | Clerk |
-| 28 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
-| 29 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
-| 30 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
-| 31 | `GET /merchant/cards` | تاجر | مسجّل |
-| 32 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
-| 33 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
-| 34 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
-| 35 | `POST /merchant/stamps` | تاجر | مسجّل |
-| 36 | `POST /merchant/redemptions` | تاجر | مسجّل |
-| 37 | `GET /merchant/notifications` | تاجر | مسجّل |
-| 38 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
-| 39 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
-| 40 | `PUT /merchant/devices` | تاجر | مسجّل |
-| 41 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
-| 42 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
-| 43 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
-| 44 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
-| 45 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
-| 46 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
-| 47 | `GET /merchant/campaigns` | تاجر | مسجّل + PIN |
-| 48 | `POST /merchant/campaigns` | تاجر | مسجّل + PIN |
-| 49 | `GET /merchant/stats` | تاجر | مسجّل + PIN |
-| 50 | `GET /merchant/customers` | تاجر | مسجّل + PIN |
-| 51 | `PATCH /merchant/profile` | تاجر | مسجّل + PIN |
-| 52 | `POST /merchant/profile/logo` | تاجر | مسجّل + PIN |
+| 24 | `GET /merchant/me` | تاجر | Clerk |
+| 25 | `GET /merchant/lookups` | تاجر | Clerk |
+| 26 | `POST /merchant/registration/business` | تاجر | Clerk |
+| 27 | `POST /merchant/registration/package` | تاجر | Clerk |
+| 28 | `POST /merchant/registration/pin` | تاجر | Clerk |
+| 29 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
+| 30 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
+| 31 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
+| 32 | `GET /merchant/cards` | تاجر | مسجّل |
+| 33 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
+| 34 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 35 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
+| 36 | `POST /merchant/stamps` | تاجر | مسجّل |
+| 37 | `POST /merchant/redemptions` | تاجر | مسجّل |
+| 38 | `GET /merchant/notifications` | تاجر | مسجّل |
+| 39 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
+| 40 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
+| 41 | `PUT /merchant/devices` | تاجر | مسجّل |
+| 42 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
+| 43 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
+| 44 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
+| 45 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
+| 46 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
+| 47 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
+| 48 | `GET /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 49 | `POST /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 50 | `GET /merchant/stats` | تاجر | مسجّل + PIN |
+| 51 | `GET /merchant/customers` | تاجر | مسجّل + PIN |
+| 52 | `PATCH /merchant/profile` | تاجر | مسجّل + PIN |
+| 53 | `POST /merchant/profile/logo` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
-| 53 | `GET /admin/auth/me` | إدارة | حساب فعّال |
-| 54 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 55 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 56 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 57 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 58 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
-| 59 | `GET /admin/packages` | إدارة | `manage-packages` |
-| 60 | `POST /admin/packages` | إدارة | `manage-packages` |
-| 61 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
-| 62 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
-| 63 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
-| 64 | `GET /admin/payments` | إدارة | `review-payments` |
-| 65 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
-| 66 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
-| 67 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
-| 68 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
-| 69 | `GET /admin/merchants` | إدارة | `view-merchants-and-customers` |
-| 70 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
-| 71 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
-| 72 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
-| 73 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
-| 74 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
-| 75 | `GET /admin/customers` | إدارة | `view-merchants-and-customers` |
-| 76 | `GET /admin/customers/{id}` | إدارة | `view-merchants-and-customers` |
-| 77 | `PATCH /admin/customers/{id}` | إدارة | `edit-customer-birthdate` |
-| 78 | `POST /admin/customers/{id}/reveal-phone` | إدارة | `reveal-customer-phone` |
-| 79 | `GET /admin/card-cycles/{id}` | إدارة | `view-merchants-and-customers` |
-| 80 | `GET /admin/business-types` | إدارة | `manage-lookups` |
-| 81 | `POST /admin/business-types` | إدارة | `manage-lookups` |
-| 82 | `PATCH /admin/business-types/{id}` | إدارة | `manage-lookups` |
-| 83 | `GET /admin/icons` | إدارة | `manage-lookups` |
-| 84 | `POST /admin/icons` | إدارة | `manage-lookups` |
-| 85 | `PATCH /admin/icons/{id}` | إدارة | `manage-lookups` |
-| 86 | `GET /admin/settings/app` | إدارة | `manage-settings` |
-| 87 | `PATCH /admin/settings/app` | إدارة | `manage-settings` |
-| 88 | `GET /admin/audit-logs` | إدارة | `view-audit-log` |
+| 54 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 55 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 56 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 57 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 58 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 59 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 60 | `GET /admin/packages` | إدارة | `manage-packages` |
+| 61 | `POST /admin/packages` | إدارة | `manage-packages` |
+| 62 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
+| 63 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
+| 64 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
+| 65 | `GET /admin/payments` | إدارة | `review-payments` |
+| 66 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
+| 67 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
+| 68 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
+| 69 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
+| 70 | `GET /admin/merchants` | إدارة | `view-merchants-and-customers` |
+| 71 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
+| 72 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
+| 73 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
+| 74 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
+| 75 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
+| 76 | `GET /admin/customers` | إدارة | `view-merchants-and-customers` |
+| 77 | `GET /admin/customers/{id}` | إدارة | `view-merchants-and-customers` |
+| 78 | `PATCH /admin/customers/{id}` | إدارة | `edit-customer-birthdate` |
+| 79 | `POST /admin/customers/{id}/reveal-phone` | إدارة | `reveal-customer-phone` |
+| 80 | `GET /admin/card-cycles/{id}` | إدارة | `view-merchants-and-customers` |
+| 81 | `GET /admin/business-types` | إدارة | `manage-lookups` |
+| 82 | `POST /admin/business-types` | إدارة | `manage-lookups` |
+| 83 | `PATCH /admin/business-types/{id}` | إدارة | `manage-lookups` |
+| 84 | `GET /admin/icons` | إدارة | `manage-lookups` |
+| 85 | `POST /admin/icons` | إدارة | `manage-lookups` |
+| 86 | `PATCH /admin/icons/{id}` | إدارة | `manage-lookups` |
+| 87 | `GET /admin/settings/app` | إدارة | `manage-settings` |
+| 88 | `PATCH /admin/settings/app` | إدارة | `manage-settings` |
+| 89 | `GET /admin/audit-logs` | إدارة | `view-audit-log` |
 | | **للخادم فقط** | | |
-| 89 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+| 90 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
 - **توكن:** توكن الزبون من `auth/verify`.
 - **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
@@ -700,6 +701,30 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
 - `muted`: الزبون موقّف عروض هالمحل (§3.18).
 - **محل مو بالدليل** (منتهي مثلاً): الصفحة بتفتح بس إذا الزبون إلو دورة عنده، ومع `cards: []`. غير هيك **`404`**.
 
+### 3.21 `GET /customer/shop-contacts` 🔒 جاهز
+
+نافذة «المحلات المشتركة»: كل المحلات يلي شغّالة مع وفاء هلق، مع عناوينها وأرقام التواصل. **مو جزء من العقد**، فالدليل (§3.19) بيضل متل ما هو.
+
+```json
+{
+  "data": [
+    {
+      "id": 10,
+      "business_name": "كافيه الياسمين",
+      "logo_url": null,
+      "business_type": { "id": 1, "name": "كافيه" },
+      "governorate": { "id": 1, "name": "دمشق" },
+      "address": "شارع الحمرا",
+      "contact_phone": "+963112223344"
+    }
+  ]
+}
+```
+
+- **مين بيطلع:** المحل يلي حالته `TRIAL` أو `ACTIVE` أو `GRACE`. بعكس الدليل، بيطلع حتى لو ما عنده بطاقة فعّالة. الترتيب بالاسم.
+- **`contact_phone`:** الرقم يلي المحل اختار ينشره من ملفه (§4.26)، موبايل أو أرضي، بصيغة `+963…`. ممكن يكون `null`. رقم تسجيل التاجر ما بيطلع أبداً.
+- **ETag:** متل الدليل. ابعت `If-None-Match`، فإذا ما تغيّر شي بيرجع **`304`**.
+
 ---
 
 ## 4. تطبيق التاجر
@@ -762,6 +787,7 @@ PUT /merchant/devices
       "address": "دمشق، شارع الحمرا",
       "owner_name": "أحمد",
       "phone": "+963944111222",
+      "contact_phone": null,
       "logo_url": null,
       "created_at": "2026-09-29T15:00:51Z"
     },
@@ -1514,6 +1540,7 @@ PUT /merchant/devices
 | `owner_name` | string | 2–80 |
 | `phone` | string | رقم سوري، فريد بين التجار (`taken` إذا مستعمل) |
 | `address` | string \| null | لحد 255. `null` بيمسحه |
+| `contact_phone` | string \| null | رقم التواصل يلي بيشوفه **كل الزبائن** بنافذة المحلات (§3.21). موبايل (`0944…`) أو أرضي (`011 222 3344`)، وبيرجع بصيغة `+963…`. `null` بيخبّيه |
 
 **`200`:** `{ "data": MerchantProfile }`، نفس `merchant` بـ`GET /merchant/me`.
 

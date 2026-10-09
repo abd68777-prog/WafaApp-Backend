@@ -50,6 +50,24 @@ class ProfileTest extends TestCase
         $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['phone' => '+963944111222'])->assertOk();
     }
 
+    public function test_the_shop_publishes_a_mobile_or_landline_contact_number(): void
+    {
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['contact_phone' => '011 222 3344'])
+            ->assertOk()
+            ->assertJsonPath('data.contact_phone', '+963112223344');
+
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['contact_phone' => '0944-111-222'])
+            ->assertJsonPath('data.contact_phone', '+963944111222');
+
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['contact_phone' => '12345'])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['contact_phone' => ['format']]);
+
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['contact_phone' => null])
+            ->assertOk()
+            ->assertJsonPath('data.contact_phone', null);
+    }
+
     public function test_a_phone_another_shop_uses_is_taken(): void
     {
         Merchant::factory()->create(['phone' => '+963955000111']);
