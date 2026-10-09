@@ -15,6 +15,12 @@ use Illuminate\Validation\Rule;
  */
 class RegisterBusinessRequest extends FormRequest
 {
+    /**
+     * The shop logo, at registration and when changed later: JPEG, PNG or
+     * WebP up to 2 MB.
+     */
+    public const LOGO_RULES = ['image', 'mimes:jpeg,png,webp', 'max:2048'];
+
     public function authorize(): bool
     {
         return true;
@@ -45,7 +51,7 @@ class RegisterBusinessRequest extends FormRequest
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'owner_name' => ['required', 'string', 'min:2', 'max:80'],
             'phone' => ['required', 'string', new SyrianPhone, Rule::unique('merchants', 'phone')],
-            'logo' => ['sometimes', 'nullable', 'image', 'mimes:jpeg,png,webp', 'max:2048'],
+            'logo' => ['sometimes', 'nullable', ...self::LOGO_RULES],
         ];
     }
 }

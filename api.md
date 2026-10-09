@@ -35,52 +35,78 @@
 | 18 | `DELETE /customer/devices/{token}` | زبون | توكن |
 | 19 | `PUT /customer/merchants/{merchant_id}/mute` | زبون | توكن + جاهز |
 | 20 | `DELETE /customer/merchants/{merchant_id}/mute` | زبون | توكن + جاهز |
+| 21 | `GET /customer/directory` | زبون | توكن + جاهز |
+| 22 | `GET /customer/merchants/{merchant_id}` | زبون | توكن + جاهز |
 | | **تطبيق التاجر** | | |
-| 21 | `GET /merchant/me` | تاجر | Clerk |
-| 22 | `GET /merchant/lookups` | تاجر | Clerk |
-| 23 | `POST /merchant/registration/business` | تاجر | Clerk |
-| 24 | `POST /merchant/registration/package` | تاجر | Clerk |
-| 25 | `POST /merchant/registration/pin` | تاجر | Clerk |
-| 26 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
-| 27 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
-| 28 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
-| 29 | `GET /merchant/cards` | تاجر | مسجّل |
-| 30 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
-| 31 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
-| 32 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
-| 33 | `POST /merchant/stamps` | تاجر | مسجّل |
-| 34 | `POST /merchant/redemptions` | تاجر | مسجّل |
-| 35 | `GET /merchant/notifications` | تاجر | مسجّل |
-| 36 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
-| 37 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
-| 38 | `PUT /merchant/devices` | تاجر | مسجّل |
-| 39 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
-| 40 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
-| 41 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
-| 42 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
-| 43 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
-| 44 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
-| 45 | `GET /merchant/campaigns` | تاجر | مسجّل + PIN |
-| 46 | `POST /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 23 | `GET /merchant/me` | تاجر | Clerk |
+| 24 | `GET /merchant/lookups` | تاجر | Clerk |
+| 25 | `POST /merchant/registration/business` | تاجر | Clerk |
+| 26 | `POST /merchant/registration/package` | تاجر | Clerk |
+| 27 | `POST /merchant/registration/pin` | تاجر | Clerk |
+| 28 | `POST /merchant/pin/unlock` | تاجر | مسجّل |
+| 29 | `PUT /merchant/pin` | تاجر | مسجّل + PIN |
+| 30 | `POST /merchant/pin/reset` | تاجر | مسجّل + دخول حديث |
+| 31 | `GET /merchant/cards` | تاجر | مسجّل |
+| 32 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
+| 33 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 34 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
+| 35 | `POST /merchant/stamps` | تاجر | مسجّل |
+| 36 | `POST /merchant/redemptions` | تاجر | مسجّل |
+| 37 | `GET /merchant/notifications` | تاجر | مسجّل |
+| 38 | `POST /merchant/notifications/{id}/read` | تاجر | مسجّل |
+| 39 | `POST /merchant/notifications/read-all` | تاجر | مسجّل |
+| 40 | `PUT /merchant/devices` | تاجر | مسجّل |
+| 41 | `DELETE /merchant/devices/{token}` | تاجر | مسجّل |
+| 42 | `GET /merchant/customers/birthdays-today` | تاجر | مسجّل + PIN |
+| 43 | `POST /merchant/customers/{customer_id}/birthday-greeting` | تاجر | مسجّل + PIN |
+| 44 | `GET /merchant/subscription` | تاجر | مسجّل + PIN |
+| 45 | `GET /merchant/payments` | تاجر | مسجّل + PIN |
+| 46 | `POST /merchant/payments` | تاجر | مسجّل + PIN |
+| 47 | `GET /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 48 | `POST /merchant/campaigns` | تاجر | مسجّل + PIN |
+| 49 | `GET /merchant/stats` | تاجر | مسجّل + PIN |
+| 50 | `GET /merchant/customers` | تاجر | مسجّل + PIN |
+| 51 | `PATCH /merchant/profile` | تاجر | مسجّل + PIN |
+| 52 | `POST /merchant/profile/logo` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
-| 47 | `GET /admin/auth/me` | إدارة | حساب فعّال |
-| 48 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 49 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
-| 50 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 51 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
-| 52 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
-| 53 | `GET /admin/packages` | إدارة | `manage-packages` |
-| 54 | `POST /admin/packages` | إدارة | `manage-packages` |
-| 55 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
-| 56 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
-| 57 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
-| 58 | `GET /admin/payments` | إدارة | `review-payments` |
-| 59 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
-| 60 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
-| 61 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
-| 62 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
+| 53 | `GET /admin/auth/me` | إدارة | حساب فعّال |
+| 54 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 55 | `POST /admin/admin-users` | إدارة | `manage-admin-accounts` |
+| 56 | `PATCH /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 57 | `DELETE /admin/admin-users/{id}` | إدارة | `manage-admin-accounts` |
+| 58 | `POST /admin/stamps/{id}/cancel` | إدارة | `cancel-stamps` |
+| 59 | `GET /admin/packages` | إدارة | `manage-packages` |
+| 60 | `POST /admin/packages` | إدارة | `manage-packages` |
+| 61 | `PATCH /admin/packages/{id}` | إدارة | `manage-packages` |
+| 62 | `GET /admin/settings/billing` | إدارة | `manage-settings` |
+| 63 | `PATCH /admin/settings/billing` | إدارة | `manage-settings` |
+| 64 | `GET /admin/payments` | إدارة | `review-payments` |
+| 65 | `GET /admin/payments/{id}` | إدارة | `review-payments` |
+| 66 | `POST /admin/payments/{id}/approve` | إدارة | `review-payments` |
+| 67 | `POST /admin/payments/{id}/reject` | إدارة | `review-payments` |
+| 68 | `POST /admin/merchants/{id}/trial-extension` | إدارة | `grant-extensions` |
+| 69 | `GET /admin/merchants` | إدارة | `view-merchants-and-customers` |
+| 70 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
+| 71 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
+| 72 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
+| 73 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
+| 74 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
+| 75 | `GET /admin/customers` | إدارة | `view-merchants-and-customers` |
+| 76 | `GET /admin/customers/{id}` | إدارة | `view-merchants-and-customers` |
+| 77 | `PATCH /admin/customers/{id}` | إدارة | `edit-customer-birthdate` |
+| 78 | `POST /admin/customers/{id}/reveal-phone` | إدارة | `reveal-customer-phone` |
+| 79 | `GET /admin/card-cycles/{id}` | إدارة | `view-merchants-and-customers` |
+| 80 | `GET /admin/business-types` | إدارة | `manage-lookups` |
+| 81 | `POST /admin/business-types` | إدارة | `manage-lookups` |
+| 82 | `PATCH /admin/business-types/{id}` | إدارة | `manage-lookups` |
+| 83 | `GET /admin/icons` | إدارة | `manage-lookups` |
+| 84 | `POST /admin/icons` | إدارة | `manage-lookups` |
+| 85 | `PATCH /admin/icons/{id}` | إدارة | `manage-lookups` |
+| 86 | `GET /admin/settings/app` | إدارة | `manage-settings` |
+| 87 | `PATCH /admin/settings/app` | إدارة | `manage-settings` |
+| 88 | `GET /admin/audit-logs` | إدارة | `view-audit-log` |
 | | **للخادم فقط** | | |
-| 63 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
+| 89 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
 - **توكن:** توكن الزبون من `auth/verify`.
 - **جاهز:** الزبون كمّل اسمه وتاريخ ميلاده، ووافق على إصدار سياسة الخصوصية الحالي. غير هيك بياخد `403`
@@ -205,6 +231,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `KEEP_CARDS_REQUIRED` | 422 | `cards_limit`, `active_cards` | تخفيض لباقة أصغر بدون اختيار البطاقات يلي بتضل |
 | `PAYMENT_NOT_PENDING` | 409 | `status` | لوحة الإدارة: الدفعة انحسمت قبل |
 | `TRIAL_NOT_EXTENDABLE` | 422 | `reason` | لوحة الإدارة: ما في تجربة بتتمدد (`paid` أو `no_trial` أو `status`) |
+| `MERCHANT_STATUS_CONFLICT` | 409 | `status` | لوحة الإدارة: حالة التاجر ما بتسمح بالإيقاف أو إعادة التفعيل |
 
 ### 1.4 حدود الطلبات
 
@@ -624,6 +651,54 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
 - بيبيّن فوراً بـ`merchant_muted` بـ«بطاقاتي» (§3.11).
 - إيقاف عروض **كل** المحلات هو `campaigns_muted` بـ`PATCH /customer/me` (§3.6).
 - **أخطاء:** `404 NOT_FOUND` لمحل مو موجود.
+
+### 3.19 `GET /customer/directory` 🔒 جاهز
+
+دليل المحلات كله دفعة وحدة، مرتب بالاسم. **البحث والفلترة على الموبايل**، فعبارات البحث ما بتوصل للخادم.
+
+```json
+{
+  "data": [
+    {
+      "id": 10,
+      "business_name": "كافيه الياسمين",
+      "logo_url": null,
+      "business_type": { "id": 1, "name": "كافيه" },
+      "governorate": { "id": 1, "name": "دمشق" },
+      "address": "شارع الحمرا",
+      "active_cards_count": 2
+    }
+  ]
+}
+```
+
+- **مين بيظهر:** المحل يلي حالته `TRIAL` أو `ACTIVE` أو `GRACE`، وعنده بطاقة فعّالة وحدة على الأقل. الزبون يلي بيروح على محل شافه بالدليل لازم ياخد طابع.
+- **ETag:** الرد فيه ترويسة `ETag`. خزّنها وابعتها بـ`If-None-Match` بالمرة الجاية. إذا ما تغيّر شي بيرجع **`304`** بدون جسم، فاستعمل النسخة المخزّنة.
+
+### 3.20 `GET /customer/merchants/{merchant_id}` 🔒 جاهز
+
+صفحة المحل، من الدليل أو من تفاصيل بطاقة.
+
+```json
+{
+  "data": {
+    "id": 10,
+    "business_name": "كافيه الياسمين",
+    "logo_url": null,
+    "business_type": { "id": 1, "name": "كافيه" },
+    "governorate": { "id": 1, "name": "دمشق" },
+    "address": "شارع الحمرا",
+    "accepting_stamps": true,
+    "muted": false,
+    "cards": [ CardSummary ]
+  }
+}
+```
+
+- `cards`: البطاقات الفعّالة بس.
+- `accepting_stamps`: `false` للمحل المنتهي أو الموقوف أو بانتظار الحذف.
+- `muted`: الزبون موقّف عروض هالمحل (§3.18).
+- **محل مو بالدليل** (منتهي مثلاً): الصفحة بتفتح بس إذا الزبون إلو دورة عنده، ومع `cards: []`. غير هيك **`404`**.
 
 ---
 
@@ -1355,6 +1430,103 @@ PUT /merchant/devices
 }
 ```
 
+### 4.24 `GET /merchant/stats` 🔒 PIN
+
+تبويب الإحصاءات: المجموع، ولكل بطاقة، وسلسلة يومية للرسم. **الطوابع الملغاة ما بتنحسب.** الأيام بتوقيت دمشق، والأسبوع من السبت.
+
+| الاستعلام | القيم |
+|---|---|
+| `card_id` | اختياري: الإحصاءات لبطاقة وحدة. بطاقة مو تبع المحل ← `404` |
+| `days` | `7` (الافتراضي) أو `30`: طول السلسلة اليومية |
+
+```json
+{
+  "data": {
+    "generated_at": "2026-10-06T22:30:00Z",
+    "totals": {
+      "customers_total": 2,
+      "stamps_today": 2,
+      "stamps_this_week": 3,
+      "stamps_via_phone_today": 1,
+      "rewards_ready": 1,
+      "rewards_redeemed_total": 1
+    },
+    "per_card": [
+      { "card_id": 11, "card_name": "القهوة", "status": "active", "customers_total": 2, "stamps_today": 2, "stamps_this_week": 3, "stamps_via_phone_today": 1, "rewards_ready": 1, "rewards_redeemed_total": 0 }
+    ],
+    "daily": [
+      { "date": "2026-10-01", "stamps": 0, "stamps_via_phone": 0, "rewards_redeemed": 0 },
+      …
+      { "date": "2026-10-07", "stamps": 2, "stamps_via_phone": 1, "rewards_redeemed": 0 }
+    ]
+  }
+}
+```
+
+| الحقل | شو بيعدّ |
+|---|---|
+| `customers_total` | الزبائن يلي إلهم دورة، والمعلّقين معهم |
+| `stamps_today` · `stamps_this_week` | الطوابع غير الملغاة اليوم، ومن السبت |
+| `stamps_via_phone_today` | طوابع اليوم يلي انضافت بكتابة الرقم |
+| `rewards_ready` | هدايا جاهزة لسا ما انسلّمت |
+| `rewards_redeemed_total` | كل الهدايا المسلّمة |
+
+- `per_card`: كل بطاقات المحل، الفعّالة والموقوفة، ومع كل وحدة `card_id` و`card_name` و`status`.
+- `daily`: يوم لكل عنصر، الأقدم أول، بطول `days`.
+
+### 4.25 `GET /merchant/customers` 🔒 PIN
+
+زبائن المحل: كل زبون إلو دورة على أي بطاقة، حتى المعلّق. **الأحدث نشاطاً بهالمحل أول**، ونشاطه بمحلات تانية ما بيأثر. بالمؤشر (`?limit=20` و`?cursor=`).
+
+| الاستعلام | القيم |
+|---|---|
+| `q` | جزء من الاسم، 2–50 حرف. البحث بالرقم ما في لأنو الرقم مخفي |
+
+```json
+{
+  "data": [
+    {
+      "id": 20,
+      "name": "سارة",
+      "phone_masked": "0933***456",
+      "registered": true,
+      "last_stamp_at": "2026-10-06T09:00:00Z",
+      "cards": [
+        { "card_id": 11, "card_name": "القهوة", "stamps_count": 3, "stamps_required": 5, "status": "COLLECTING" }
+      ]
+    },
+    { "id": 21, "name": null, "phone_masked": "0944***111", "registered": false, "last_stamp_at": "…", "cards": [ … ] }
+  ],
+  "meta": { "next_cursor": null }
+}
+```
+
+- `name: null` و`registered: false` للزبون المعلّق.
+- `cards`: الدورات المفتوحة بس (`COLLECTING` أو `REWARD_READY`).
+- `last_stamp_at`: آخر طابع غير ملغى بهالمحل.
+
+### 4.26 `PATCH /merchant/profile` 🔒 PIN
+
+ابعت الحقول يلي بدك تغيّرها بس. **اسم النشاط ونوعه والمحافظة ما بيتعدّلوا من التطبيق**، بس من الدعم.
+
+| الحقل | النوع | ملاحظة |
+|---|---|---|
+| `owner_name` | string | 2–80 |
+| `phone` | string | رقم سوري، فريد بين التجار (`taken` إذا مستعمل) |
+| `address` | string \| null | لحد 255. `null` بيمسحه |
+
+**`200`:** `{ "data": MerchantProfile }`، نفس `merchant` بـ`GET /merchant/me`.
+
+### 4.27 `POST /merchant/profile/logo` 🔒 PIN
+
+تغيير الشعار، بـ`multipart/form-data` (`POST` لأنو PHP ما بيقرأ ملفات بـ`PATCH`).
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `logo` | ملف | ✅ | JPEG أو PNG أو WebP لحد 2 MB |
+
+**`200`:** `{ "data": MerchantProfile }` مع `logo_url` الجديد. الشعار القديم بينمسح، والشعار الجديد بيبيّن على كل بطاقات المحل.
+
 ---
 
 ## 5. لوحة الإدارة
@@ -1376,9 +1548,16 @@ PUT /merchant/devices
 | `manage-admin-accounts` — حسابات الإدارة | ✓ | – | – | – |
 | `cancel-stamps` — إلغاء طابع | ✓ | ✓ | – | – |
 | `manage-packages` — الباقات والأسعار | ✓ | – | – | – |
-| `manage-settings` — إعدادات الدفع والتجربة | ✓ | – | – | – |
+| `manage-settings` — كل الإعدادات | ✓ | – | – | – |
 | `review-payments` — قبول الدفعات ورفضها | – | – | ✓ | – |
 | `grant-extensions` — تمديد التجربة | ✓ | – | – | – |
+| `view-audit-log` — سجل التدقيق | ✓ | – | – | – |
+| `view-merchants-and-customers` — عرض التجار والزبائن | ✓ | ✓ | – | ✓ |
+| `edit-business-identity` — تعديل اسم النشاط ونوعه | ✓ | ✓ | – | ✓ |
+| `suspend-merchants` — إيقاف تاجر أو بطاقة وإعادة التفعيل | ✓ | ✓ | – | – |
+| `edit-customer-birthdate` — تعديل تاريخ ميلاد زبون | ✓ | ✓ | – | ✓ |
+| `reveal-customer-phone` — عرض رقم الزبون كامل | ✓ | ✓ | – | ✓ |
+| `manage-lookups` — أنواع النشاط والأيقونات | ✓ | ✓ | – | – |
 
 هدول الصلاحيات يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
 
@@ -1633,6 +1812,282 @@ PUT /merchant/devices
 ```json
 { "error": { "code": "TRIAL_NOT_EXTENDABLE", "message": "This shop has paid; only a trial can be extended.", "details": { "reason": "paid" } } }
 ```
+
+### 5.16 `GET /admin/merchants` 🔒 `view-merchants-and-customers`
+
+قائمة التجار، الأحدث تسجيلاً أول، بالمؤشر. التاجر يلي لسا عم يسجّل بيطلع كمان، وحالته `null`.
+
+| الاستعلام | القيم |
+|---|---|
+| `status` | `TRIAL` · `ACTIVE` · `GRACE` · `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` · `DELETED` |
+| `governorate_id` · `business_type_id` | معرّف من القوائم |
+| `package_id` | الباقة يلي التاجر عليها **هلق** |
+| `trial_ending` | `week`: تجربته بتخلص خلال 7 أيام |
+| `q` | 2–100 حرف: جزء من اسم النشاط أو البريد، أو رقم الهاتف كامل بأي صيغة |
+| `registration_step` | `package` (ما اختار باقة) · `pin` (ما حط PIN) · `done` |
+
+```json
+{
+  "data": [
+    {
+      "id": 13,
+      "business_name": "كافيه الياسمين",
+      "owner_name": "أحمد",
+      "email": "shop@example.com",
+      "phone": "+963933111222",
+      "logo_url": null,
+      "business_type": { "id": 1, "name": "كافيه" },
+      "governorate": { "id": 1, "name": "دمشق" },
+      "status": "ACTIVE",
+      "registration_step": "done",
+      "package": { "id": 2, "name": "ذهبية", "cards_limit": 3, "weekly_campaigns_limit": 2 },
+      "subscription_ends_at": "2026-11-01T12:00:00Z",
+      "suspended_at": null,
+      "suspension_reason": null,
+      "registered_at": "2026-10-01T12:00:00Z"
+    }
+  ],
+  "meta": { "next_cursor": null }
+}
+```
+
+- `status: null` و`registration_step: "package"`: التاجر **لم يختر باقة بعد**، فاللوحة بتكتبها جنب اسمه. ما عنده اشتراك ولا بطاقات.
+- `registration_step`: وين وقف التاجر بالتسجيل. `pin` يعني اختار باقة بس لسا ما حط PIN.
+- `phone`: هاتف المحل كامل، لأنو رقم شغل مو رقم زبون.
+- `package`: باقة الفترة الحالية، أو آخر باقة إذا الاشتراك منتهي.
+- `subscription_ends_at`: نهاية آخر فترة، حتى لو التجديد مدفوع سلف.
+
+### 5.17 `GET /admin/merchants/{id}` 🔒 `view-merchants-and-customers`
+
+صفحة التاجر: نفس عنصر القائمة، ومعه:
+
+```json
+{
+  "data": {
+    "…": "حقول §5.16",
+    "address": "شارع الحمرا",
+    "last_login_at": "2026-10-06T09:00:00Z",
+    "subscription": { "status": "ACTIVE", "days_remaining": 25, "…": "نفس subscription بـGET /merchant/me" },
+    "periods": [ SubscriptionPeriod ],
+    "payments": [ Payment ],
+    "cards": [
+      { "id": 11, "name": "القهوة", "icon_key": "coffee", "stamps_required": 5, "reward_description": "قهوة مجانية", "terms": null, "status": "active", "customers_count": 42, "created_at": "…", "suspended_at": null }
+    ],
+    "stats": { "customers_total": 42, "stamps_total": 310, "stamps_via_phone_total": 25, "rewards_ready": 3, "rewards_redeemed_total": 51, "campaigns_total": 4 }
+  }
+}
+```
+
+- `registered_at` واضح، لأنو تصحيح الاسم بيصير بأول 7 أيام. هي قاعدة تشغيلية، والخادم ما بيفرضها.
+- `periods`: كل الفترات، الأحدث أول. `payments`: آخر 10 دفعات، وكلهم بشاشة الدفعات.
+- `cards`: الفعّالة والموقوفة.
+- `stats`: من أول ما فتح المحل، والطوابع الملغاة ما بتنحسب.
+
+### 5.18 `PATCH /admin/merchants/{id}` 🔒 `edit-business-identity`
+
+تصحيح اسم النشاط أو نوعه، يلي ما بيتعدّلوا من التطبيق. ابعت الحقول يلي بدك تغيّرها بس.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `business_name` | string | – | 2–80 |
+| `business_type_id` | integer | – | نوع فعّال |
+| `reason` | string | ✅ | 3–255، بينكتب بسجل التدقيق |
+
+**`200`:** صفحة التاجر (§5.17). كل تغيير بينسجّل (`merchant.identity_updated`) مع القيمة قبل وبعد.
+
+### 5.19 `POST /admin/merchants/{id}/suspend` · `POST /admin/merchants/{id}/reactivate` 🔒 `suspend-merchants`
+
+إيقاف التاجر لاحتيال أو مخالفة، وإعادة تفعيله. الجسم `{ "reason": "…" }` (3–255) إلزامي بالاثنين.
+
+- **الإيقاف:** من أي حالة إلا `SUSPENDED` و`PENDING_DELETION` و`DELETED`. التاجر الموقوف ما بيقدر يضيف طوابع ولا زبائن جداد ولا يبعت حملات، وبيختفي من الدليل، **بس تسليم الهدايا بيضل شغّال**.
+- **إعادة التفعيل:** من `SUSPENDED` بس. الحالة بترجع للحالة يلي بتحددها التواريخ هلق: إذا الاشتراك خلص وقت الإيقاف، بيرجع `EXPIRED` مو `ACTIVE`.
+- كل وحدة بتنسجّل بسجل التدقيق مع السبب.
+
+**`200`:** اشتراك التاجر بعد التغيير، بنفس شكل `subscription` بـ`GET /merchant/me`.
+
+**أخطاء:** `409 MERCHANT_STATUS_CONFLICT` مع `details.status`، إذا الحالة ما بتسمح.
+
+```json
+{ "error": { "code": "MERCHANT_STATUS_CONFLICT", "message": "Only a suspended shop can be reactivated.", "details": { "status": "ACTIVE" } } }
+```
+
+### 5.20 `POST /admin/cards/{id}/suspend` 🔒 `suspend-merchants`
+
+إيقاف بطاقة محتواها مو مناسب. الجسم `{ "reason": "…" }` إلزامي. البطاقة بتنوقف متل ما التاجر بيوقفها: ما في طوابع ولا زبائن جداد، والهدايا المستحقة بتنسلّم عادي.
+إذا كانت موقوفة من قبل، ما بيصير شي.
+
+```json
+{ "data": { "id": 11, "merchant_id": 13, "name": "القهوة", "status": "suspended", "suspended_at": "2026-10-09T10:00:00Z" } }
+```
+
+### 5.21 `GET /admin/customers?phone=` 🔒 `view-merchants-and-customers`
+
+البحث عن زبون **بالرقم كامل** بس (`0933…` أو `+963933…`). ما في تصفّح لكل الزبائن. بيرجّع قائمة فيها زبون واحد أو فاضية،
+وكل عنصر بنفس شكل §5.22 بدون `cycles`. رقم ناقص بيرجع `422` (`phone: format`).
+
+### 5.22 `GET /admin/customers/{id}` 🔒 `view-merchants-and-customers`
+
+```json
+{
+  "data": {
+    "id": 20,
+    "name": "سارة",
+    "phone_masked": "0933***222",
+    "birthdate": "1995-04-20",
+    "registered": true,
+    "registered_at": "2026-09-01T10:00:00Z",
+    "last_activity_at": "2026-10-06T09:00:00Z",
+    "campaigns_muted": false,
+    "created_at": "2026-08-20T10:00:00Z",
+    "cycles": [
+      {
+        "id": 300,
+        "merchant": { "id": 13, "business_name": "كافيه الياسمين" },
+        "card": { "id": 11, "name": "القهوة", "status": "active" },
+        "stamps_count": 3,
+        "stamps_required": 5,
+        "status": "COLLECTING",
+        "started_at": "…",
+        "completed_at": null,
+        "redeemed_at": null
+      }
+    ]
+  }
+}
+```
+
+- **الرقم مخفي دايماً.** الرقم الكامل بس من §5.24.
+- `cycles`: كل الدورات، الأحدث نشاطاً أول، والمسلّمة معها.
+- الزبون المحذوف بيرجع `404`. ما في حجب للزبائن، لأنو الزبون ما بيقدر يأذي حدا (المتطلبات §5.4).
+
+### 5.23 `PATCH /admin/customers/{id}` 🔒 `edit-customer-birthdate`
+
+تصحيح تاريخ الميلاد، بعد التأكد من هوية الزبون.
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `birthdate` | `YYYY-MM-DD` | ✅ | قبل اليوم |
+| `reason` | string | ✅ | 3–255 |
+
+**`200`:** صفحة الزبون (§5.22). التغيير بينسجّل (`customer.birthdate_updated`).
+**أخطاء:** `422 UNDER_AGE` إذا العمر أقل من 13.
+
+### 5.24 `POST /admin/customers/{id}/reveal-phone` 🔒 `reveal-customer-phone`
+
+زر «عرض الرقم كاملاً». **كل ضغطة بتنسجّل بسجل التدقيق** (`customer.phone_revealed`): مين وإيمتى وعلى أي زبون.
+
+```json
+{ "data": { "phone": "+963933111222" } }
+```
+
+### 5.25 `GET /admin/card-cycles/{id}` 🔒 `view-merchants-and-customers`
+
+الدورة مع كل طوابعها، والملغاة معها. من هون بينلغى الطابع الغلط (§5.6).
+
+```json
+{
+  "data": {
+    "id": 300,
+    "customer_id": 20,
+    "merchant": { "id": 13, "business_name": "كافيه الياسمين" },
+    "card": { "id": 11, "name": "القهوة" },
+    "stamps_count": 1,
+    "stamps_required": 5,
+    "status": "COLLECTING",
+    "started_at": "…",
+    "completed_at": null,
+    "redeemed_at": null,
+    "stamps": [
+      { "id": 900, "method": "phone", "stamped_at": "…", "cancelled_at": null, "cancel_reason": null, "cancelled_by": null },
+      { "id": 901, "method": "qr", "stamped_at": "…", "cancelled_at": "…", "cancel_reason": "أضيف للزبون الخطأ", "cancelled_by": { "id": 2, "name": "سامر" } }
+    ]
+  }
+}
+```
+
+### 5.26 أنواع النشاط والأيقونات 🔒 `manage-lookups`
+
+`GET` · `POST /admin/business-types` · `PATCH /admin/business-types/{id}`، ونفسها لـ`/admin/icons`.
+
+```json
+{ "data": [ { "id": 4, "key": "coffee-cup", "name": "فنجان", "sort_order": 3, "is_active": true } ] }
+```
+
+| الحقل | النوع | ملاحظة |
+|---|---|---|
+| `name` | string | 2–100، فريد. مطلوب بالإنشاء |
+| `sort_order` | integer | 0–65535 |
+| `is_active` | boolean | `false` بيخبّيه من التطبيقات |
+| `key` | string | **للأيقونات بس، وبالإنشاء بس**: أحرف صغيرة وأرقام و`-` و`_`، فريد. التطبيقات بترسم الأيقونة منه، فما بيتغيّر بعدين |
+
+- **ما في حذف.** التعطيل بدل الحذف، لأنو في محلات وبطاقات قديمة بتأشّر عليه.
+- القائمة فيها المعطّل كمان، مرتبة بـ`sort_order`. الإنشاء بيرجع `201`.
+
+### 5.27 `GET /admin/settings/app` · `PATCH /admin/settings/app` 🔒 `manage-settings`
+
+باقي الإعدادات (المتطلبات §5.5). بالتعديل ابعت الحقول يلي بدك تغيّرها بس. التطبيقات بتقرأها من `lookups` و`config`، فالتغيير ما بيحتاج إصدار جديد.
+
+```json
+{
+  "data": {
+    "stamp_interval_minutes": 60,
+    "card_stamps_min": 3,
+    "card_stamps_max": 10,
+    "qr_period_seconds": 60,
+    "campaign_title_max": 60,
+    "campaign_body_max": 300,
+    "merchant_min_app_version": "1.0.0",
+    "merchant_app_download_url": "https://…/wafa-merchant.apk",
+    "privacy_policy_url": "https://…",
+    "customer_terms_url": "https://…",
+    "merchant_terms_url": "https://…",
+    "pin_unlock_hours": 12
+  }
+}
+```
+
+| الحقل | القيم |
+|---|---|
+| `stamp_interval_minutes` | 0–1440: أقل وقت بين طابعين لنفس الزبون على نفس البطاقة |
+| `card_stamps_min` · `card_stamps_max` | 1–50. الأدنى ما بيتجاوز الأعلى (`invalid`)، حتى لو بعتت وحدة بس |
+| `qr_period_seconds` | 15–600: عمر رمز QR |
+| `campaign_title_max` · `campaign_body_max` | 10–255 · 20–2000 |
+| `merchant_min_app_version` | `X.Y.Z`. الأقدم منها بياخد `426` مع رابط التنزيل |
+| `merchant_app_download_url` · `*_url` | `https` بس، لحد 500 |
+| `pin_unlock_hours` | 1–72 |
+
+كل تعديل بينسجّل (`settings.app_updated`) مع القيم قبل وبعد.
+
+### 5.28 `GET /admin/audit-logs` 🔒 `view-audit-log`
+
+سجل التدقيق، الأحدث أول، بالمؤشر.
+
+| الاستعلام | القيم |
+|---|---|
+| `action` | مثلاً `payment.approved` · `trial.extended` · `stamp.cancelled` · `merchant.suspended` · `customer.phone_revealed` |
+| `admin_user_id` | مين عمل العملية |
+| `subject_type` + `subject_id` | على شو: `merchant` · `customer` · `payment` · `stamp` · `card` · `package` · `admin`. `subject_id` بدون `subject_type` بيرجع `422` |
+
+```json
+{
+  "data": [
+    {
+      "id": 51,
+      "action": "merchant.suspended",
+      "admin": { "id": 1, "name": "عبد" },
+      "subject_type": "merchant",
+      "subject_id": 13,
+      "before": { "status": "ACTIVE" },
+      "after": { "status": "SUSPENDED", "reason": "طوابع وهمية" },
+      "ip_address": "10.0.0.1",
+      "created_at": "2026-10-09T10:00:00Z"
+    }
+  ],
+  "meta": { "next_cursor": null }
+}
+```
+
+`admin: null` للعمليات يلي عملها النظام لحالو، متل webhook من Clerk.
 
 ---
 

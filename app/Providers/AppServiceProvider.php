@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Enums\AdminPermission;
 use App\Models\AdminUser;
+use App\Models\Card;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\Package;
@@ -119,6 +120,7 @@ class AppServiceProvider extends ServiceProvider
             'stamp' => Stamp::class,
             'payment' => Payment::class,
             'package' => Package::class,
+            'card' => Card::class,
         ]);
     }
 

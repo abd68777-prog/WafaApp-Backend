@@ -23,18 +23,25 @@ tags:
   - name: الزبون — الدخول
   - name: الزبون — الحساب
   - name: الزبون — البطاقات
+  - name: الزبون — دليل المحلات
   - name: الزبون — الإشعارات والأجهزة
   - name: التاجر — الحساب والتسجيل
   - name: التاجر — الـPIN
   - name: التاجر — البطاقات
   - name: التاجر — المسح والطوابع
   - name: التاجر — أعياد الميلاد
+  - name: التاجر — الإحصاءات والزبائن
+  - name: التاجر — ملف المحل
   - name: التاجر — الحملات
   - name: التاجر — الاشتراك والدفع
   - name: التاجر — الإشعارات والأجهزة
   - name: الإدارة
   - name: الإدارة — الباقات والإعدادات
   - name: الإدارة — مراجعة الدفعات
+  - name: الإدارة — التجار
+  - name: الإدارة — الزبائن
+  - name: الإدارة — القوائم
+  - name: الإدارة — سجل التدقيق
   - name: للخادم فقط
 
 paths:
@@ -352,6 +359,60 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: '#/components/schemas/CustomerCardDetail' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /customer/directory:
+    get:
+      tags: [الزبون — دليل المحلات]
+      operationId: customerGetDirectory
+      summary: دليل المحلات كاملاً
+      description: |
+        كل المحلات الظاهرة دفعة وحدة، لأنو البحث والفلترة على الموبايل. بيظهر المحل يلي حالته TRIAL أو ACTIVE أو GRACE
+        وعنده بطاقة فعّالة. ابعت `If-None-Match` بقيمة `ETag` السابقة، فبيرجع `304` إذا ما تغيّر شي. (جاهز)
+      security: [{ customerToken: [] }]
+      parameters:
+        - { name: If-None-Match, in: header, required: false, schema: { type: string } }
+      responses:
+        '200':
+          description: الدليل
+          headers:
+            ETag: { schema: { type: string } }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/DirectoryMerchant' }
+        '304': { description: ما تغيّر شي }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/CustomerNotReady' }
+
+  /customer/merchants/{merchant_id}:
+    get:
+      tags: [الزبون — دليل المحلات]
+      operationId: customerGetMerchant
+      summary: صفحة المحل
+      description: |
+        بطاقات المحل الفعّالة بس. المحل يلي مو بالدليل (منتهي مثلاً) بيفتح بس إذا الزبون إلو دورة عنده، ومع `cards` فاضية.
+        غير هيك `404`. (جاهز)
+      security: [{ customerToken: [] }]
+      parameters:
+        - { name: merchant_id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: الصفحة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/MerchantPage' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/CustomerNotReady' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1031,6 +1092,120 @@ paths:
                   value: { error: { code: MERCHANT_STATUS_BLOCKS_ACTION, message: The subscription does not allow greetings now., details: { status: EXPIRED, action: campaigns } } }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
+  /merchant/stats:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الإحصاءات والزبائن]
+      operationId: merchantGetStats
+      summary: الإحصاءات
+      description: المجموع، ولكل بطاقة، وسلسلة يومية. الطوابع الملغاة ما بتنحسب، والأيام بتوقيت دمشق والأسبوع من السبت.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: card_id, in: query, required: false, schema: { type: integer } }
+        - { name: days, in: query, required: false, schema: { type: integer, enum: [7, 30], default: 7 } }
+      responses:
+        '200':
+          description: الإحصاءات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/MerchantStats' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/customers:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    get:
+      tags: [التاجر — الإحصاءات والزبائن]
+      operationId: merchantListCustomers
+      summary: زبائن المحل
+      description: كل زبون إلو دورة بالمحل (حتى المعلّق)، الأحدث نشاطاً بهالمحل أول. البحث بالاسم بس.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - { name: q, in: query, required: false, schema: { type: string, minLength: 2, maxLength: 50 } }
+      responses:
+        '200':
+          description: صفحة من الزبائن
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/MerchantCustomer' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/profile:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    patch:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantUpdateProfile
+      summary: تعديل الهاتف والعنوان واسم المالك
+      description: اسم النشاط ونوعه والمحافظة ما بيتعدّلوا من التطبيق. ابعت الحقول يلي بدك تغيّرها بس.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                owner_name: { type: string, minLength: 2, maxLength: 80 }
+                phone: { $ref: '#/components/schemas/Phone' }
+                address: { type: [string, 'null'], maxLength: 255, description: '`null` بيمسح العنوان' }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/profile/logo:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantUploadLogo
+      summary: تغيير الشعار
+      description: '`POST` لأنو PHP ما بيقرأ ملفات بـ`PATCH`. الشعار القديم بينمسح.'
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [logo]
+              properties:
+                logo: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
   /merchant/campaigns:
     parameters:
       - $ref: '#/components/parameters/AppVersion'
@@ -1701,6 +1876,498 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
               example: { error: { code: TRIAL_NOT_EXTENDABLE, message: This shop has paid; only a trial can be extended., details: { reason: paid } } }
 
+  /admin/merchants:
+    get:
+      tags: [الإدارة — التجار]
+      operationId: adminListMerchants
+      summary: قائمة التجار
+      description: 'الأحدث تسجيلاً أول، والتاجر يلي لسا عم يسجّل معهم (`status: null`). الصلاحية `view-merchants-and-customers`.'
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/MerchantStatus' } }
+        - { name: governorate_id, in: query, required: false, schema: { type: integer } }
+        - { name: business_type_id, in: query, required: false, schema: { type: integer } }
+        - { name: package_id, in: query, required: false, description: الباقة يلي التاجر عليها هلق, schema: { type: integer } }
+        - { name: trial_ending, in: query, required: false, description: تجربته بتخلص خلال 7 أيام, schema: { type: string, enum: [week] } }
+        - { name: q, in: query, required: false, description: جزء من اسم النشاط أو البريد، أو رقم الهاتف كامل, schema: { type: string, minLength: 2, maxLength: 100 } }
+        - { name: registration_step, in: query, required: false, schema: { type: string, enum: [package, pin, done] } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من التجار
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminMerchant' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}:
+    get:
+      tags: [الإدارة — التجار]
+      operationId: adminGetMerchant
+      summary: صفحة التاجر
+      description: الاشتراك، والفترات، وآخر 10 دفعات، والبطاقات، والإحصاءات من أول ما فتح المحل.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [الإدارة — التجار]
+      operationId: adminUpdateMerchantIdentity
+      summary: تصحيح اسم النشاط أو نوعه
+      description: الصلاحية `edit-business-identity`. السبب إلزامي، والتغيير بينكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                business_name: { type: string, minLength: 2, maxLength: 80 }
+                business_type_id: { type: integer }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/suspend:
+    post:
+      tags: [الإدارة — التجار]
+      operationId: adminSuspendMerchant
+      summary: إيقاف التاجر
+      description: |
+        لاحتيال أو مخالفة. ما في طوابع ولا زبائن جداد ولا حملات، وبيختفي من الدليل، بس تسليم الهدايا بيضل شغّال.
+        الصلاحية `suspend-merchants`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/MerchantStatusConflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/reactivate:
+    post:
+      tags: [الإدارة — التجار]
+      operationId: adminReactivateMerchant
+      summary: إعادة تفعيل التاجر
+      description: |
+        من `SUSPENDED` بس. الحالة بترجع للحالة يلي بتحددها التواريخ هلق، فإذا الاشتراك خلص وقت الإيقاف بيرجع `EXPIRED`.
+        الصلاحية `suspend-merchants`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonInput' }
+      responses:
+        '200': { $ref: '#/components/responses/SubscriptionData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/MerchantStatusConflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/cards/{id}/suspend:
+    post:
+      tags: [الإدارة — التجار]
+      operationId: adminSuspendCard
+      summary: إيقاف بطاقة محتواها مو مناسب
+      description: متل ما التاجر بيوقفها، والهدايا المستحقة بتنسلّم عادي. إذا كانت موقوفة ما بيصير شي. الصلاحية `suspend-merchants`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReasonInput' }
+      responses:
+        '200':
+          description: البطاقة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [id, merchant_id, name, status, suspended_at]
+                    properties:
+                      id: { type: integer }
+                      merchant_id: { type: integer }
+                      name: { type: string }
+                      status: { $ref: '#/components/schemas/CardStatus' }
+                      suspended_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/customers:
+    get:
+      tags: [الإدارة — الزبائن]
+      operationId: adminFindCustomer
+      summary: البحث عن زبون بالرقم كامل
+      description: ما في تصفّح. بيرجّع زبون واحد أو قائمة فاضية، والرقم مخفي. الصلاحية `view-merchants-and-customers`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: phone, in: query, required: true, schema: { $ref: '#/components/schemas/Phone' } }
+      responses:
+        '200':
+          description: النتيجة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    maxItems: 1
+                    items: { $ref: '#/components/schemas/AdminCustomer' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/customers/{id}:
+    get:
+      tags: [الإدارة — الزبائن]
+      operationId: adminGetCustomer
+      summary: صفحة الزبون
+      description: مع كل دوراته، الأحدث نشاطاً أول. الزبون المحذوف بيرجع `404`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/AdminCustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [الإدارة — الزبائن]
+      operationId: adminUpdateCustomerBirthdate
+      summary: تصحيح تاريخ الميلاد
+      description: بعد التأكد من هوية الزبون. الصلاحية `edit-customer-birthdate`، والتغيير بينكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [birthdate, reason]
+              properties:
+                birthdate: { type: string, format: date }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminCustomerData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: '`UNDER_AGE` أو `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /admin/customers/{id}/reveal-phone:
+    post:
+      tags: [الإدارة — الزبائن]
+      operationId: adminRevealCustomerPhone
+      summary: عرض الرقم كاملاً
+      description: كل ضغطة بتنكتب بسجل التدقيق (`customer.phone_revealed`). الصلاحية `reveal-customer-phone`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: الرقم
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [phone]
+                    properties:
+                      phone: { $ref: '#/components/schemas/Phone' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/card-cycles/{id}:
+    get:
+      tags: [الإدارة — الزبائن]
+      operationId: adminGetCardCycle
+      summary: الدورة مع طوابعها
+      description: والملغاة معها. من هون بينلغى الطابع الغلط بـ`POST /admin/stamps/{id}/cancel`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: الدورة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/AdminCardCycle' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/business-types:
+    get:
+      tags: [الإدارة — القوائم]
+      operationId: adminListBusinessTypes
+      summary: أنواع النشاط
+      description: كلها، والمعطّل معها، مرتبة بـ`sort_order`. الصلاحية `manage-lookups`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: القائمة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminLookup' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [الإدارة — القوائم]
+      operationId: adminCreateBusinessType
+      summary: إضافة
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                sort_order: { type: integer, minimum: 0, maximum: 65535 }
+                is_active: { type: boolean }
+      responses:
+        '201': { $ref: '#/components/responses/AdminLookupData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/business-types/{id}:
+    patch:
+      tags: [الإدارة — القوائم]
+      operationId: adminUpdateBusinessType
+      summary: تعديل أو تعطيل
+      description: ما في حذف، لأنو في بيانات قديمة بتأشّر عليه. ابعت الحقول يلي بدك تغيّرها بس.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                sort_order: { type: integer, minimum: 0, maximum: 65535 }
+                is_active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/AdminLookupData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/icons:
+    get:
+      tags: [الإدارة — القوائم]
+      operationId: adminListIcons
+      summary: الأيقونات
+      description: كلها، والمعطّل معها، مرتبة بـ`sort_order`. الصلاحية `manage-lookups`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: القائمة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminLookup' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [الإدارة — القوائم]
+      operationId: adminCreateIcon
+      summary: إضافة
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, name]
+              properties:
+                key: { type: string, maxLength: 64, pattern: '^[a-z0-9_-]+$', description: بالإنشاء بس، وما بيتغيّر بعدين }
+                name: { type: string, minLength: 2, maxLength: 100 }
+                sort_order: { type: integer, minimum: 0, maximum: 65535 }
+                is_active: { type: boolean }
+      responses:
+        '201': { $ref: '#/components/responses/AdminLookupData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/icons/{id}:
+    patch:
+      tags: [الإدارة — القوائم]
+      operationId: adminUpdateIcon
+      summary: تعديل أو تعطيل
+      description: ما في حذف، لأنو في بيانات قديمة بتأشّر عليه. ابعت الحقول يلي بدك تغيّرها بس.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                sort_order: { type: integer, minimum: 0, maximum: 65535 }
+                is_active: { type: boolean }
+      responses:
+        '200': { $ref: '#/components/responses/AdminLookupData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/settings/app:
+    get:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminGetAppSettings
+      summary: باقي الإعدادات
+      description: الطوابع، والحملات، وإصدارات تطبيق التاجر، والروابط، وجلسة الـPIN. الصلاحية `manage-settings` (Super Admin).
+      security: [{ clerkSession: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/AppSettingsData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    patch:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminUpdateAppSettings
+      summary: تعديل الإعدادات
+      description: |
+        ابعت الحقول يلي بدك تغيّرها بس. `card_stamps_min` ما بيتجاوز `card_stamps_max` حتى لو بعتت وحدة بس (`invalid`).
+        بتنكتب بسجل التدقيق.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stamp_interval_minutes: { type: integer, minimum: 0, maximum: 1440 }
+                card_stamps_min: { type: integer, minimum: 1, maximum: 50 }
+                card_stamps_max: { type: integer, minimum: 1, maximum: 50 }
+                qr_period_seconds: { type: integer, minimum: 15, maximum: 600 }
+                campaign_title_max: { type: integer, minimum: 10, maximum: 255 }
+                campaign_body_max: { type: integer, minimum: 20, maximum: 2000 }
+                merchant_min_app_version: { type: [string, 'null'], pattern: '^\d+\.\d+\.\d+$' }
+                merchant_app_download_url: { type: [string, 'null'], format: uri, maxLength: 500 }
+                privacy_policy_url: { type: [string, 'null'], format: uri, maxLength: 500 }
+                customer_terms_url: { type: [string, 'null'], format: uri, maxLength: 500 }
+                merchant_terms_url: { type: [string, 'null'], format: uri, maxLength: 500 }
+                pin_unlock_hours: { type: integer, minimum: 1, maximum: 72 }
+      responses:
+        '200': { $ref: '#/components/responses/AppSettingsData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/audit-logs:
+    get:
+      tags: [الإدارة — سجل التدقيق]
+      operationId: adminListAuditLogs
+      summary: سجل التدقيق
+      description: الأحدث أول. الصلاحية `view-audit-log` (Super Admin). `subject_id` بدون `subject_type` بيرجع `422`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: action, in: query, required: false, schema: { type: string, maxLength: 64, example: merchant.suspended } }
+        - { name: admin_user_id, in: query, required: false, schema: { type: integer } }
+        - { name: subject_type, in: query, required: false, schema: { type: string, enum: [merchant, customer, payment, stamp, card, package, admin] } }
+        - { name: subject_id, in: query, required: false, schema: { type: integer } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من السجل
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditLogEntry' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   # ─────────────────────────── للخادم فقط ───────────────────────────
   /webhooks/clerk:
     post:
@@ -1935,6 +2602,15 @@ components:
             required: [data]
             properties:
               data: { $ref: '#/components/schemas/AdminUser' }
+    MerchantProfileData:
+      description: ملف المحل
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/MerchantProfile' }
     AdminPackageData:
       description: الباقة
       content:
@@ -1971,6 +2647,57 @@ components:
                   payment_review_sla_hours: { type: integer }
                   trial_days: { type: integer }
                   grace_days: { type: integer }
+    AdminMerchantDetailData:
+      description: صفحة التاجر
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminMerchantDetail' }
+    AdminCustomerData:
+      description: صفحة الزبون
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminCustomer' }
+    AdminLookupData:
+      description: العنصر
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminLookup' }
+    AppSettingsData:
+      description: الإعدادات
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AppSettings' }
+    SubscriptionData:
+      description: اشتراك التاجر بعد التغيير
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/Subscription' }
+    MerchantStatusConflict:
+      description: '`MERCHANT_STATUS_CONFLICT`: حالة التاجر ما بتسمح'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example: { error: { code: MERCHANT_STATUS_CONFLICT, message: Only a suspended shop can be reactivated., details: { status: ACTIVE } } }
     PaymentNotPending:
       description: '`PAYMENT_NOT_PENDING`: الدفعة انحسمت قبل'
       content:
@@ -2094,6 +2821,7 @@ components:
         - KEEP_CARDS_REQUIRED
         - PAYMENT_NOT_PENDING
         - TRIAL_NOT_EXTENDABLE
+        - MERCHANT_STATUS_CONFLICT
     Error:
       type: object
       required: [code, message]
@@ -2557,6 +3285,86 @@ components:
       required: [next_cursor]
       properties:
         next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+    DirectoryMerchant:
+      allOf:
+        - $ref: '#/components/schemas/MerchantSummary'
+        - type: object
+          required: [address, active_cards_count]
+          properties:
+            address: { type: [string, 'null'] }
+            active_cards_count: { type: integer }
+    MerchantPage:
+      allOf:
+        - $ref: '#/components/schemas/MerchantSummary'
+        - type: object
+          required: [address, accepting_stamps, muted, cards]
+          properties:
+            address: { type: [string, 'null'] }
+            accepting_stamps: { type: boolean, description: '`false` للمنتهي أو الموقوف أو بانتظار الحذف' }
+            muted: { type: boolean }
+            cards:
+              type: array
+              description: البطاقات الفعّالة بس
+              items: { $ref: '#/components/schemas/CardSummary' }
+    StatsBlock:
+      type: object
+      required: [customers_total, stamps_today, stamps_this_week, stamps_via_phone_today, rewards_ready, rewards_redeemed_total]
+      properties:
+        customers_total: { type: integer }
+        stamps_today: { type: integer }
+        stamps_this_week: { type: integer }
+        stamps_via_phone_today: { type: integer }
+        rewards_ready: { type: integer, description: هدايا جاهزة لسا ما انسلّمت }
+        rewards_redeemed_total: { type: integer }
+    MerchantStats:
+      type: object
+      required: [generated_at, totals, per_card, daily]
+      properties:
+        generated_at: { $ref: '#/components/schemas/DateTime' }
+        totals: { $ref: '#/components/schemas/StatsBlock' }
+        per_card:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/StatsBlock'
+              - type: object
+                required: [card_id, card_name, status]
+                properties:
+                  card_id: { type: integer }
+                  card_name: { type: string }
+                  status: { $ref: '#/components/schemas/CardStatus' }
+        daily:
+          type: array
+          description: يوم لكل عنصر، الأقدم أول، بطول `days`
+          items:
+            type: object
+            required: [date, stamps, stamps_via_phone, rewards_redeemed]
+            properties:
+              date: { type: string, format: date }
+              stamps: { type: integer }
+              stamps_via_phone: { type: integer }
+              rewards_redeemed: { type: integer }
+    MerchantCustomer:
+      type: object
+      required: [id, name, phone_masked, registered, last_stamp_at, cards]
+      properties:
+        id: { type: integer }
+        name: { type: [string, 'null'], description: '`null` للزبون المعلّق' }
+        phone_masked: { type: [string, 'null'], example: 0933***456 }
+        registered: { type: boolean }
+        last_stamp_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        cards:
+          type: array
+          description: الدورات المفتوحة بس
+          items:
+            type: object
+            required: [card_id, card_name, stamps_count, stamps_required, status]
+            properties:
+              card_id: { type: integer }
+              card_name: { type: string }
+              stamps_count: { type: integer }
+              stamps_required: { type: integer }
+              status: { $ref: '#/components/schemas/CycleStatus' }
     Campaign:
       type: object
       required: [id, title, body, recipients_count, sent_at]
@@ -2649,3 +3457,197 @@ components:
         cancelled_at: { $ref: '#/components/schemas/DateTime' }
         cancel_reason: { type: string }
         cycle: { $ref: '#/components/schemas/CycleProgress' }
+    ReasonInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 3, maxLength: 255, description: بينكتب بسجل التدقيق }
+    AdminMerchant:
+      type: object
+      required: [id, business_name, owner_name, email, phone, logo_url, business_type, governorate, status, registration_step, package, subscription_ends_at, suspended_at, suspension_reason, registered_at]
+      properties:
+        id: { type: integer }
+        business_name: { type: string }
+        owner_name: { type: string }
+        email: { type: [string, 'null'], format: email }
+        phone: { $ref: '#/components/schemas/Phone' }
+        logo_url: { type: [string, 'null'], format: uri }
+        business_type: { $ref: '#/components/schemas/Lookup' }
+        governorate: { $ref: '#/components/schemas/Lookup' }
+        status: { oneOf: [{ $ref: '#/components/schemas/MerchantStatus' }, { type: 'null' }], description: '`null` لحد ما يختار باقة' }
+        registration_step: { type: string, enum: [package, pin, done], description: '`package`: لم يختر باقة بعد. `pin`: ما حط PIN' }
+        package: { oneOf: [{ $ref: '#/components/schemas/PackageSummary' }, { type: 'null' }], description: باقة الفترة الحالية، أو آخر باقة }
+        subscription_ends_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }], description: نهاية آخر فترة }
+        suspended_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        suspension_reason: { type: [string, 'null'] }
+        registered_at: { $ref: '#/components/schemas/DateTime' }
+    AdminMerchantDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminMerchant'
+        - type: object
+          required: [address, last_login_at, subscription, periods, payments, cards, stats]
+          properties:
+            address: { type: [string, 'null'] }
+            last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+            subscription: { oneOf: [{ $ref: '#/components/schemas/Subscription' }, { type: 'null' }], description: '`null` لحد ما يختار باقة' }
+            periods:
+              type: array
+              description: كل الفترات، الأحدث أول
+              items: { $ref: '#/components/schemas/SubscriptionPeriod' }
+            payments:
+              type: array
+              description: آخر 10 دفعات
+              items: { $ref: '#/components/schemas/Payment' }
+            cards:
+              type: array
+              items:
+                type: object
+                required: [id, name, icon_key, stamps_required, reward_description, terms, status, customers_count, created_at, suspended_at]
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  icon_key: { type: string }
+                  stamps_required: { type: integer }
+                  reward_description: { type: string }
+                  terms: { type: [string, 'null'] }
+                  status: { $ref: '#/components/schemas/CardStatus' }
+                  customers_count: { type: integer }
+                  created_at: { $ref: '#/components/schemas/DateTime' }
+                  suspended_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+            stats:
+              type: object
+              description: من أول ما فتح المحل، والطوابع الملغاة ما بتنحسب
+              required: [customers_total, stamps_total, stamps_via_phone_total, rewards_ready, rewards_redeemed_total, campaigns_total]
+              properties:
+                customers_total: { type: integer }
+                stamps_total: { type: integer }
+                stamps_via_phone_total: { type: integer }
+                rewards_ready: { type: integer }
+                rewards_redeemed_total: { type: integer }
+                campaigns_total: { type: integer }
+    AdminCustomer:
+      type: object
+      required: [id, name, phone_masked, birthdate, registered, registered_at, last_activity_at, campaigns_muted, created_at]
+      properties:
+        id: { type: integer }
+        name: { type: [string, 'null'] }
+        phone_masked: { type: [string, 'null'], example: 0933***222 }
+        birthdate: { type: [string, 'null'], format: date }
+        registered: { type: boolean }
+        registered_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        last_activity_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        campaigns_muted: { type: boolean }
+        created_at: { $ref: '#/components/schemas/DateTime' }
+        cycles:
+          type: array
+          description: بصفحة الزبون بس، مو بنتيجة البحث
+          items:
+            type: object
+            required: [id, merchant, card, stamps_count, stamps_required, status, started_at, completed_at, redeemed_at]
+            properties:
+              id: { type: integer }
+              merchant: { $ref: '#/components/schemas/AdminCycleMerchant' }
+              card:
+                type: object
+                required: [id, name, status]
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  status: { $ref: '#/components/schemas/CardStatus' }
+              stamps_count: { type: integer }
+              stamps_required: { type: integer }
+              status: { $ref: '#/components/schemas/CycleStatus' }
+              started_at: { $ref: '#/components/schemas/DateTime' }
+              completed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+              redeemed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+    AdminCycleMerchant:
+      type: object
+      required: [id, business_name]
+      properties:
+        id: { type: integer }
+        business_name: { type: string }
+    AdminCardCycle:
+      type: object
+      required: [id, customer_id, merchant, card, stamps_count, stamps_required, status, started_at, completed_at, redeemed_at, stamps]
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer }
+        merchant: { $ref: '#/components/schemas/AdminCycleMerchant' }
+        card:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: integer }
+            name: { type: string }
+        stamps_count: { type: integer }
+        stamps_required: { type: integer }
+        status: { $ref: '#/components/schemas/CycleStatus' }
+        started_at: { $ref: '#/components/schemas/DateTime' }
+        completed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        redeemed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        stamps:
+          type: array
+          description: بالترتيب، والملغاة معها
+          items:
+            type: object
+            required: [id, method, stamped_at, cancelled_at, cancel_reason, cancelled_by]
+            properties:
+              id: { type: integer }
+              method: { $ref: '#/components/schemas/StampMethod' }
+              stamped_at: { $ref: '#/components/schemas/DateTime' }
+              cancelled_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+              cancel_reason: { type: [string, 'null'] }
+              cancelled_by:
+                oneOf:
+                  - type: object
+                    required: [id, name]
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+                  - type: 'null'
+    AdminLookup:
+      type: object
+      required: [id, name, sort_order, is_active]
+      properties:
+        id: { type: integer }
+        key: { type: string, description: للأيقونات بس }
+        name: { type: string }
+        sort_order: { type: integer }
+        is_active: { type: boolean }
+    AppSettings:
+      type: object
+      required: [stamp_interval_minutes, card_stamps_min, card_stamps_max, qr_period_seconds, campaign_title_max, campaign_body_max, merchant_min_app_version, merchant_app_download_url, privacy_policy_url, customer_terms_url, merchant_terms_url, pin_unlock_hours]
+      properties:
+        stamp_interval_minutes: { type: integer }
+        card_stamps_min: { type: integer }
+        card_stamps_max: { type: integer }
+        qr_period_seconds: { type: integer }
+        campaign_title_max: { type: integer }
+        campaign_body_max: { type: integer }
+        merchant_min_app_version: { type: string, description: فاضي يعني ما في حد أدنى }
+        merchant_app_download_url: { type: string }
+        privacy_policy_url: { type: string }
+        customer_terms_url: { type: string }
+        merchant_terms_url: { type: string }
+        pin_unlock_hours: { type: integer }
+    AuditLogEntry:
+      type: object
+      required: [id, action, admin, subject_type, subject_id, before, after, ip_address, created_at]
+      properties:
+        id: { type: integer }
+        action: { type: string, example: merchant.suspended }
+        admin:
+          description: '`null` للعمليات يلي عملها النظام لحالو'
+          oneOf:
+            - type: object
+              required: [id, name]
+              properties:
+                id: { type: integer }
+                name: { type: string }
+            - type: 'null'
+        subject_type: { type: [string, 'null'] }
+        subject_id: { type: [integer, 'null'] }
+        before: { type: [object, 'null'], additionalProperties: true }
+        after: { type: [object, 'null'], additionalProperties: true }
+        ip_address: { type: [string, 'null'] }
+        created_at: { $ref: '#/components/schemas/DateTime' }

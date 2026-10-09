@@ -6,6 +6,7 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 
 /**
  * A page of a long list, the way the apps page (contract §1.6): by cursor,
@@ -23,8 +24,9 @@ final class CursorPage
     /**
      * @param  class-string<JsonResource>  $resource
      * @param  array<string, mixed>  $meta  Extra fields next to `next_cursor`.
+     * @param  (callable(Collection): void)|null  $prepare  Loads what the resource needs for the whole page at once.
      */
-    public static function respond(Request $request, Builder $query, string $resource, array $meta = []): JsonResponse
+    public static function respond(Request $request, Builder $query, string $resource, array $meta = [], ?callable $prepare = null): JsonResponse
     {
         $validated = $request->validate([
             'cursor' => ['sometimes', 'string'],
@@ -32,6 +34,10 @@ final class CursorPage
         ]);
 
         $page = $query->cursorPaginate((int) ($validated['limit'] ?? self::DEFAULT_LIMIT));
+
+        if ($prepare !== null) {
+            $prepare($page->getCollection());
+        }
 
         return response()->json([
             'data' => $resource::collection($page->getCollection()),

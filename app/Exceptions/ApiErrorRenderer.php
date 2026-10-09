@@ -47,6 +47,7 @@ final class ApiErrorRenderer
         'Date' => 'format',
         'DateFormat' => 'format',
         'Email' => 'format',
+        'Url' => 'format',
         'Digits' => 'format',
         'DigitsBetween' => 'format',
         'Integer' => 'format',

@@ -32,8 +32,17 @@ final class SubscriptionLedger
      */
     public function activePeriod(Merchant $merchant): ?SubscriptionPeriod
     {
-        $periods = $this->periods($merchant);
+        return $this->activeAmong($this->periods($merchant));
+    }
 
+    /**
+     * The same choice among periods already loaded, so a list of shops can
+     * pick each one's period from a single query.
+     *
+     * @param  Collection<int, SubscriptionPeriod>  $periods
+     */
+    public function activeAmong(Collection $periods): ?SubscriptionPeriod
+    {
         return $periods
             ->filter(fn (SubscriptionPeriod $period): bool => $this->covers($period, now()))
             ->sortBy([['starts_at', 'desc'], ['id', 'desc']])

@@ -2,8 +2,17 @@
 
 use App\Enums\AdminPermission;
 use App\Http\Controllers\Api\V1\Admin\AdminUserController;
+use App\Http\Controllers\Api\V1\Admin\AppSettingsController;
+use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\AuthController as AdminAuthController;
 use App\Http\Controllers\Api\V1\Admin\BillingSettingsController;
+use App\Http\Controllers\Api\V1\Admin\BusinessTypeController;
+use App\Http\Controllers\Api\V1\Admin\CardController as AdminCardController;
+use App\Http\Controllers\Api\V1\Admin\CardCycleController;
+use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
+use App\Http\Controllers\Api\V1\Admin\IconController;
+use App\Http\Controllers\Api\V1\Admin\MerchantController as AdminMerchantController;
+use App\Http\Controllers\Api\V1\Admin\MerchantSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\PackageController as AdminPackageController;
 use App\Http\Controllers\Api\V1\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\StampController as AdminStampController;
@@ -11,6 +20,7 @@ use App\Http\Controllers\Api\V1\Admin\TrialExtensionController;
 use App\Http\Controllers\Api\V1\Customer\AuthController as CustomerAuthController;
 use App\Http\Controllers\Api\V1\Customer\CardController as CustomerCardController;
 use App\Http\Controllers\Api\V1\Customer\ConfigController as CustomerConfigController;
+use App\Http\Controllers\Api\V1\Customer\DirectoryController;
 use App\Http\Controllers\Api\V1\Customer\MeController as CustomerMeController;
 use App\Http\Controllers\Api\V1\Customer\MerchantMuteController;
 use App\Http\Controllers\Api\V1\Customer\PolicyController as CustomerPolicyController;
@@ -21,13 +31,16 @@ use App\Http\Controllers\Api\V1\Merchant\AuthController as MerchantAuthControlle
 use App\Http\Controllers\Api\V1\Merchant\BirthdayController;
 use App\Http\Controllers\Api\V1\Merchant\CampaignController;
 use App\Http\Controllers\Api\V1\Merchant\CardController as MerchantCardController;
+use App\Http\Controllers\Api\V1\Merchant\CustomerController as MerchantCustomerController;
 use App\Http\Controllers\Api\V1\Merchant\LookupController as MerchantLookupController;
 use App\Http\Controllers\Api\V1\Merchant\PaymentController as MerchantPaymentController;
 use App\Http\Controllers\Api\V1\Merchant\PinController;
+use App\Http\Controllers\Api\V1\Merchant\ProfileController;
 use App\Http\Controllers\Api\V1\Merchant\RedemptionController;
 use App\Http\Controllers\Api\V1\Merchant\RegistrationController;
 use App\Http\Controllers\Api\V1\Merchant\ScanController;
 use App\Http\Controllers\Api\V1\Merchant\StampController;
+use App\Http\Controllers\Api\V1\Merchant\StatsController;
 use App\Http\Controllers\Api\V1\Merchant\SubscriptionController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\Webhooks\ClerkWebhookController;
@@ -102,6 +115,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('cards', [CustomerCardController::class, 'index'])->name('cards.index');
                 Route::get('cards/{card}', [CustomerCardController::class, 'show'])->whereNumber('card')->name('cards.show');
 
+                Route::get('directory', [DirectoryController::class, 'index'])->name('directory');
+                Route::get('merchants/{merchant}', [DirectoryController::class, 'show'])->whereNumber('merchant')->name('merchants.show');
                 Route::put('merchants/{merchant}/mute', [MerchantMuteController::class, 'update'])->whereNumber('merchant')->name('merchants.mute');
                 Route::delete('merchants/{merchant}/mute', [MerchantMuteController::class, 'destroy'])->whereNumber('merchant')->name('merchants.unmute');
 
@@ -150,6 +165,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('cards', [MerchantCardController::class, 'store'])->name('cards.store');
                 Route::post('cards/{card}/suspend', [MerchantCardController::class, 'suspend'])->whereNumber('card')->name('cards.suspend');
 
+                Route::get('stats', [StatsController::class, 'show'])->name('stats');
+                Route::get('customers', [MerchantCustomerController::class, 'index'])->name('customers.index');
+                Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
+                Route::post('profile/logo', [ProfileController::class, 'logo'])->name('profile.logo');
+
                 Route::get('customers/birthdays-today', [BirthdayController::class, 'index'])->name('customers.birthdays-today');
                 Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
                     ->whereNumber('customer')
@@ -192,6 +212,49 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('can:'.AdminPermission::ManageSettings->value)->group(function () {
             Route::get('settings/billing', [BillingSettingsController::class, 'show'])->name('settings.billing.show');
             Route::patch('settings/billing', [BillingSettingsController::class, 'update'])->name('settings.billing.update');
+            Route::get('settings/app', [AppSettingsController::class, 'show'])->name('settings.app.show');
+            Route::patch('settings/app', [AppSettingsController::class, 'update'])->name('settings.app.update');
+        });
+
+        Route::get('audit-logs', [AuditLogController::class, 'index'])
+            ->middleware('can:'.AdminPermission::ViewAuditLog->value)
+            ->name('audit-logs.index');
+
+        // Shops and customers (requirements §5.3–§5.4). Looking is open to
+        // support; each action needs its own permission.
+        Route::middleware('can:'.AdminPermission::ViewMerchantsAndCustomers->value)->group(function () {
+            Route::get('merchants', [AdminMerchantController::class, 'index'])->name('merchants.index');
+            Route::get('merchants/{merchant}', [AdminMerchantController::class, 'show'])->name('merchants.show');
+            Route::get('customers', [AdminCustomerController::class, 'index'])->name('customers.index');
+            Route::get('customers/{customer}', [AdminCustomerController::class, 'show'])->name('customers.show');
+            Route::get('card-cycles/{cycle}', [CardCycleController::class, 'show'])->name('card-cycles.show');
+        });
+
+        Route::patch('merchants/{merchant}', [AdminMerchantController::class, 'update'])
+            ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
+            ->name('merchants.update');
+
+        Route::middleware('can:'.AdminPermission::SuspendMerchants->value)->group(function () {
+            Route::post('merchants/{merchant}/suspend', [MerchantSuspensionController::class, 'suspend'])->name('merchants.suspend');
+            Route::post('merchants/{merchant}/reactivate', [MerchantSuspensionController::class, 'reactivate'])->name('merchants.reactivate');
+            Route::post('cards/{card}/suspend', [AdminCardController::class, 'suspend'])->name('cards.suspend');
+        });
+
+        Route::patch('customers/{customer}', [AdminCustomerController::class, 'update'])
+            ->middleware('can:'.AdminPermission::EditCustomerBirthdate->value)
+            ->name('customers.update');
+
+        Route::post('customers/{customer}/reveal-phone', [AdminCustomerController::class, 'revealPhone'])
+            ->middleware('can:'.AdminPermission::RevealCustomerPhone->value)
+            ->name('customers.reveal-phone');
+
+        Route::middleware('can:'.AdminPermission::ManageLookups->value)->group(function () {
+            Route::get('business-types', [BusinessTypeController::class, 'index'])->name('business-types.index');
+            Route::post('business-types', [BusinessTypeController::class, 'store'])->name('business-types.store');
+            Route::patch('business-types/{businessType}', [BusinessTypeController::class, 'update'])->name('business-types.update');
+            Route::get('icons', [IconController::class, 'index'])->name('icons.index');
+            Route::post('icons', [IconController::class, 'store'])->name('icons.store');
+            Route::patch('icons/{icon}', [IconController::class, 'update'])->name('icons.update');
         });
 
         Route::middleware('can:'.AdminPermission::ReviewPayments->value)->group(function () {

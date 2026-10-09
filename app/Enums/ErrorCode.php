@@ -62,6 +62,7 @@ enum ErrorCode: string
     // Dashboard (outside the contract).
     case PaymentNotPending = 'PAYMENT_NOT_PENDING';
     case TrialNotExtendable = 'TRIAL_NOT_EXTENDABLE';
+    case MerchantStatusConflict = 'MERCHANT_STATUS_CONFLICT';
 
     public function status(): int
     {
@@ -78,7 +79,8 @@ enum ErrorCode: string
             self::RegistrationStepMismatch,
             self::RewardAlreadyRedeemed,
             self::PaymentAlreadyPending,
-            self::PaymentNotPending => 409,
+            self::PaymentNotPending,
+            self::MerchantStatusConflict => 409,
             self::AppVersionUnsupported => 426,
             self::RateLimited,
             self::OtpResendTooSoon,

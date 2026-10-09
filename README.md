@@ -321,9 +321,9 @@ Postman or generating TypeScript types.
 
 | Area | Endpoints |
 | ---- | --------- |
-| Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, muting a shop, notifications, devices |
-| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, campaigns, birthday greetings, subscription and payments, notifications, devices |
-| Admin | dashboard accounts, cancelling a stamp, packages and prices, billing settings, payment review, trial extension |
+| Customer | sign-in, config, account, profile, policy consent, QR secret, my cards, shop directory and page, muting a shop, notifications, devices |
+| Merchant | me, lookups, registration, PIN unlock/change/reset, cards, scan → stamp → reward, statistics, customers, shop profile and logo, campaigns, birthday greetings, subscription and payments, notifications, devices |
+| Admin | dashboard accounts, shops (list, page, name/type fix, suspend and reactivate, card takedown), customers (search by number, page, cycle and stamps, reveal number, birthdate fix), cancelling a stamp, business types and icons, packages and prices, billing and app settings, payment review, trial extension, audit log |
 | Server | Clerk webhook |
 
 `php artisan route:list --path=api` prints them all.
