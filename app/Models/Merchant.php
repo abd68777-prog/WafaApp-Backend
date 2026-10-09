@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * A shop. One account, shared by the owner and the cashier, signed in through
@@ -78,7 +79,7 @@ class Merchant extends Authenticatable
      */
     public function logoUrl(): ?string
     {
-        return $this->logo_path !== null ? url('storage/'.$this->logo_path) : null;
+        return $this->logo_path !== null ? Storage::disk(config('filesystems.media_disk'))->url($this->logo_path) : null;
     }
 
     /**

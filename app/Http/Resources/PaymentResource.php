@@ -37,7 +37,7 @@ class PaymentResource extends JsonResource
             'amount_syp' => (string) $this->amount_syp,
             'method' => $this->method->value,
             'reference' => $this->reference,
-            'proof_url' => Storage::temporaryUrl($this->proof_path, now()->addMinutes(self::PROOF_URL_MINUTES)),
+            'proof_url' => Storage::disk(config('filesystems.proofs_disk'))->temporaryUrl($this->proof_path, now()->addMinutes(self::PROOF_URL_MINUTES)),
             'status' => $this->status->value,
             'rejection_reason' => $this->rejection_reason?->value,
             'created_at' => $this->created_at->toIso8601ZuluString(),

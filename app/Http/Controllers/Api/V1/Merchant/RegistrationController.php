@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 /**
  * The three registration screens of the merchant app: business details, then
@@ -47,7 +48,8 @@ class RegistrationController extends Controller
         $attributes = $request->safe()->only('business_name', 'business_type_id', 'governorate_id', 'address', 'owner_name', 'phone');
 
         if ($request->hasFile('logo')) {
-            $attributes['logo_path'] = $request->file('logo')->store('merchants/logos', 'public');
+            $attributes['logo_path'] = $request->file('logo')->store('merchants/logos', config('filesystems.media_disk'))
+                ?: throw new RuntimeException('The logo could not be stored.');
         }
 
         try {

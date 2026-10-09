@@ -16,17 +16,21 @@ use App\Services\Clerk\ClerkWebhookSignature;
 use App\Services\Otp\LightOtpSender;
 use App\Services\Otp\LogOtpSender;
 use App\Services\Otp\OtpSender;
+use App\Support\Cloudinary\CloudinaryAdapter;
 use App\Support\PhoneNumber;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
+use League\Flysystem\Filesystem;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -72,6 +76,20 @@ class AppServiceProvider extends ServiceProvider
         $this->configureAuthentication();
         $this->configureAuthorization();
         $this->configureRateLimiting();
+        $this->configureStorage();
+    }
+
+    /**
+     * The `cloudinary` disk: shop logos and payment proofs on Cloudinary's CDN
+     * in production (MEDIA_DISK and PROOFS_DISK), local disks elsewhere.
+     */
+    protected function configureStorage(): void
+    {
+        Storage::extend('cloudinary', function ($app, array $config): FilesystemAdapter {
+            $adapter = CloudinaryAdapter::fromUrl((string) $config['cloudinary_url']);
+
+            return new FilesystemAdapter(new Filesystem($adapter, $config), $adapter, $config);
+        });
     }
 
     /**

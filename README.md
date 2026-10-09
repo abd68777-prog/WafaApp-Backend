@@ -303,6 +303,25 @@ Without credentials nothing is pushed and the inbox still works.
 | `trial_ending`, `subscription_ending`, `grace_started`, `subscription_expired` | Merchant | `subscriptions:sync`, hourly |
 | `payment_approved`, `payment_rejected` | Merchant | The payments reviewer's decision |
 
+## Media storage
+
+Shop logos and payment proofs go to **Cloudinary** in production and are served
+from its CDN; `logo_url` and `proof_url` are full CDN links. The app talks to
+Cloudinary's REST API through a small Storage driver
+(`app/Support/Cloudinary/CloudinaryAdapter.php`), so the code only ever calls
+`Storage`.
+
+```
+MEDIA_DISK=cloudinary        # shop logos
+PROOFS_DISK=cloudinary       # payment proofs
+CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>
+```
+
+Locally both default to local disks (`public` and `local`), and the tests fake
+Cloudinary's API. `CLOUDINARY_URL` holds the API secret: keep it in `.env` only.
+File names are random 40-character hashes, so a link cannot be guessed, but
+anyone holding a proof's link can open it.
+
 ## Endpoints
 
 The customer and merchant endpoints follow Deep Code's **API contract**

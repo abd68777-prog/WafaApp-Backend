@@ -21,6 +21,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 /**
  * Paying for the subscription (contract §5.9): the merchant transfers
@@ -73,7 +74,9 @@ class PaymentController extends Controller
 
         $keepCardIds = $this->cardsToKeep($request, $merchant, $package);
         $exchangeRate = (float) Setting::read('exchange_rate_syp', 0);
-        $proofPath = $request->file('proof')->store('payments/proofs');
+        $proofs = Storage::disk(config('filesystems.proofs_disk'));
+        $proofPath = $request->file('proof')->store('payments/proofs', config('filesystems.proofs_disk'))
+            ?: throw new RuntimeException('The payment proof could not be stored.');
 
         try {
             $payment = $merchant->payments()->create([
@@ -89,7 +92,7 @@ class PaymentController extends Controller
             ]);
         } catch (UniqueConstraintViolationException) {
             // Another upload got there first.
-            Storage::delete($proofPath);
+            $proofs->delete($proofPath);
             $this->ensureNothingPending($merchant);
 
             throw ApiException::of(ErrorCode::PaymentAlreadyPending, 'A payment is already waiting for review.');

@@ -9,6 +9,7 @@ use App\Http\Resources\MerchantResource;
 use App\Models\Merchant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use RuntimeException;
 
 /**
  * The shop's own details (contract §5.10). Send only the fields to change;
@@ -35,10 +36,14 @@ class ProfileController extends Controller
         $merchant = $request->user();
         $previous = $merchant->logo_path;
 
-        $merchant->forceFill(['logo_path' => $request->file('logo')->store('merchants/logos', 'public')])->save();
+        $disk = config('filesystems.media_disk');
+        $path = $request->file('logo')->store('merchants/logos', $disk)
+            ?: throw new RuntimeException('The logo could not be stored.');
+
+        $merchant->forceFill(['logo_path' => $path])->save();
 
         if ($previous !== null) {
-            Storage::disk('public')->delete($previous);
+            Storage::disk($disk)->delete($previous);
         }
 
         return $this->profile($merchant);

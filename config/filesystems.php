@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Media Disks
+    |--------------------------------------------------------------------------
+    |
+    | Where shop logos and payment proofs go. Local disks by default; set both
+    | to "cloudinary" in production.
+    |
+    */
+
+    'media_disk' => env('MEDIA_DISK', 'public'),
+
+    'proofs_disk' => env('PROOFS_DISK', 'local'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
@@ -45,6 +59,15 @@ return [
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
+        ],
+
+        // Shop logos and payment proofs in production: CLOUDINARY_URL is
+        // cloudinary://<api_key>:<api_secret>@<cloud_name>, kept in .env only.
+        'cloudinary' => [
+            'driver' => 'cloudinary',
+            'cloudinary_url' => env('CLOUDINARY_URL'),
+            'throw' => false,
+            'report' => true,
         ],
 
         's3' => [
