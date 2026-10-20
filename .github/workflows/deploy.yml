@@ -1,19 +1,46 @@
-
 name: Deploy to HardBrain VPS
 
+# Pull requests run the tests only; a push to main (a merge) tests, then deploys.
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-concurrency:
-  group: deploy-production
-  cancel-in-progress: true
-
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, intl, bcmath, pdo_sqlite, sqlite3, gd, zip
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Prepare the environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run the tests
+        run: php artisan test --compact
+
   deploy:
+    needs: test
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # One deploy at a time, and never cut short halfway: the next one waits.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
@@ -21,14 +48,25 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script_stop: true
           command_timeout: 25m
           script: |
             set -euo pipefail
             cd /opt/wafa-app
             git fetch --depth 1 origin main
             git reset --hard origin/main
-            docker compose up --build -d
+            docker compose up --build -d --remove-orphans
+            # nginx only proxies; recreate it so it never keeps an old image.
+            docker compose up -d --no-deps --force-recreate web
             docker compose ps
-            curl -sf http://45.13.238.49:8000/api/v1/ping || true
-            echo Deploy OK
+
+            # The deploy fails unless the API answers within a minute.
+            for attempt in $(seq 1 20); do
+              if curl -sf http://127.0.0.1:8000/api/v1/ping > /dev/null; then
+                echo "Deploy OK (API answered on attempt $attempt)"
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "The API did not answer after the deploy." >&2
+            docker compose logs --tail 50 app web >&2
+            exit 1

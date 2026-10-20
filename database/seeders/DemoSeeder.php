@@ -16,6 +16,7 @@ use App\Models\Setting;
 use App\Models\Stamp;
 use App\Models\SubscriptionPeriod;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 /**
  * Local demo data covering the states the apps have to render: a card being
@@ -31,6 +32,12 @@ class DemoSeeder extends Seeder
      */
     public function run(): void
     {
+        // Fake shops and customers have no place in a live database, even when
+        // this seeder is asked for by name.
+        if (app()->isProduction()) {
+            throw new RuntimeException('The demo data is never seeded in production.');
+        }
+
         $package = Package::query()->where('cards_limit', '>=', 2)->orderBy('cards_limit')->firstOrFail();
         $cafe = BusinessType::query()->where('name', 'كافيه')->firstOrFail();
         $damascus = Governorate::query()->where('name', 'دمشق')->firstOrFail();

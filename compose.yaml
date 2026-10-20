@@ -11,20 +11,24 @@ services:
     build:
       context: .
       target: app
+    # Every value comes from the .env next to this file, defaulting to local
+    # development. A server sets APP_ENV=production, APP_DEBUG=false, its own
+    # database passwords and the Cloudinary disks there; inside the container
+    # Laravel reads only what is listed here.
     environment:
-      APP_NAME: "Loyalty Cards API"
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_URL: http://localhost:${API_PORT:-8000}
+      APP_NAME: ${APP_NAME:-Loyalty Cards API}
+      APP_ENV: ${APP_ENV:-local}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: ${APP_URL:-http://localhost:${API_PORT:-8000}}
       # OTP codes and errors go to `docker compose logs app`.
       LOG_CHANNEL: stderr
-      LOG_LEVEL: debug
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
-      DB_DATABASE: loyalty_cards
-      DB_USERNAME: loyalty
-      DB_PASSWORD: loyalty
+      DB_DATABASE: ${DB_DATABASE:-loyalty_cards}
+      DB_USERNAME: ${DB_USERNAME:-loyalty}
+      DB_PASSWORD: ${DB_PASSWORD:-loyalty}
       SESSION_DRIVER: array
       CACHE_STORE: database
       QUEUE_CONNECTION: database
@@ -46,6 +50,11 @@ services:
       # Push notifications: the Firebase service account JSON, placed in
       # ./secrets (never committed). Empty = notifications stay in the inbox.
       FIREBASE_CREDENTIALS: ${FIREBASE_CREDENTIALS:-}
+      # Shop logos and payment proofs: local disks, or "cloudinary" for both
+      # with CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>.
+      MEDIA_DISK: ${MEDIA_DISK:-public}
+      PROOFS_DISK: ${PROOFS_DISK:-local}
+      CLOUDINARY_URL: ${CLOUDINARY_URL:-}
     volumes:
       # Keeps the generated app key, logs and uploads across rebuilds.
       - storage:/var/www/html/storage
@@ -82,15 +91,17 @@ services:
 
   db:
     image: mysql:8.4
+    # Read only when the volume is first created: on an existing database,
+    # change the passwords with ALTER USER, then here through .env.
     environment:
-      MYSQL_DATABASE: loyalty_cards
-      MYSQL_USER: loyalty
-      MYSQL_PASSWORD: loyalty
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ${DB_DATABASE:-loyalty_cards}
+      MYSQL_USER: ${DB_USERNAME:-loyalty}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-loyalty}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     volumes:
       - db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
