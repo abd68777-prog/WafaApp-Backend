@@ -24,6 +24,9 @@ class ConfigController extends Controller
                 'privacy_policy_version' => Setting::currentPolicyVersion(),
                 'privacy_policy_url' => (string) Setting::read('privacy_policy_url', ''),
                 'customer_terms_url' => (string) Setting::read('customer_terms_url', ''),
+                // Where "contact support" opens, e.g. a wa.me link: the name and
+                // birthdate are corrected by support only.
+                'support_url' => (string) Setting::read('support_url', ''),
                 'governorates' => LookupResource::collection(
                     Governorate::query()->where('is_active', true)->orderBy('sort_order')->get()
                 ),

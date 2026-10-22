@@ -52,20 +52,31 @@ class LookupManagementTest extends TestCase
 
     public function test_an_icon_key_is_set_once(): void
     {
-        $this->asAdmin()->postJson('/api/v1/admin/icons', ['key' => 'coffee-cup', 'name' => 'فنجان'])
+        $this->asAdmin()->postJson('/api/v1/admin/icons', ['key' => 'coffee', 'name' => 'فنجان'])
             ->assertCreated()
-            ->assertJsonPath('data.key', 'coffee-cup');
+            ->assertJsonPath('data.key', 'coffee');
 
-        $icon = Icon::query()->where('key', 'coffee-cup')->sole();
+        $icon = Icon::query()->where('key', 'coffee')->sole();
 
         $this->asAdmin()->patchJson("/api/v1/admin/icons/{$icon->id}", ['key' => 'tea', 'name' => 'فنجان قهوة'])
             ->assertOk()
-            ->assertJsonPath('data.key', 'coffee-cup')
+            ->assertJsonPath('data.key', 'coffee')
             ->assertJsonPath('data.name', 'فنجان قهوة');
 
         $this->asAdmin()->postJson('/api/v1/admin/icons', ['key' => 'Coffee Cup', 'name' => 'تاني'])
             ->assertUnprocessable()
             ->assertJsonPath('error.details.fields', ['key' => ['format']]);
+    }
+
+    public function test_an_icon_key_must_be_a_phosphor_icon_name(): void
+    {
+        // Well formed, but the apps have no such drawing.
+        $this->asAdmin()->postJson('/api/v1/admin/icons', ['key' => 'coffee-cup', 'name' => 'فنجان'])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['key' => ['format']]);
+
+        $this->asAdmin()->postJson('/api/v1/admin/icons', ['key' => 'hamburger', 'name' => 'برغر'])
+            ->assertCreated();
     }
 
     public function test_support_cannot_manage_the_lists(): void

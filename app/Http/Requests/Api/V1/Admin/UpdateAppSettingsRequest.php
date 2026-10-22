@@ -34,6 +34,7 @@ class UpdateAppSettingsRequest extends FormRequest
             'privacy_policy_url' => ['sometimes', 'nullable', 'url:https', 'max:500'],
             'customer_terms_url' => ['sometimes', 'nullable', 'url:https', 'max:500'],
             'merchant_terms_url' => ['sometimes', 'nullable', 'url:https', 'max:500'],
+            'support_url' => ['sometimes', 'nullable', 'url:https', 'max:500'],
             'pin_unlock_hours' => ['sometimes', 'integer', 'min:1', 'max:72'],
         ];
     }

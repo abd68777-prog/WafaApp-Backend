@@ -60,7 +60,7 @@ class DemoSeeder extends Seeder
 
         $coffee = Card::factory()->create([
             'merchant_id' => $merchant->id,
-            'icon_id' => Icon::query()->where('key', 'coffee-cup')->value('id'),
+            'icon_id' => Icon::query()->where('key', 'coffee')->value('id'),
             'name' => 'بطاقة القهوة',
             'stamps_required' => 5,
             'reward_description' => 'قهوة مجانية من اختيارك',
@@ -69,7 +69,7 @@ class DemoSeeder extends Seeder
 
         Card::factory()->create([
             'merchant_id' => $merchant->id,
-            'icon_id' => Icon::query()->where('key', 'cake-slice')->value('id'),
+            'icon_id' => Icon::query()->where('key', 'cake')->value('id'),
             'name' => 'بطاقة الحلويات',
             'stamps_required' => 8,
             'reward_description' => 'قطعة حلوى مجانية',

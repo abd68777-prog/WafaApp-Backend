@@ -23,7 +23,8 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class,
         ]);
 
-        if (app()->isLocal()) {
+        // Demo data for development and the staging server; never production.
+        if (app()->environment(['local', 'staging'])) {
             $this->call(DemoSeeder::class);
         }
     }

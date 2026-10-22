@@ -34,6 +34,7 @@ class AppSettingsController extends Controller
         'privacy_policy_url' => '',
         'customer_terms_url' => '',
         'merchant_terms_url' => '',
+        'support_url' => '',
         'pin_unlock_hours' => 12,
     ];
 

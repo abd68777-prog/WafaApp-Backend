@@ -75,6 +75,21 @@ class AppSettingsTest extends TestCase
         $this->assertSame(0, AuditLog::query()->count());
     }
 
+    public function test_the_support_link_set_from_the_dashboard_reaches_the_customer_app(): void
+    {
+        $this->getJson('/api/v1/customer/config')->assertOk()->assertJsonPath('data.support_url', '');
+
+        $this->asOwner()->patchJson('/api/v1/admin/settings/app', ['support_url' => 'https://wa.me/963933000111'])
+            ->assertOk()
+            ->assertJsonPath('data.support_url', 'https://wa.me/963933000111');
+
+        $this->getJson('/api/v1/customer/config')->assertJsonPath('data.support_url', 'https://wa.me/963933000111');
+
+        $this->asOwner()->patchJson('/api/v1/admin/settings/app', ['support_url' => 'wa.me/963933000111'])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['support_url' => ['format']]);
+    }
+
     public function test_only_the_super_admin_sees_the_settings(): void
     {
         AdminUser::factory()->create(['clerk_user_id' => 'user_admin', 'role' => AdminRole::Admin]);

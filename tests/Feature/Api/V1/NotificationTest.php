@@ -83,6 +83,34 @@ class NotificationTest extends TestCase
         $this->assertSame(0, $merchant->unreadNotifications()->count());
     }
 
+    public function test_the_unread_count_covers_the_whole_inbox_not_just_the_page(): void
+    {
+        $customer = Customer::factory()->consented()->create();
+
+        foreach (range(1, 25) as $i) {
+            $customer->notifications()->create([
+                'id' => (string) Str::uuid(),
+                'type' => 'campaign',
+                'data' => ['title' => 'عرض', 'body' => 'نص العرض', 'data' => []],
+                'read_at' => $i <= 3 ? now() : null,
+            ]);
+        }
+
+        $this->withToken($this->customerToken($customer))
+            ->getJson('/api/v1/customer/notifications?limit=10')
+            ->assertOk()
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('meta.unread_count', 22);
+
+        $this->withToken($this->customerToken($customer))
+            ->postJson('/api/v1/customer/notifications/'.$customer->unreadNotifications()->value('id').'/read')
+            ->assertNoContent();
+
+        $this->withToken($this->customerToken($customer))
+            ->getJson('/api/v1/customer/notifications')
+            ->assertJsonPath('meta.unread_count', 21);
+    }
+
     private function customerToken(Customer $customer): string
     {
         return $customer->createToken('phone', ['customer'])->plainTextToken;

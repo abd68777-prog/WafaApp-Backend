@@ -343,11 +343,14 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
     "privacy_policy_version": "1.2",
     "privacy_policy_url": "https://…",
     "customer_terms_url": "https://…",
+    "support_url": "https://wa.me/9639XXXXXXXX",
     "governorates": [ { "id": 1, "name": "دمشق" }, { "id": 2, "name": "ريف دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, { "id": 2, "name": "مطعم" }, … ]
   }
 }
 ```
+
+- `support_url`: وين بيفتح «تواصل مع الدعم» (مثلاً واتساب `https://wa.me/…`)، لأنو الاسم وتاريخ الميلاد ما بيتعدّلوا إلا من الدعم. رابط كامل بيتغيّر من اللوحة (§5.27)، وممكن يكون `""` إذا لسا ما انحط، فخبّي الرابط وقتها.
 
 ### 3.2 `POST /customer/auth/otp`
 
@@ -559,7 +562,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 
 ### 3.13 `GET /customer/notifications` 🔒 جاهز
 
-صندوق الإشعارات، الأحدث أول، بالمؤشر: `?limit=20` وبعدين `?cursor=<meta.next_cursor>`.
+صندوق الإشعارات، الأحدث أول، بالمؤشر: `?limit=20` وبعدين `?cursor=<meta.next_cursor>`. `meta.unread_count` هو عدد غير المقروء **بكل الصندوق**، مو بالصفحة بس، فاستعمله لشارة التبويب.
 
 ```json
 {
@@ -583,7 +586,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
       "created_at": "2026-09-29T15:00:52Z"
     }
   ],
-  "meta": { "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAy…" }
+  "meta": { "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAy…", "unread_count": 7 }
 }
 ```
 
@@ -594,6 +597,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `campaign` | حملة من محل | العنوان «[المحل]: [عنوان الحملة]» والنص نص الحملة. `data`: `merchant_id` و`campaign_id` |
 | `birthday_greeting` | تهنئة عيد ميلاد من محل | العنوان «عيد ميلاد سعيد من [المحل]»، والنص رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية |
 | `reward_redeemed` | استلم الهدية | «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.» |
+| `merchant_leaving` | محل بلّش يغادر وفاء والزبون إلو عنده هدية جاهزة. **بيوصل مع ميزة حذف التاجر (قريباً)** | العنوان «[المحل] سيغادر وفاء» والنص «استلم هديتك قبل [التاريخ].» `data`: `merchant_id` و`card_id` و`cycle_id` و`leaves_at`. بأيقونة تحذير، والضغط بيفتح صفحة المحل |
 
 `data` فيها المعرّفات لتفتح البطاقة لما يضغط (للتهنئة: `merchant_id` بس).
 
@@ -1223,7 +1227,7 @@ PUT /merchant/devices
 
 ### 4.15 `GET /merchant/notifications` · `POST /merchant/notifications/{id}/read` · `POST /merchant/notifications/read-all`
 
-صندوق إشعارات التاجر، بنفس شكل وتصفح ونفس push إشعارات الزبون (§3.13–3.15).
+صندوق إشعارات التاجر، بنفس شكل وتصفح ونفس push إشعارات الزبون (§3.13–3.15)، ومع `meta.unread_count` كمان.
 
 | `type` | متى | النص |
 |---|---|---|
@@ -2045,7 +2049,7 @@ PUT /merchant/devices
 | `name` | string | 2–100، فريد. مطلوب بالإنشاء |
 | `sort_order` | integer | 0–65535 |
 | `is_active` | boolean | `false` بيخبّيه من التطبيقات |
-| `key` | string | **للأيقونات بس، وبالإنشاء بس**: أحرف صغيرة وأرقام و`-` و`_`، فريد. التطبيقات بترسم الأيقونة منه، فما بيتغيّر بعدين |
+| `key` | string | **للأيقونات بس، وبالإنشاء بس**: لازم يكون **اسم أيقونة من Phosphor Icons** (مثلاً `coffee`، `cake`، `hamburger`)، وإلا `422` مع `key: format`. فريد، والتطبيقات بترسم الأيقونة منه، فما بيتغيّر بعدين |
 
 - **ما في حذف.** التعطيل بدل الحذف، لأنو في محلات وبطاقات قديمة بتأشّر عليه.
 - القائمة فيها المعطّل كمان، مرتبة بـ`sort_order`. الإنشاء بيرجع `201`.
@@ -2068,6 +2072,7 @@ PUT /merchant/devices
     "privacy_policy_url": "https://…",
     "customer_terms_url": "https://…",
     "merchant_terms_url": "https://…",
+    "support_url": "https://wa.me/9639XXXXXXXX",
     "pin_unlock_hours": 12
   }
 }
@@ -2081,6 +2086,7 @@ PUT /merchant/devices
 | `campaign_title_max` · `campaign_body_max` | 10–255 · 20–2000 |
 | `merchant_min_app_version` | `X.Y.Z`. الأقدم منها بياخد `426` مع رابط التنزيل |
 | `merchant_app_download_url` · `*_url` | `https` بس، لحد 500 |
+| `support_url` | رابط «تواصل مع الدعم» بتطبيق الزبون (§3.1)، مثلاً `https://wa.me/…`. رابط مو رقم، فبتقدر تغيّر قناة الدعم من هون |
 | `pin_unlock_hours` | 1–72 |
 
 كل تعديل بينسجّل (`settings.app_updated`) مع القيم قبل وبعد.

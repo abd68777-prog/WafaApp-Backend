@@ -17,12 +17,9 @@ class IconSeeder extends Seeder
     public function run(): void
     {
         $icons = [
-            'coffee-cup' => 'فنجان قهوة',
-            'tea-glass' => 'كأس شاي',
-            'juice' => 'عصير',
-            'cake-slice' => 'قطعة كيك',
+            'coffee' => 'فنجان قهوة',
+            'cake' => 'كيك',
             'ice-cream' => 'بوظة',
-            'burger' => 'برغر',
             'pizza' => 'بيتزا',
             'bread' => 'خبز',
             'scissors' => 'حلاقة',

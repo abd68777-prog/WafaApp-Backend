@@ -19,14 +19,18 @@ use Illuminate\Http\Response;
 class NotificationController extends Controller
 {
     /**
-     * Newest first, by cursor.
+     * Newest first, by cursor. `meta.unread_count` covers the whole inbox, not
+     * just the page, so the tab badge is right however far back unread ones go.
      */
     public function index(Request $request): JsonResponse
     {
+        $owner = $this->owner($request);
+
         return CursorPage::respond(
             $request,
-            $this->owner($request)->notifications()->reorder()->orderByDesc('created_at')->orderByDesc('id'),
+            $owner->notifications()->reorder()->orderByDesc('created_at')->orderByDesc('id'),
             NotificationResource::class,
+            ['unread_count' => $owner->unreadNotifications()->count()],
         );
     }
 
