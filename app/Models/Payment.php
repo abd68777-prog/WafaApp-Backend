@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentRejectionReason;
 use App\Enums\PaymentStatus;
+use Carbon\CarbonInterface;
 use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,6 +36,15 @@ class Payment extends Model
 {
     /** @use HasFactory<PaymentFactory> */
     use HasFactory;
+
+    /**
+     * A payment still pending that was uploaded before this moment is late:
+     * the review promise is `payment_review_sla_hours` (requirements §5.2).
+     */
+    public static function reviewOverdueBefore(): CarbonInterface
+    {
+        return now()->subHours((int) Setting::read('payment_review_sla_hours', 24));
+    }
 
     /**
      * @return array<string, string>

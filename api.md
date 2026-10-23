@@ -110,6 +110,9 @@
 | 92 | `POST /admin/merchants/{id}/deletion` | إدارة | `execute-deletion-requests` |
 | 93 | `POST /admin/deletion-requests/{id}/cancel` | إدارة | `execute-deletion-requests` |
 | 94 | `POST /admin/customers/{id}/deletion` | إدارة | `execute-deletion-requests` |
+| 97 | `GET /admin/overview` | إدارة | أي دور |
+| 98 | `GET /admin/finance/payments` | إدارة | `view-financials` |
+| 99 | `GET /admin/finance/report` | إدارة | `view-financials` |
 | | **صفحة حذف الحساب (ويب)** | | |
 | 95 | `POST /public/account-deletion/otp` | الكل | — |
 | 96 | `POST /public/account-deletion` | الكل | رمز واتساب |
@@ -1598,6 +1601,7 @@ PUT /merchant/devices
 | `reveal-customer-phone` — عرض رقم الزبون كامل | ✓ | ✓ | – | ✓ |
 | `manage-lookups` — أنواع النشاط والأيقونات | ✓ | ✓ | – | – |
 | `execute-deletion-requests` — تنفيذ طلبات الحذف | ✓ | ✓ | – | – |
+| `view-financials` — سجل الدفعات والتقارير المالية | ✓ | – | ✓ | – |
 
 هدول الصلاحيات يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
 
@@ -2211,6 +2215,76 @@ PUT /merchant/devices
 | `merchants:execute-deletions` (03:00) | بتنفّذ حذف التجار يلي خلصت مهلتهم |
 | `customers:purge-pending` (03:15) | الزبون المعلّق يلي ما سجّل خلال 12 شهر من آخر نشاط بينمسح مع طوابعه |
 | `billing:purge-records` (03:30) | سجل الاشتراكات والدفعات وصور الإثبات للتاجر المحذوف من أكتر من سنتين |
+
+### 5.32 `GET /admin/overview` (أي دور)
+
+أول شاشة باللوحة (المتطلبات §6.6).
+
+```json
+{
+  "data": {
+    "merchants": {
+      "total": 57,
+      "registering": 3,
+      "by_status": { "TRIAL": 12, "ACTIVE": 34, "GRACE": 2, "EXPIRED": 4, "SUSPENDED": 1, "PENDING_DELETION": 1, "DELETED": 0 }
+    },
+    "trials_ending_this_week": {
+      "count": 4,
+      "merchants": [ { "id": 13, "business_name": "فرن الشام", "trial_ends_at": "2026-10-18T12:00:00Z" } ]
+    },
+    "alerts": {
+      "payments_pending": 5,
+      "payments_overdue": 1,
+      "payments_duplicate_reference": 1,
+      "deletion_requests_new": 2,
+      "merchants_pending_deletion": 1
+    },
+    "finance": { "month": "2026-10", "count": 18, "price_usd": "245.00", "amount_syp": "3185000.00" }
+  }
+}
+```
+
+- `registering`: سجّلوا وما اختاروا باقة لسا، وما بيدخلوا بـ`by_status`.
+- `trials_ending_this_week`: نفس فلتر `trial_ending=week` بقائمة التجار (§5.16)، الأقرب أول، وأول 10 بس.
+- **التنبيهات:**
+  - `payments_overdue`: دفعات معلّقة أقدم من `payment_review_sla_hours`، نفس `overdue` بالطابور.
+  - `payments_duplicate_reference`: دفعات معلّقة رقم مرجعها انستعمل بدفعة تانية.
+  - `deletion_requests_new`: طلبات حذف آخر 7 أيام.
+  - `merchants_pending_deletion`: تجار بمهلة الحذف.
+- `finance`: دخل الشهر الحالي (بتوقيت دمشق) من الدفعات المقبولة. **`null`** إذا الدور ما عنده `view-financials`.
+
+### 5.33 `GET /admin/finance/payments` 🔒 `view-financials`
+
+سجل كل الدفعات بكل حالاتها، الأحدث أول، بالمؤشر، وبنفس عنصر الطابور (§5.11). للاطلاع بس، والقرار بيضل من الطابور.
+
+| الاستعلام | القيم |
+|---|---|
+| `status` | `PENDING` · `APPROVED` · `REJECTED` |
+| `method` | `syriatel_cash` · `transfer` |
+| `merchant_id` | دفعات تاجر واحد |
+| `from` · `to` | `YYYY-MM-DD` بتوقيت دمشق، حسب يوم الرفع. `to` قبل `from` بيرجع `422` |
+
+### 5.34 `GET /admin/finance/report?from=&to=` 🔒 `view-financials`
+
+الدفعات **المقبولة** بين يومين، حسب يوم القبول بتوقيت دمشق. بدون تواريخ: من أول الشهر لليوم.
+
+```json
+{
+  "data": {
+    "from": "2026-09-01",
+    "to": "2026-10-31",
+    "totals": { "count": 3, "price_usd": "45.50", "amount_syp": "591500.00" },
+    "by_month": [
+      { "month": "2026-09", "count": 1, "price_usd": "10.00", "amount_syp": "130000.00" },
+      { "month": "2026-10", "count": 2, "price_usd": "35.50", "amount_syp": "461500.00" }
+    ],
+    "by_package": [ { "package": { "id": 1, "name": "الأساسية" }, "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ],
+    "by_method": [ { "method": "syriatel_cash", "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ]
+  }
+}
+```
+
+المبالغ نصوص عشرية متل باقي الدفعات، وهي المبالغ يلي انحفظت بكل دفعة وقت الرفع، فتغيير الأسعار ما بيغيّر تقرير قديم.
 
 ---
 

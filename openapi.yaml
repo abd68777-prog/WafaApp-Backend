@@ -43,6 +43,7 @@ tags:
   - name: الإدارة — القوائم
   - name: الإدارة — سجل التدقيق
   - name: الإدارة — طلبات الحذف
+  - name: الإدارة — النظرة العامة والمالية
   - name: صفحة حذف الحساب
   - name: للخادم فقط
 
@@ -1529,6 +1530,84 @@ paths:
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   # ─────────────────────────── لوحة الإدارة ───────────────────────────
+  /admin/overview:
+    get:
+      tags: [الإدارة — النظرة العامة والمالية]
+      operationId: adminOverview
+      summary: النظرة العامة
+      description: لأي دور. `finance` بس لـ`view-financials`، وإلا `null`.
+      security: [{ clerkSession: [] }]
+      responses:
+        '200':
+          description: النظرة العامة
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/AdminOverview' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/finance/payments:
+    get:
+      tags: [الإدارة — النظرة العامة والمالية]
+      operationId: adminPaymentHistory
+      summary: سجل كل الدفعات
+      description: الأحدث أول، للاطلاع بس. الصلاحية `view-financials` (Super Admin ومراجع المدفوعات). التواريخ أيام بتوقيت دمشق، حسب يوم الرفع.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [PENDING, APPROVED, REJECTED] } }
+        - { name: method, in: query, required: false, schema: { type: string, enum: [syriatel_cash, transfer] } }
+        - { name: merchant_id, in: query, required: false, schema: { type: integer } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من الدفعات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminPayment' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/finance/report:
+    get:
+      tags: [الإدارة — النظرة العامة والمالية]
+      operationId: adminRevenueReport
+      summary: التقرير المالي
+      description: |
+        الدفعات المقبولة بين يومين، حسب يوم القبول بتوقيت دمشق. بدون تواريخ: من أول الشهر لليوم.
+        المبالغ يلي انحفظت بكل دفعة وقت الرفع. الصلاحية `view-financials`.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: التقرير
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/RevenueReport' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
   /admin/auth/me:
     get:
       tags: [الإدارة]
@@ -3857,6 +3936,97 @@ components:
         merchant_terms_url: { type: string }
         support_url: { type: string }
         pin_unlock_hours: { type: integer }
+    RevenueTotals:
+      type: object
+      required: [count, price_usd, amount_syp]
+      properties:
+        count: { type: integer }
+        price_usd: { type: string, example: '45.50' }
+        amount_syp: { type: string, example: '591500.00' }
+    RevenueReport:
+      type: object
+      required: [from, to, totals, by_month, by_package, by_method]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        totals: { $ref: '#/components/schemas/RevenueTotals' }
+        by_month:
+          type: array
+          items:
+            allOf:
+              - type: object
+                required: [month]
+                properties: { month: { type: string, example: '2026-10' } }
+              - $ref: '#/components/schemas/RevenueTotals'
+        by_package:
+          type: array
+          items:
+            allOf:
+              - type: object
+                required: [package]
+                properties:
+                  package:
+                    type: object
+                    required: [id, name]
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+              - $ref: '#/components/schemas/RevenueTotals'
+        by_method:
+          type: array
+          items:
+            allOf:
+              - type: object
+                required: [method]
+                properties: { method: { type: string, enum: [syriatel_cash, transfer] } }
+              - $ref: '#/components/schemas/RevenueTotals'
+    AdminOverview:
+      type: object
+      required: [merchants, trials_ending_this_week, alerts, finance]
+      properties:
+        merchants:
+          type: object
+          required: [total, registering, by_status]
+          properties:
+            total: { type: integer }
+            registering: { type: integer, description: سجّلوا وما اختاروا باقة لسا }
+            by_status:
+              type: object
+              required: [TRIAL, ACTIVE, GRACE, EXPIRED, SUSPENDED, PENDING_DELETION, DELETED]
+              additionalProperties: { type: integer }
+        trials_ending_this_week:
+          type: object
+          required: [count, merchants]
+          properties:
+            count: { type: integer }
+            merchants:
+              type: array
+              maxItems: 10
+              items:
+                type: object
+                required: [id, business_name, trial_ends_at]
+                properties:
+                  id: { type: integer }
+                  business_name: { type: string }
+                  trial_ends_at: { $ref: '#/components/schemas/DateTime' }
+        alerts:
+          type: object
+          required: [payments_pending, payments_overdue, payments_duplicate_reference, deletion_requests_new, merchants_pending_deletion]
+          properties:
+            payments_pending: { type: integer }
+            payments_overdue: { type: integer }
+            payments_duplicate_reference: { type: integer }
+            deletion_requests_new: { type: integer, description: آخر 7 أيام }
+            merchants_pending_deletion: { type: integer }
+        finance:
+          description: 'دخل الشهر الحالي. `null` بدون `view-financials`'
+          oneOf:
+            - allOf:
+                - type: object
+                  required: [month]
+                  properties: { month: { type: string, example: '2026-10' } }
+                - $ref: '#/components/schemas/RevenueTotals'
+            - type: 'null'
     DeletionRequestInput:
       type: object
       required: [source]

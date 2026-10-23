@@ -11,9 +11,11 @@ use App\Http\Controllers\Api\V1\Admin\CardController as AdminCardController;
 use App\Http\Controllers\Api\V1\Admin\CardCycleController;
 use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Api\V1\Admin\DeletionRequestController;
+use App\Http\Controllers\Api\V1\Admin\FinanceController;
 use App\Http\Controllers\Api\V1\Admin\IconController;
 use App\Http\Controllers\Api\V1\Admin\MerchantController as AdminMerchantController;
 use App\Http\Controllers\Api\V1\Admin\MerchantSuspensionController;
+use App\Http\Controllers\Api\V1\Admin\OverviewController;
 use App\Http\Controllers\Api\V1\Admin\PackageController as AdminPackageController;
 use App\Http\Controllers\Api\V1\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\StampController as AdminStampController;
@@ -205,6 +207,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     // Outside the contract's first version; same error shape.
     Route::prefix('admin')->name('admin.')->middleware(['clerk', 'clerk.admin'])->group(function () {
         Route::get('auth/me', [AdminAuthController::class, 'me'])->name('auth.me');
+
+        // Every role opens on it; the money figures follow view-financials.
+        Route::get('overview', OverviewController::class)->name('overview');
+
+        // History and reports, apart from the reviewer's decision queue.
+        Route::middleware('can:'.AdminPermission::ViewFinancials->value)->group(function () {
+            Route::get('finance/payments', [FinanceController::class, 'payments'])->name('finance.payments');
+            Route::get('finance/report', [FinanceController::class, 'report'])->name('finance.report');
+        });
 
         Route::middleware('can:'.AdminPermission::ManageAdminAccounts->value)->group(function () {
             Route::get('admin-users', [AdminUserController::class, 'index'])->name('admin-users.index');
