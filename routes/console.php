@@ -21,3 +21,21 @@ Schedule::command('customer-tokens:prune-idle')
 Schedule::command('subscriptions:sync')
     ->hourly()
     ->withoutOverlapping();
+
+// Privacy policy §3 and §10: a shop is erased 30 days after it asked to
+// leave, unregistered numbers go after 12 months without activity, and a
+// deleted shop's billing records after two years.
+Schedule::command('merchants:execute-deletions')
+    ->dailyAt('03:00')
+    ->timezone(MerchantState::TIMEZONE)
+    ->withoutOverlapping();
+
+Schedule::command('customers:purge-pending')
+    ->dailyAt('03:15')
+    ->timezone(MerchantState::TIMEZONE)
+    ->withoutOverlapping();
+
+Schedule::command('billing:purge-records')
+    ->dailyAt('03:30')
+    ->timezone(MerchantState::TIMEZONE)
+    ->withoutOverlapping();
