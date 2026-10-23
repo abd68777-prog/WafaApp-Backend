@@ -135,6 +135,12 @@ class MerchantDeletionTest extends TestCase
         $this->assertTrue($card->exists && Card::query()->whereKey($card->id)->exists());
         $this->assertSame(0, $merchant->deviceTokens()->count());
         $this->assertNotNull(DeletionRequest::query()->sole()->executed_at);
+
+        // Without its PIN, an erased shop still counts as fully registered.
+        $this->asAdmin()->getJson('/api/v1/admin/merchants?registration_step=pin')->assertJsonCount(0, 'data');
+        $this->asAdmin()->getJson('/api/v1/admin/merchants?registration_step=done')
+            ->assertJsonPath('data.0.registration_step', 'done')
+            ->assertJsonPath('data.0.status', 'DELETED');
     }
 
     public function test_when_clerk_cannot_be_reached_nothing_is_erased_and_it_is_tried_again(): void

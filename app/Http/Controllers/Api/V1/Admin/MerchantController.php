@@ -74,8 +74,9 @@ class MerchantController extends Controller
             ->when(isset($validated['q']), fn ($query) => $this->search($query, $validated['q']))
             ->when(isset($validated['registration_step']), fn ($query) => match ($validated['registration_step']) {
                 'package' => $query->whereNull('status'),
-                'pin' => $query->whereNotNull('status')->whereNull('pin_hash'),
-                'done' => $query->whereNotNull('status')->whereNotNull('pin_hash'),
+                // An erased shop has no PIN left but finished registering.
+                'pin' => $query->whereNotNull('status')->where('status', '!=', MerchantStatus::Deleted)->whereNull('pin_hash'),
+                'done' => $query->whereNotNull('status')->where(fn ($done) => $done->whereNotNull('pin_hash')->orWhere('status', MerchantStatus::Deleted)),
             })
             ->orderByDesc('id');
 
