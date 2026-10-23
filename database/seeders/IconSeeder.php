@@ -6,8 +6,8 @@ use App\Models\Icon;
 use Illuminate\Database\Seeder;
 
 /**
- * Starting icon library for loyalty cards. The apps map `key` to a drawing, so
- * no artwork is uploaded and every card looks consistent.
+ * Starting icon library for loyalty cards. Every key is a Phosphor Icons name
+ * (@phosphor-icons/core 2.1.1), so the apps draw it straight from the library.
  */
 class IconSeeder extends Seeder
 {
@@ -17,13 +17,67 @@ class IconSeeder extends Seeder
     public function run(): void
     {
         $icons = [
+            // مشروبات
             'coffee' => 'فنجان قهوة',
-            'cake' => 'كيك',
-            'ice-cream' => 'بوظة',
+            'coffee-bean' => 'حبة قهوة',
+            'orange-slice' => 'عصير',
+            // مطاعم ووجبات
+            'hamburger' => 'برغر',
             'pizza' => 'بيتزا',
+            'bowl-food' => 'طبق',
+            'bowl-steam' => 'طبق ساخن',
+            'fork-knife' => 'شوكة وسكين',
+            'cooking-pot' => 'طنجرة',
+            'chef-hat' => 'قبعة شيف',
+            'fish' => 'سمك',
+            'shrimp' => 'جمبري',
+            'popcorn' => 'بوشار',
+            // خضار وفواكه
+            'carrot' => 'جزر',
+            'avocado' => 'أفوكادو',
+            'cherries' => 'كرز',
+            'leaf' => 'ورقة',
+            // حلويات ومخابز
+            'cake' => 'كيك',
+            'cookie' => 'بسكويت',
+            'ice-cream' => 'بوظة',
             'bread' => 'خبز',
-            'scissors' => 'حلاقة',
+            'cheese' => 'جبنة',
+            // جمال وعناية
+            'scissors' => 'مقص',
+            'hair-dryer' => 'سشوار',
+            'sparkle' => 'لمعة',
+            'flower-lotus' => 'زهرة لوتس',
+            'flower' => 'وردة',
+            'flower-tulip' => 'توليب',
+            'hand-soap' => 'صابون',
+            // رياضة وصحة
+            'barbell' => 'أثقال',
+            'person-simple-run' => 'جري',
+            'pill' => 'دواء',
+            'first-aid-kit' => 'إسعاف',
+            'tooth' => 'سن',
+            // تسوق وخدمات
+            'shopping-bag' => 'كيس تسوق',
+            'basket' => 'سلة',
+            't-shirt' => 'قميص',
+            'dress' => 'فستان',
+            'sneaker' => 'حذاء',
+            'eyeglasses' => 'نظارة',
+            'baby' => 'أطفال',
+            'washing-machine' => 'غسيل',
+            'car' => 'سيارة',
+            'wrench' => 'صيانة',
+            'paw-print' => 'حيوانات أليفة',
+            'book-open' => 'كتاب',
+            'game-controller' => 'ألعاب',
+            // عام
             'gift' => 'هدية',
+            'star' => 'نجمة',
+            'heart' => 'قلب',
+            'crown' => 'تاج',
+            'ticket' => 'تذكرة',
+            'seal-percent' => 'خصم',
         ];
 
         $order = 1;
