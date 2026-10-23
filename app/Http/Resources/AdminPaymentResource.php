@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use App\Enums\PaymentStatus;
 use App\Models\Payment;
-use App\Models\Setting;
 use Illuminate\Http\Request;
 
 /**
@@ -31,7 +30,7 @@ class AdminPaymentResource extends PaymentResource
                 'status' => $this->merchant->status?->value,
             ],
             'overdue' => $this->status === PaymentStatus::Pending
-                && $this->created_at->addHours((int) Setting::read('payment_review_sla_hours', 24))->isPast(),
+                && $this->created_at->lessThan(Payment::reviewOverdueBefore()),
             'duplicate_reference' => $this->reference !== null
                 && Payment::query()->where('reference', $this->reference)->whereKeyNot($this->id)->exists(),
             'reviewed_by' => $this->reviewedBy === null ? null : [
