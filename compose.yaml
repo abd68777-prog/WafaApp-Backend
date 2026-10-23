@@ -11,18 +11,18 @@ services:
     build:
       context: .
       target: app
-    # Every value comes from the .env next to this file, defaulting to local
-    # development. A server sets APP_ENV=production, APP_DEBUG=false, its own
-    # database passwords and the Cloudinary disks there; inside the container
-    # Laravel reads only what is listed here.
+    # Every value comes from the .env next to this file; inside the container
+    # Laravel reads only what is listed here. The defaults are the safe ones
+    # (production, no debug), so a developer's .env sets APP_ENV=local and
+    # APP_DEBUG=true, and a server sets its own passwords and Cloudinary disks.
     environment:
       APP_NAME: ${APP_NAME:-Loyalty Cards API}
-      APP_ENV: ${APP_ENV:-local}
-      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_ENV: ${APP_ENV:-production}
+      APP_DEBUG: ${APP_DEBUG:-false}
       APP_URL: ${APP_URL:-http://localhost:${API_PORT:-8000}}
       # OTP codes and errors go to `docker compose logs app`.
       LOG_CHANNEL: stderr
-      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_LEVEL: ${LOG_LEVEL:-warning}
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
@@ -83,8 +83,11 @@ services:
     build:
       context: .
       target: web
+    # Reachable from this machine only: on a server the reverse proxy (Caddy)
+    # in front of it is the one way in, over HTTPS. Set API_BIND=0.0.0.0 to
+    # reach a local backend from a phone on the same network.
     ports:
-      - "${API_PORT:-8000}:80"
+      - "${API_BIND:-127.0.0.1}:${API_PORT:-8000}:80"
     depends_on:
       - app
     restart: unless-stopped

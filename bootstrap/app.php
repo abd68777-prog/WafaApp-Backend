@@ -24,6 +24,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Caddy terminates HTTPS in front of the API and is the only way in
+        // (compose binds the port to 127.0.0.1), so its forwarded headers give
+        // the real client IP for rate limits and the https scheme for URLs.
+        $middleware->trustProxies(at: '*');
+
         // Every API request is answered as JSON, even when the client
         // forgets to send an Accept header.
         $middleware->api(prepend: [
