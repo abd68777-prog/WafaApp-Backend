@@ -269,12 +269,12 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
   "stamps_required": 3,
   "reward_description": "فنجان قهوة مجاني",
   "terms": "لا تُجمع مع عروض أخرى",
-  "icon": { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" },
+  "icon": { "id": 1, "key": "coffee", "name": "فنجان قهوة" },
   "status": "active"
 }
 ```
 
-التطبيق بيرسم الأيقونة من مكتبته حسب `icon.key`. و`status`: `active` أو `suspended`.
+التطبيق بيرسم الأيقونة من Phosphor Icons حسب `icon.key`، وكل مفتاح هو اسم أيقونة Phosphor بالضبط. و`status`: `active` أو `suspended`.
 
 **MerchantSummary:**
 
@@ -861,7 +861,7 @@ PUT /merchant/devices
   "data": {
     "governorates": [ { "id": 1, "name": "دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, … ],
-    "icons": [ { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" }, { "id": 2, "key": "tea-glass", "name": "كأس شاي" }, … ],
+    "icons": [ { "id": 1, "key": "coffee", "name": "فنجان قهوة" }, { "id": 2, "key": "coffee-bean", "name": "حبة قهوة" }, … ],
     "trial_days": 14,
     "packages": [
       {
@@ -1022,7 +1022,7 @@ PUT /merchant/devices
       "stamps_required": 3,
       "reward_description": "فنجان قهوة مجاني",
       "terms": "لا تُجمع مع عروض أخرى",
-      "icon": { "id": 1, "key": "coffee-cup", "name": "فنجان قهوة" },
+      "icon": { "id": 1, "key": "coffee", "name": "فنجان قهوة" },
       "status": "active",
       "created_at": "2026-09-29T15:00:52Z",
       "suspended_at": null,
@@ -2041,7 +2041,7 @@ PUT /merchant/devices
 `GET` · `POST /admin/business-types` · `PATCH /admin/business-types/{id}`، ونفسها لـ`/admin/icons`.
 
 ```json
-{ "data": [ { "id": 4, "key": "coffee-cup", "name": "فنجان", "sort_order": 3, "is_active": true } ] }
+{ "data": [ { "id": 4, "key": "coffee", "name": "فنجان", "sort_order": 3, "is_active": true } ] }
 ```
 
 | الحقل | النوع | ملاحظة |
@@ -2053,6 +2053,7 @@ PUT /merchant/devices
 
 - **ما في حذف.** التعطيل بدل الحذف، لأنو في محلات وبطاقات قديمة بتأشّر عليه.
 - القائمة فيها المعطّل كمان، مرتبة بـ`sort_order`. الإنشاء بيرجع `201`.
+- **المكتبة الأولية فيها 53 أيقونة Phosphor،** مقسومة على مشروبات، ومطاعم، وحلويات، وجمال، ورياضة، وتسوق، وعام. الأيقونات القديمة يلي ما كانت أسماء Phosphor (`coffee-cup` وغيرها) تحوّلت لبدائلها، وانتقلت البطاقات معها.
 
 ### 5.27 `GET /admin/settings/app` · `PATCH /admin/settings/app` 🔒 `manage-settings`
 

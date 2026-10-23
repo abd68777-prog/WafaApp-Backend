@@ -2886,7 +2886,7 @@ components:
       required: [id, key, name]
       properties:
         id: { type: integer }
-        key: { type: string, example: coffee-cup, description: التطبيق بيرسم الأيقونة من مكتبته حسب `key` }
+        key: { type: string, example: coffee, description: اسم أيقونة من Phosphor Icons، والتطبيق بيرسمها منه }
         name: { type: string, example: فنجان قهوة }
 
     # ── الزبون ──
