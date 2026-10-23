@@ -1,11 +1,13 @@
 name: Deploy to HardBrain VPS
 
-# Pull requests run the tests only; a push to main (a merge) tests, then deploys.
+# Pull requests run the tests only.
+# A push to develop: tests, then deploys to staging.
+# A push to main:    tests, then waits for approval, then deploys to production.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 jobs:
@@ -34,14 +36,30 @@ jobs:
 
   deploy:
     needs: test
-    if: github.event_name != 'pull_request'
+    # Only main and develop ever deploy; any other branch stops after the tests.
+    if: github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # One deploy at a time, and never cut short halfway: the next one waits.
+    # The "production" environment holds the manual approval rule.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    # One deploy per branch at a time, and never cut short halfway.
     concurrency:
-      group: deploy-production
+      group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
     steps:
+      - name: Pick the target
+        id: target
+        run: |
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "dir=/opt/wafa-app"        >> "$GITHUB_OUTPUT"
+            echo "project=loyalty-cards"    >> "$GITHUB_OUTPUT"
+            echo "port=8000"                >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=/opt/wafa-staging"    >> "$GITHUB_OUTPUT"
+            echo "project=wafa-staging"     >> "$GITHUB_OUTPUT"
+            echo "port=8001"                >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -51,22 +69,74 @@ jobs:
           command_timeout: 25m
           script: |
             set -euo pipefail
-            cd /opt/wafa-app
-            git fetch --depth 1 origin main
-            git reset --hard origin/main
-            docker compose up --build -d --remove-orphans
+            DIR="${{ steps.target.outputs.dir }}"
+            PROJECT="${{ steps.target.outputs.project }}"
+            PORT="${{ steps.target.outputs.port }}"
+            BRANCH="${{ github.ref_name }}"
+
+            echo "Deploying $BRANCH to $DIR (project $PROJECT, port $PORT)"
+            cd "$DIR"
+            git fetch --depth 1 origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+
+            # -p is explicit so staging can never touch the production containers.
+            # Migrations run in the app entrypoint (migrate --force).
+            docker compose -p "$PROJECT" up --build -d --remove-orphans
             # nginx only proxies; recreate it so it never keeps an old image.
-            docker compose up -d --no-deps --force-recreate web
-            docker compose ps
+            docker compose -p "$PROJECT" up -d --no-deps --force-recreate web
+            docker compose -p "$PROJECT" ps
 
             # The deploy fails unless the API answers within a minute.
             for attempt in $(seq 1 20); do
-              if curl -sf http://127.0.0.1:8000/api/v1/ping > /dev/null; then
+              if curl -sf "http://127.0.0.1:$PORT/api/v1/ping" > /dev/null; then
                 echo "Deploy OK (API answered on attempt $attempt)"
                 exit 0
               fi
               sleep 3
             done
             echo "The API did not answer after the deploy." >&2
-            docker compose logs --tail 50 app web >&2
+            docker compose -p "$PROJECT" logs --tail 50 app web >&2
             exit 1
+
+  notify:
+    needs: [test, deploy]
+    if: always() && github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'develop')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send a Telegram message
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TEST_RESULT: ${{ needs.test.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          TARGET: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Telegram secrets are not set; skipping the notification."
+            exit 0
+          fi
+
+          if [ "$DEPLOY_RESULT" = "success" ]; then
+            STATUS="✅ Deployed"
+          elif [ "$TEST_RESULT" != "success" ]; then
+            STATUS="❌ Tests failed, nothing was deployed"
+          elif [ "$DEPLOY_RESULT" = "cancelled" ]; then
+            STATUS="⚪ Deploy cancelled or not approved"
+          else
+            STATUS="❌ Deploy failed"
+          fi
+
+          FIRST_LINE="${COMMIT_MSG%%$'\n'*}"
+          TEXT="Wafa API — ${TARGET}
+          ${STATUS}
+          Branch: ${GITHUB_REF_NAME}
+          Commit: ${GITHUB_SHA::7} ${FIRST_LINE}
+          By: ${GITHUB_ACTOR}
+          ${RUN_URL}"
+          TEXT="$(printf '%s\n' "$TEXT" | sed 's/^[[:space:]]*//')"
+
+          curl -sS -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" > /dev/null
