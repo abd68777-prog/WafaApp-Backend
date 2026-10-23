@@ -52,11 +52,11 @@ class ReviewAccountSeeder extends Seeder
         $reviewer = $this->reviewer($phone);
 
         $cafe = $this->shop('review_demo_cafe', 'كافيه وفاء التجريبي', 'كافيه', '+963900000201');
-        $coffee = $this->card($cafe, 'coffee-cup', 'بطاقة القهوة', 'قهوة مجانية من اختيارك');
+        $coffee = $this->card($cafe, 'coffee', 'بطاقة القهوة', 'قهوة مجانية من اختيارك');
         $this->cycle($coffee, $reviewer, 3, CardCycleStatus::Collecting);
 
         $sweets = $this->shop('review_demo_sweets', 'حلويات وفاء التجريبية', 'حلويات', '+963900000202');
-        $cake = $this->card($sweets, 'cake-slice', 'بطاقة الحلويات', 'قطعة كيك مجانية');
+        $cake = $this->card($sweets, 'cake', 'بطاقة الحلويات', 'قطعة كيك مجانية');
         $this->cycle($cake, $reviewer, 5, CardCycleStatus::RewardReady);
     }
 

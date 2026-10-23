@@ -25,7 +25,7 @@ class LookupTest extends TestCase
         $aleppo = Governorate::factory()->create(['name' => 'حلب', 'sort_order' => 2]);
         Governorate::factory()->create(['name' => 'قديمة', 'sort_order' => 3, 'is_active' => false]);
         BusinessType::factory()->create(['name' => 'ملغى', 'is_active' => false]);
-        Icon::factory()->create(['key' => 'coffee-cup', 'name' => 'قهوة']);
+        Icon::factory()->create(['key' => 'coffee', 'name' => 'قهوة']);
 
         $response = $this->lookups();
 
@@ -35,7 +35,7 @@ class LookupTest extends TestCase
                 ['id' => $aleppo->id, 'name' => 'حلب'],
             ])
             ->assertJsonPath('data.business_types', [])
-            ->assertJsonPath('data.icons.0.key', 'coffee-cup');
+            ->assertJsonPath('data.icons.0.key', 'coffee');
     }
 
     public function test_packages_carry_prices_as_decimal_strings_with_the_current_pound_amount(): void

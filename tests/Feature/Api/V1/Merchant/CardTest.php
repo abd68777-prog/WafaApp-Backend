@@ -64,14 +64,14 @@ class CardTest extends TestCase
     public function test_a_card_is_published_with_the_chosen_icon(): void
     {
         $merchant = $this->merchant();
-        $icon = Icon::factory()->create(['key' => 'coffee-cup']);
+        $icon = Icon::factory()->create(['key' => 'coffee']);
 
         $response = $this->publish($merchant, $this->payload(['icon_id' => $icon->id]));
 
         $response->assertCreated()
             ->assertJsonPath('data.name', 'بطاقة القهوة')
             ->assertJsonPath('data.stamps_required', 8)
-            ->assertJsonPath('data.icon.key', 'coffee-cup')
+            ->assertJsonPath('data.icon.key', 'coffee')
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.active_customers', 0);
 

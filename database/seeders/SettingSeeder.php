@@ -46,6 +46,8 @@ class SettingSeeder extends Seeder
             'privacy_policy_url' => '',
             'customer_terms_url' => '',
             'merchant_terms_url' => '',
+            // A full link (e.g. https://wa.me/9639XXXXXXXX), set from the dashboard.
+            'support_url' => '',
 
             // Merchant app is distributed outside the stores, so the server
             // refuses versions older than this and the app shows an update screen.

@@ -478,7 +478,9 @@ paths:
       tags: [الزبون — الإشعارات والأجهزة]
       operationId: customerNotifications
       summary: صندوق الإشعارات
-      description: الأحدث أول، بالمؤشر. الإشعارات هلق بالصندوق داخل التطبيق بس. (جاهز)
+      description: |
+        الأحدث أول، بالمؤشر. كل إشعار بينكتب بالصندوق، وبينبعت كمان push عن طريق FCM لكل أجهزة الحساب
+        المسجّلة بـ`PUT /customer/devices`، بنفس العنوان والنص. `meta.unread_count` هو غير المقروء بكل الصندوق. (جاهز)
       security: [{ customerToken: [] }]
       parameters:
         - $ref: '#/components/parameters/Cursor'
@@ -2287,7 +2289,7 @@ paths:
               type: object
               required: [key, name]
               properties:
-                key: { type: string, maxLength: 64, pattern: '^[a-z0-9_-]+$', description: بالإنشاء بس، وما بيتغيّر بعدين }
+                key: { type: string, maxLength: 64, example: coffee, description: 'اسم أيقونة من Phosphor Icons، وإلا `422`. بالإنشاء بس، وما بيتغيّر بعدين' }
                 name: { type: string, minLength: 2, maxLength: 100 }
                 sort_order: { type: integer, minimum: 0, maximum: 65535 }
                 is_active: { type: boolean }
@@ -2360,6 +2362,7 @@ paths:
                 privacy_policy_url: { type: [string, 'null'], format: uri, maxLength: 500 }
                 customer_terms_url: { type: [string, 'null'], format: uri, maxLength: 500 }
                 merchant_terms_url: { type: [string, 'null'], format: uri, maxLength: 500 }
+                support_url: { type: [string, 'null'], format: uri, maxLength: 500 }
                 pin_unlock_hours: { type: integer, minimum: 1, maximum: 72 }
       responses:
         '200': { $ref: '#/components/responses/AppSettingsData' }
@@ -2747,9 +2750,10 @@ components:
                 items: { $ref: '#/components/schemas/Notification' }
               meta:
                 type: object
-                required: [next_cursor]
+                required: [next_cursor, unread_count]
                 properties:
                   next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+                  unread_count: { type: integer, description: غير المقروء بكل الصندوق، مو بالصفحة بس، لشارة التبويب }
 
   schemas:
     # ── أساسيات ──
@@ -2888,12 +2892,13 @@ components:
     # ── الزبون ──
     CustomerConfig:
       type: object
-      required: [qr_period_seconds, privacy_policy_version, privacy_policy_url, customer_terms_url, governorates, business_types]
+      required: [qr_period_seconds, privacy_policy_version, privacy_policy_url, customer_terms_url, support_url, governorates, business_types]
       properties:
         qr_period_seconds: { type: integer, example: 60 }
         privacy_policy_version: { type: string, example: '1.2' }
         privacy_policy_url: { type: string, format: uri }
         customer_terms_url: { type: string, format: uri }
+        support_url: { type: string, format: uri, example: 'https://wa.me/9639XXXXXXXX', description: 'رابط «تواصل مع الدعم». `""` لحد ما ينحط من اللوحة' }
         governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
     Customer:
@@ -3013,7 +3018,7 @@ components:
         id: { type: string, format: uuid }
         type:
           type: string
-          enum: [stamp_added, card_completed, reward_redeemed, campaign, birthday_greeting, birthdays_today, trial_ending, subscription_ending, grace_started, subscription_expired, payment_approved, payment_rejected]
+          enum: [stamp_added, card_completed, reward_redeemed, campaign, birthday_greeting, merchant_leaving, birthdays_today, trial_ending, subscription_ending, grace_started, subscription_expired, payment_approved, payment_rejected]
           description: |
             `stamp_added`: «أُضيف لك طابع عند [المحل]. صار لديك 1 من 3.»
             `card_completed`: «هديتك جاهزة!» / «اكتملت بطاقتك في [المحل]. اعرض رمزك للكاشير لتستلم [وصف الهدية].»
@@ -3656,7 +3661,7 @@ components:
         is_active: { type: boolean }
     AppSettings:
       type: object
-      required: [stamp_interval_minutes, card_stamps_min, card_stamps_max, qr_period_seconds, campaign_title_max, campaign_body_max, merchant_min_app_version, merchant_app_download_url, privacy_policy_url, customer_terms_url, merchant_terms_url, pin_unlock_hours]
+      required: [stamp_interval_minutes, card_stamps_min, card_stamps_max, qr_period_seconds, campaign_title_max, campaign_body_max, merchant_min_app_version, merchant_app_download_url, privacy_policy_url, customer_terms_url, merchant_terms_url, support_url, pin_unlock_hours]
       properties:
         stamp_interval_minutes: { type: integer }
         card_stamps_min: { type: integer }
@@ -3669,6 +3674,7 @@ components:
         privacy_policy_url: { type: string }
         customer_terms_url: { type: string }
         merchant_terms_url: { type: string }
+        support_url: { type: string }
         pin_unlock_hours: { type: integer }
     AuditLogEntry:
       type: object

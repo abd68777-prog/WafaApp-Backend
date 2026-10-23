@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Admin;
 
+use App\Support\PhosphorIcons;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -11,8 +12,9 @@ use Illuminate\Validation\Rule;
  * the list, and whether the apps offer it. Nothing is deleted — old cards and
  * shops still point at a disabled entry.
  *
- * An icon also has a key the apps draw it from. It is set once: changing it
- * would redraw every card already using the icon.
+ * An icon also has a key the apps draw it from: a Phosphor Icons name, or the
+ * apps would show nothing. It is set once: changing it would redraw every
+ * card already using the icon.
  */
 class SaveLookupRequest extends FormRequest
 {
@@ -38,7 +40,7 @@ class SaveLookupRequest extends FormRequest
         ];
 
         if ($table === 'icons' && $creating) {
-            $rules['key'] = ['required', 'string', 'max:64', 'regex:/^[a-z0-9_-]+$/', Rule::unique('icons', 'key')];
+            $rules['key'] = ['required', 'string', 'max:64', Rule::in(PhosphorIcons::names()), Rule::unique('icons', 'key')];
         }
 
         return $rules;
