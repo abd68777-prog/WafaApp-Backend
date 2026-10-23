@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\Admin\BusinessTypeController;
 use App\Http\Controllers\Api\V1\Admin\CardController as AdminCardController;
 use App\Http\Controllers\Api\V1\Admin\CardCycleController;
 use App\Http\Controllers\Api\V1\Admin\CustomerController as AdminCustomerController;
+use App\Http\Controllers\Api\V1\Admin\DeletionRequestController;
 use App\Http\Controllers\Api\V1\Admin\IconController;
 use App\Http\Controllers\Api\V1\Admin\MerchantController as AdminMerchantController;
 use App\Http\Controllers\Api\V1\Admin\MerchantSuspensionController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\Api\V1\Merchant\StampController;
 use App\Http\Controllers\Api\V1\Merchant\StatsController;
 use App\Http\Controllers\Api\V1\Merchant\SubscriptionController;
 use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\Public\AccountDeletionController;
 use App\Http\Controllers\Api\V1\Webhooks\ClerkWebhookController;
 use Illuminate\Support\Facades\Route;
 
@@ -82,6 +84,18 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     // --- Server-to-server ------------------------------------------------
     // Signed by Clerk (Svix); the signature is the authentication.
     Route::post('webhooks/clerk', [ClerkWebhookController::class, 'handle'])->name('webhooks.clerk');
+
+    // --- Public web page -------------------------------------------------
+    // Deleting a customer account without the app, as Google Play requires.
+    Route::prefix('public')->name('public.')->group(function () {
+        Route::post('account-deletion/otp', [AccountDeletionController::class, 'requestCode'])
+            ->middleware('throttle:otp')
+            ->name('account-deletion.otp');
+
+        Route::post('account-deletion', [AccountDeletionController::class, 'destroy'])
+            ->middleware('throttle:otp-verify')
+            ->name('account-deletion');
+    });
 
     // --- Customer app (phone + OTP) --------------------------------------
     Route::prefix('customer')->name('customer.')->group(function () {
@@ -269,5 +283,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('merchants/{merchant}/trial-extension', [TrialExtensionController::class, 'store'])
             ->middleware('can:'.AdminPermission::GrantExtensions->value)
             ->name('merchants.trial-extension');
+
+        // A shop leaves after 30 days that can be cancelled; a customer asking
+        // by email or through support is deleted at once (requirements §3.6).
+        Route::middleware('can:'.AdminPermission::ExecuteDeletionRequests->value)->group(function () {
+            Route::get('deletion-requests', [DeletionRequestController::class, 'index'])->name('deletion-requests.index');
+            Route::post('deletion-requests/{deletionRequest}/cancel', [DeletionRequestController::class, 'cancel'])->name('deletion-requests.cancel');
+            Route::post('merchants/{merchant}/deletion', [DeletionRequestController::class, 'storeForMerchant'])->name('merchants.deletion');
+            Route::post('customers/{customer}/deletion', [DeletionRequestController::class, 'storeForCustomer'])->name('customers.deletion');
+        });
     });
 });

@@ -63,6 +63,7 @@ enum ErrorCode: string
     case PaymentNotPending = 'PAYMENT_NOT_PENDING';
     case TrialNotExtendable = 'TRIAL_NOT_EXTENDABLE';
     case MerchantStatusConflict = 'MERCHANT_STATUS_CONFLICT';
+    case DeletionRequestNotPending = 'DELETION_REQUEST_NOT_PENDING';
 
     public function status(): int
     {
@@ -80,7 +81,8 @@ enum ErrorCode: string
             self::RewardAlreadyRedeemed,
             self::PaymentAlreadyPending,
             self::PaymentNotPending,
-            self::MerchantStatusConflict => 409,
+            self::MerchantStatusConflict,
+            self::DeletionRequestNotPending => 409,
             self::AppVersionUnsupported => 426,
             self::RateLimited,
             self::OtpResendTooSoon,

@@ -19,14 +19,14 @@ use Illuminate\Support\Facades\DB;
  * statistics without pointing at anyone. Uncollected stamps and rewards are
  * lost for good: nothing can present that QR code or phone number again.
  *
- * Used by the app today, and by the dashboard for requests arriving from the
- * web page or by email.
+ * Used by the app, by the public web page (with a WhatsApp code), and by the
+ * dashboard for requests arriving by email or through support.
  */
 final class CustomerAccountDeleter
 {
-    public function delete(Customer $customer, DeletionSource $source, ?AdminUser $handledBy = null): void
+    public function delete(Customer $customer, DeletionSource $source, ?AdminUser $handledBy = null, ?string $note = null): DeletionRequest
     {
-        DB::transaction(function () use ($customer, $source, $handledBy): void {
+        return DB::transaction(function () use ($customer, $source, $handledBy, $note): DeletionRequest {
             if ($customer->phone !== null) {
                 OtpCode::query()->where('phone', $customer->phone)->delete();
             }
@@ -53,12 +53,15 @@ final class CustomerAccountDeleter
                 'subject_id' => $customer->id,
                 'source' => $source,
                 'requested_at' => now(),
+                'note' => $note,
             ]);
 
             $deletionRequest->forceFill([
                 'executed_at' => now(),
                 'handled_by_admin_id' => $handledBy?->id,
             ])->save();
+
+            return $deletionRequest;
         });
     }
 }

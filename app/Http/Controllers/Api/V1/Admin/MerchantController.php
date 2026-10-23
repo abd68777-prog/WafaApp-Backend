@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\CardCycleStatus;
+use App\Enums\DeletionSubjectType;
 use App\Enums\MerchantStatus;
 use App\Enums\StampMethod;
 use App\Enums\SubscriptionPeriodType;
@@ -14,6 +15,7 @@ use App\Http\Resources\SubscriptionPeriodResource;
 use App\Models\AdminUser;
 use App\Models\Card;
 use App\Models\CardCycle;
+use App\Models\DeletionRequest;
 use App\Models\Merchant;
 use App\Models\SubscriptionPeriod;
 use App\Services\AuditLogger;
@@ -72,8 +74,9 @@ class MerchantController extends Controller
             ->when(isset($validated['q']), fn ($query) => $this->search($query, $validated['q']))
             ->when(isset($validated['registration_step']), fn ($query) => match ($validated['registration_step']) {
                 'package' => $query->whereNull('status'),
-                'pin' => $query->whereNotNull('status')->whereNull('pin_hash'),
-                'done' => $query->whereNotNull('status')->whereNotNull('pin_hash'),
+                // An erased shop has no PIN left but finished registering.
+                'pin' => $query->whereNotNull('status')->where('status', '!=', MerchantStatus::Deleted)->whereNull('pin_hash'),
+                'done' => $query->whereNotNull('status')->where(fn ($done) => $done->whereNotNull('pin_hash')->orWhere('status', MerchantStatus::Deleted)),
             })
             ->orderByDesc('id');
 
@@ -101,8 +104,32 @@ class MerchantController extends Controller
                 )->resolve(),
                 'cards' => $this->cards($merchant),
                 'stats' => $this->stats($merchant),
+                'deletion' => $this->pendingDeletion($merchant),
             ],
         ]);
+    }
+
+    /**
+     * The shop's deletion still in its waiting period, if any. Before starting
+     * one, the team tells the shop `stats.rewards_ready` (requirements §3.6).
+     *
+     * @return array{id: int, requested_at: string, executes_at: string}|null
+     */
+    private function pendingDeletion(Merchant $merchant): ?array
+    {
+        $deletionRequest = DeletionRequest::query()
+            ->where('subject_type', DeletionSubjectType::Merchant)
+            ->where('subject_id', $merchant->id)
+            ->whereNull('executed_at')
+            ->whereNull('cancelled_at')
+            ->latest('id')
+            ->first();
+
+        return $deletionRequest === null ? null : [
+            'id' => $deletionRequest->id,
+            'requested_at' => $deletionRequest->requested_at->toIso8601ZuluString(),
+            'executes_at' => $deletionRequest->executes_at->toIso8601ZuluString(),
+        ];
     }
 
     public function update(UpdateMerchantIdentityRequest $request, Merchant $merchant, AuditLogger $audit, MerchantState $state): JsonResponse
