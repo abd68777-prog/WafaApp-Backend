@@ -82,8 +82,8 @@ jobs:
             # -p is explicit so staging can never touch the production containers.
             # Migrations run in the app entrypoint (migrate --force).
             docker compose -p "$PROJECT" up --build -d --remove-orphans
-            # nginx only proxies; recreate it so it never keeps an old image.
-            docker compose -p "$PROJECT" up -d --no-deps --force-recreate web
+            # Recreate the app containers so they never keep running an old image.
+            docker compose -p "$PROJECT" up -d --no-deps --force-recreate app worker scheduler web
             docker compose -p "$PROJECT" ps
 
             # The deploy fails unless the API answers within a minute.
