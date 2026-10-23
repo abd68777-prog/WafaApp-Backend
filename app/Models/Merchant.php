@@ -64,6 +64,8 @@ class Merchant extends Authenticatable
     {
         return match (true) {
             $this->status === null => 'package',
+            // An erased shop has no PIN left, yet finished registering long ago.
+            $this->status === MerchantStatus::Deleted => 'done',
             $this->pin_hash === null => 'pin',
             default => 'done',
         };

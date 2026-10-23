@@ -106,6 +106,13 @@
 | 87 | `GET /admin/settings/app` | إدارة | `manage-settings` |
 | 88 | `PATCH /admin/settings/app` | إدارة | `manage-settings` |
 | 89 | `GET /admin/audit-logs` | إدارة | `view-audit-log` |
+| 91 | `GET /admin/deletion-requests` | إدارة | `execute-deletion-requests` |
+| 92 | `POST /admin/merchants/{id}/deletion` | إدارة | `execute-deletion-requests` |
+| 93 | `POST /admin/deletion-requests/{id}/cancel` | إدارة | `execute-deletion-requests` |
+| 94 | `POST /admin/customers/{id}/deletion` | إدارة | `execute-deletion-requests` |
+| | **صفحة حذف الحساب (ويب)** | | |
+| 95 | `POST /public/account-deletion/otp` | الكل | — |
+| 96 | `POST /public/account-deletion` | الكل | رمز واتساب |
 | | **للخادم فقط** | | |
 | 90 | `POST /webhooks/clerk` | Clerk | توقيع Svix |
 
@@ -232,7 +239,8 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `KEEP_CARDS_REQUIRED` | 422 | `cards_limit`, `active_cards` | تخفيض لباقة أصغر بدون اختيار البطاقات يلي بتضل |
 | `PAYMENT_NOT_PENDING` | 409 | `status` | لوحة الإدارة: الدفعة انحسمت قبل |
 | `TRIAL_NOT_EXTENDABLE` | 422 | `reason` | لوحة الإدارة: ما في تجربة بتتمدد (`paid` أو `no_trial` أو `status`) |
-| `MERCHANT_STATUS_CONFLICT` | 409 | `status` | لوحة الإدارة: حالة التاجر ما بتسمح بالإيقاف أو إعادة التفعيل |
+| `MERCHANT_STATUS_CONFLICT` | 409 | `status` | لوحة الإدارة: حالة التاجر ما بتسمح بالإيقاف أو إعادة التفعيل أو الحذف |
+| `DELETION_REQUEST_NOT_PENDING` | 409 | — | لوحة الإدارة: طلب الحذف انتفّذ أو انلغى قبل |
 
 ### 1.4 حدود الطلبات
 
@@ -597,7 +605,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 | `campaign` | حملة من محل | العنوان «[المحل]: [عنوان الحملة]» والنص نص الحملة. `data`: `merchant_id` و`campaign_id` |
 | `birthday_greeting` | تهنئة عيد ميلاد من محل | العنوان «عيد ميلاد سعيد من [المحل]»، والنص رسالة التاجر، ومعها سطر «هديتك: [الهدية]» إذا في هدية |
 | `reward_redeemed` | استلم الهدية | «استلمت هديتك من [المحل]. بدأت بطاقتك الجديدة.» |
-| `merchant_leaving` | محل بلّش يغادر وفاء والزبون إلو عنده هدية جاهزة. **بيوصل مع ميزة حذف التاجر (قريباً)** | العنوان «[المحل] سيغادر وفاء» والنص «استلم هديتك قبل [التاريخ].» `data`: `merchant_id` و`card_id` و`cycle_id` و`leaves_at`. بأيقونة تحذير، والضغط بيفتح صفحة المحل |
+| `merchant_leaving` | محل بلّش يغادر وفاء (§5.30) والزبون إلو عنده هدية جاهزة | العنوان «[المحل] سيغادر وفاء» والنص «استلم هديتك قبل [التاريخ].» `data`: `merchant_id` و`card_id` و`cycle_id` و`leaves_at`. بأيقونة تحذير، والضغط بيفتح صفحة المحل |
 
 `data` فيها المعرّفات لتفتح البطاقة لما يضغط (للتهنئة: `merchant_id` بس).
 
@@ -1589,6 +1597,7 @@ PUT /merchant/devices
 | `edit-customer-birthdate` — تعديل تاريخ ميلاد زبون | ✓ | ✓ | – | ✓ |
 | `reveal-customer-phone` — عرض رقم الزبون كامل | ✓ | ✓ | – | ✓ |
 | `manage-lookups` — أنواع النشاط والأيقونات | ✓ | ✓ | – | – |
+| `execute-deletion-requests` — تنفيذ طلبات الحذف | ✓ | ✓ | – | – |
 
 هدول الصلاحيات يلي إلهم مسارات هلق. `me` بترجّع كل صلاحيات الدور.
 
@@ -1904,7 +1913,8 @@ PUT /merchant/devices
     "cards": [
       { "id": 11, "name": "القهوة", "icon_key": "coffee", "stamps_required": 5, "reward_description": "قهوة مجانية", "terms": null, "status": "active", "customers_count": 42, "created_at": "…", "suspended_at": null }
     ],
-    "stats": { "customers_total": 42, "stamps_total": 310, "stamps_via_phone_total": 25, "rewards_ready": 3, "rewards_redeemed_total": 51, "campaigns_total": 4 }
+    "stats": { "customers_total": 42, "stamps_total": 310, "stamps_via_phone_total": 25, "rewards_ready": 3, "rewards_redeemed_total": 51, "campaigns_total": 4 },
+    "deletion": null
   }
 }
 ```
@@ -1913,6 +1923,8 @@ PUT /merchant/devices
 - `periods`: كل الفترات، الأحدث أول. `payments`: آخر 10 دفعات، وكلهم بشاشة الدفعات.
 - `cards`: الفعّالة والموقوفة.
 - `stats`: من أول ما فتح المحل، والطوابع الملغاة ما بتنحسب.
+- `deletion`: طلب الحذف إذا لسا بمهلته، `{ "id", "requested_at", "executes_at" }`، وإلا `null` (§5.30). قبل ما تبلّش الحذف،
+  خبّر التاجر بـ`stats.rewards_ready`، يعني عدد الهدايا يلي لسا ما تسلّمت (المتطلبات §3.6).
 
 ### 5.18 `PATCH /admin/merchants/{id}` 🔒 `edit-business-identity`
 
@@ -2123,6 +2135,108 @@ PUT /merchant/devices
 
 `admin: null` للعمليات يلي عملها النظام لحالو، متل webhook من Clerk.
 
+### 5.29 `GET /admin/deletion-requests` 🔒 `execute-deletion-requests`
+
+طلبات حذف الحسابات، الأحدث أول، بالمؤشر.
+
+| الاستعلام | القيم |
+|---|---|
+| `status` | `pending` (التاجر بمهلته) · `executed` · `cancelled` |
+| `subject_type` | `merchant` · `customer` |
+
+```json
+{
+  "data": [
+    {
+      "id": 7,
+      "subject_type": "merchant",
+      "subject_id": 13,
+      "subject_name": "كافيه الياسمين",
+      "source": "support",
+      "status": "pending",
+      "note": "اتصل صاحب المحل",
+      "requested_at": "2026-10-01T12:00:00Z",
+      "executes_at": "2026-10-31T12:00:00Z",
+      "executed_at": null,
+      "cancelled_at": null,
+      "handled_by": { "id": 1, "name": "عبد" }
+    }
+  ],
+  "meta": { "next_cursor": null }
+}
+```
+
+- `source`: `app` (من التطبيق) · `web` (صفحة الحذف، §8) · `email` · `support`.
+- `subject_name`: اسم النشاط للتاجر، لأنو بيضل بعد الحذف. للزبون دايماً `null`، لأنو ما بيضل شي بيدل عليه.
+- `handled_by`: `null` للطلبات يلي عملها الزبون لحالو من التطبيق أو الويب.
+
+### 5.30 `POST /admin/merchants/{id}/deletion` · `POST /admin/deletion-requests/{id}/cancel` 🔒 `execute-deletion-requests`
+
+حذف حساب تاجر بطلبه (المتطلبات §3.6). تطبيق التاجر ما فيه زر حذف، فالتاجر بيطلب من الإدارة.
+
+```json
+{ "source": "support", "note": "اتصل صاحب المحل" }
+```
+
+| الحقل | مطلوب | ملاحظة |
+|---|---|---|
+| `source` | ✅ | `web` · `email` · `support` (`app` مرفوض) |
+| `note` | – | لحد 255 |
+
+**`201`:** طلب الحذف (§5.29) بـ`status: "pending"` و`executes_at` بعد 30 يوم.
+
+- **خلال المهلة** الحالة `PENDING_DELETION`: ما في طوابع ولا زبائن جداد ولا حملات، والمحل بيختفي من الدليل، **بس تسليم
+  الهدايا بيضل شغّال**، والتاجر بيقدر يدخل ليسلّمها.
+- **كل زبون عنده هدية جاهزة** بهالمحل بيوصله إشعار `merchant_leaving` (§3.13) بالتاريخ.
+- **بعد 30 يوم** (مهمة يومية): بينحذف حساب Clerk، وبينمسح اسم المالك والبريد والهاتفين والـPIN وأجهزة الإشعارات،
+  والحالة بتصير `DELETED`. **بيضل** اسم النشاط والبطاقات والهدايا، وسجل الاشتراكات والدفعات لسنتين.
+  إذا Clerk ما رد، ما بينمسح شي وبتنعاد المحاولة تاني يوم.
+- **من أي حالة** إلا قبل اختيار الباقة و`PENDING_DELETION` و`DELETED`، وإلا `409 MERCHANT_STATUS_CONFLICT`.
+
+**الإلغاء:** بدون جسم، بس خلال المهلة. التاجر بيرجع للحالة يلي بتحددها التواريخ، أو `SUSPENDED` إذا كان موقوف قبل. **`200`:** الطلب
+بـ`status: "cancelled"`. طلب منفّذ أو ملغى: `409 DELETION_REQUEST_NOT_PENDING`.
+
+كل خطوة بتنسجّل بسجل التدقيق: `merchant.deletion_scheduled` · `merchant.deletion_cancelled` · `merchant.deleted`.
+
+### 5.31 `POST /admin/customers/{id}/deletion` 🔒 `execute-deletion-requests`
+
+حذف حساب زبون طلبه بالبريد أو من الدعم. نفس الجسم تبع §5.30، و**بيتنفّذ فوراً** متل الحذف من التطبيق: الرقم والاسم
+وتاريخ الميلاد ورمز QR والأجهزة بينمسحوا، والطوابع والهدايا يلي ما انجمعت بتروح. **`201`:** الطلب بـ`status: "executed"`،
+وبينسجّل `customer.deleted` بسجل التدقيق.
+
+### مهام الخصوصية التلقائية
+
+| المهمة (يومياً، بتوقيت دمشق) | شو بتعمل |
+|---|---|
+| `merchants:execute-deletions` (03:00) | بتنفّذ حذف التجار يلي خلصت مهلتهم |
+| `customers:purge-pending` (03:15) | الزبون المعلّق يلي ما سجّل خلال 12 شهر من آخر نشاط بينمسح مع طوابعه |
+| `billing:purge-records` (03:30) | سجل الاشتراكات والدفعات وصور الإثبات للتاجر المحذوف من أكتر من سنتين |
+
+---
+
+## 8. صفحة حذف الحساب (ويب)
+
+Google Play بيطلب طريقة لحذف حساب الزبون **بدون تنزيل التطبيق**. هالمسارين لصفحة ويب عامة، بدون تسجيل دخول.
+الرمز هو نفس رمز الدخول، وبيوصل بنفس رسالة واتساب.
+
+### 8.1 `POST /public/account-deletion/otp`
+
+```json
+{ "phone": "0933000111" }
+```
+
+**`202`:** نفس رد §3.2. **الرد نفسه** سواء الرقم إلو حساب أو لأ، والرسالة بتنبعت بس إذا في حساب، مسجّل أو معلّق
+(رقم ضافه محل قبل ما يسجّل صاحبه). نفس حدود §3.2.
+
+### 8.2 `POST /public/account-deletion`
+
+```json
+{ "phone": "0933000111", "code": "123456" }
+```
+
+**`204`:** الحساب انحذف، بنفس أثر الحذف من التطبيق (§3.7). أخطاء الرمز نفس §3.3: `OTP_INVALID` · `OTP_EXPIRED` ·
+`OTP_ATTEMPTS_EXCEEDED`. رقم بدون حساب ما بيوصله رمز، فبياخد `OTP_EXPIRED`.
+
 ---
 
 ## 6. توليد رمز QR بتطبيق الزبون
@@ -2241,7 +2355,7 @@ export function useAdminApi() {
 
 ---
 
-## 8. للخادم فقط
+## 9. للخادم فقط
 
 ### `POST /webhooks/clerk`
 
@@ -2257,7 +2371,7 @@ export function useAdminApi() {
 
 ---
 
-## 9. للتجريب محلياً
+## 10. للتجريب محلياً
 
 - **OTP:** مع `OTP_DRIVER=log` الرمز ما بينبعت على واتساب، بينكتب بـ`storage/logs/laravel.log`. وبـDocker:
   `docker compose logs -f app` (دوّر على `OTP code issued`).

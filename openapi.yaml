@@ -42,6 +42,8 @@ tags:
   - name: الإدارة — الزبائن
   - name: الإدارة — القوائم
   - name: الإدارة — سجل التدقيق
+  - name: الإدارة — طلبات الحذف
+  - name: صفحة حذف الحساب
   - name: للخادم فقط
 
 paths:
@@ -2401,6 +2403,165 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
 
+  /admin/deletion-requests:
+    get:
+      tags: [الإدارة — طلبات الحذف]
+      operationId: adminListDeletionRequests
+      summary: طلبات حذف الحسابات
+      description: الأحدث أول. الصلاحية `execute-deletion-requests` (Super Admin وAdmin).
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, executed, cancelled] } }
+        - { name: subject_type, in: query, required: false, schema: { type: string, enum: [merchant, customer] } }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: صفحة من الطلبات
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeletionRequest' }
+                  meta: { $ref: '#/components/schemas/CursorMeta' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/deletion:
+    post:
+      tags: [الإدارة — طلبات الحذف]
+      operationId: adminScheduleMerchantDeletion
+      summary: حذف حساب تاجر بطلبه (مهلة 30 يوم)
+      description: |
+        الحالة بتصير `PENDING_DELETION`: ما في طوابع ولا زبائن جداد ولا حملات، وتسليم الهدايا بيضل شغّال.
+        كل زبون عنده هدية جاهزة بيوصله `merchant_leaving`. بعد 30 يوم مهمة يومية بتحذف حساب Clerk وبتمسح
+        اسم المالك والبريد والهاتفين والـPIN، والحالة بتصير `DELETED`. اسم النشاط والبطاقات بيضلوا.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionRequestInput' }
+      responses:
+        '201': { $ref: '#/components/responses/DeletionRequestData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/MerchantStatusConflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/deletion-requests/{id}/cancel:
+    post:
+      tags: [الإدارة — طلبات الحذف]
+      operationId: adminCancelMerchantDeletion
+      summary: إلغاء حذف تاجر خلال المهلة
+      description: التاجر بيرجع للحالة يلي بتحددها التواريخ، أو `SUSPENDED` إذا كان موقوف قبل.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        '200': { $ref: '#/components/responses/DeletionRequestData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`DELETION_REQUEST_NOT_PENDING`: الطلب انتفّذ أو انلغى قبل'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { error: { code: DELETION_REQUEST_NOT_PENDING, message: Only a shop deletion still in its waiting period can be cancelled. } }
+
+  /admin/customers/{id}/deletion:
+    post:
+      tags: [الإدارة — طلبات الحذف]
+      operationId: adminDeleteCustomer
+      summary: حذف حساب زبون طلبه بالبريد أو من الدعم
+      description: بيتنفّذ فوراً، بنفس أثر الحذف من التطبيق.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeletionRequestInput' }
+      responses:
+        '201': { $ref: '#/components/responses/DeletionRequestData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  # ─────────────────────── صفحة حذف الحساب (ويب) ───────────────────────
+  /public/account-deletion/otp:
+    post:
+      tags: [صفحة حذف الحساب]
+      operationId: publicRequestDeletionOtp
+      summary: طلب رمز لحذف الحساب من الويب
+      description: |
+        لصفحة ويب عامة، لأنو Google Play بيطلب حذف بدون تنزيل التطبيق. الرد نفسه سواء الرقم إلو حساب أو لأ،
+        والرسالة بتنبعت بس إذا في حساب، مسجّل أو معلّق. نفس رمز الدخول ونفس الحدود.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { $ref: '#/components/schemas/Phone' }
+      responses:
+        '202':
+          description: انبعت الرمز إذا في حساب
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [expires_in_seconds, resend_after_seconds]
+                    properties:
+                      expires_in_seconds: { type: integer, example: 300 }
+                      resend_after_seconds: { type: integer, example: 60 }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /public/account-deletion:
+    post:
+      tags: [صفحة حذف الحساب]
+      operationId: publicDeleteAccount
+      summary: حذف حساب الزبون بالرمز
+      description: بنفس أثر `DELETE /customer/me`. رقم بدون حساب ما بيوصله رمز، فبياخد `OTP_EXPIRED`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, code]
+              properties:
+                phone: { $ref: '#/components/schemas/Phone' }
+                code: { type: string, pattern: '^\d{6}$', example: '123456' }
+      responses:
+        '204': { description: انحذف الحساب }
+        '422':
+          description: '`OTP_INVALID` · `OTP_EXPIRED` · `OTP_ATTEMPTS_EXCEEDED` · `VALIDATION_FAILED`'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
   # ─────────────────────────── للخادم فقط ───────────────────────────
   /webhooks/clerk:
     post:
@@ -2725,6 +2886,15 @@ components:
             required: [data]
             properties:
               data: { $ref: '#/components/schemas/Subscription' }
+    DeletionRequestData:
+      description: طلب الحذف
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/DeletionRequest' }
     MerchantStatusConflict:
       description: '`MERCHANT_STATUS_CONFLICT`: حالة التاجر ما بتسمح'
       content:
@@ -2856,6 +3026,7 @@ components:
         - PAYMENT_NOT_PENDING
         - TRIAL_NOT_EXTENDABLE
         - MERCHANT_STATUS_CONFLICT
+        - DELETION_REQUEST_NOT_PENDING
     Error:
       type: object
       required: [code, message]
@@ -3512,9 +3683,9 @@ components:
       properties:
         id: { type: integer }
         business_name: { type: string }
-        owner_name: { type: string }
+        owner_name: { type: [string, 'null'], description: '`null` بعد حذف التاجر' }
         email: { type: [string, 'null'], format: email }
-        phone: { $ref: '#/components/schemas/Phone' }
+        phone: { type: [string, 'null'], example: '+963933123456', description: '`null` بعد حذف التاجر' }
         contact_phone: { type: [string, 'null'] }
         logo_url: { type: [string, 'null'], format: uri }
         business_type: { $ref: '#/components/schemas/Lookup' }
@@ -3530,7 +3701,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminMerchant'
         - type: object
-          required: [address, last_login_at, subscription, periods, payments, cards, stats]
+          required: [address, last_login_at, subscription, periods, payments, cards, stats, deletion]
           properties:
             address: { type: [string, 'null'] }
             last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
@@ -3570,6 +3741,16 @@ components:
                 rewards_ready: { type: integer }
                 rewards_redeemed_total: { type: integer }
                 campaigns_total: { type: integer }
+            deletion:
+              description: 'طلب الحذف إذا لسا بمهلته. قبل الحذف خبّر التاجر بـ`stats.rewards_ready`'
+              oneOf:
+                - type: object
+                  required: [id, requested_at, executes_at]
+                  properties:
+                    id: { type: integer }
+                    requested_at: { $ref: '#/components/schemas/DateTime' }
+                    executes_at: { $ref: '#/components/schemas/DateTime' }
+                - type: 'null'
     AdminCustomer:
       type: object
       required: [id, name, phone_masked, birthdate, registered, registered_at, last_activity_at, campaigns_muted, created_at]
@@ -3676,6 +3857,36 @@ components:
         merchant_terms_url: { type: string }
         support_url: { type: string }
         pin_unlock_hours: { type: integer }
+    DeletionRequestInput:
+      type: object
+      required: [source]
+      properties:
+        source: { type: string, enum: [web, email, support], description: 'من وين وصل الطلب. `app` مرفوض' }
+        note: { type: [string, 'null'], maxLength: 255 }
+    DeletionRequest:
+      type: object
+      required: [id, subject_type, subject_id, subject_name, source, status, note, requested_at, executes_at, executed_at, cancelled_at, handled_by]
+      properties:
+        id: { type: integer }
+        subject_type: { type: string, enum: [merchant, customer] }
+        subject_id: { type: integer }
+        subject_name: { type: [string, 'null'], description: 'اسم النشاط للتاجر، و`null` للزبون' }
+        source: { type: string, enum: [app, web, email, support] }
+        status: { type: string, enum: [pending, executed, cancelled] }
+        note: { type: [string, 'null'] }
+        requested_at: { $ref: '#/components/schemas/DateTime' }
+        executes_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }], description: 'للتاجر: نهاية المهلة' }
+        executed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        cancelled_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        handled_by:
+          description: '`null` إذا الزبون حذف حسابه لحالو'
+          oneOf:
+            - type: object
+              required: [id, name]
+              properties:
+                id: { type: integer }
+                name: { type: string }
+            - type: 'null'
     AuditLogEntry:
       type: object
       required: [id, action, admin, subject_type, subject_id, before, after, ip_address, created_at]
