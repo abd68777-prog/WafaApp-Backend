@@ -31,6 +31,20 @@ class ApiRoutingTest extends TestCase
         $this->withToken('token-of-the-second-phone')->getJson('/api/v1/ping')->assertOk();
     }
 
+    public function test_visitors_behind_the_reverse_proxy_are_limited_by_their_own_address(): void
+    {
+        $fromCaddy = fn (string $client) => $this->withServerVariables(['REMOTE_ADDR' => '172.17.0.1'])
+            ->withHeader('X-Forwarded-For', $client)
+            ->getJson('/api/v1/ping');
+
+        for ($i = 0; $i < 60; $i++) {
+            $fromCaddy('203.0.113.10')->assertOk();
+        }
+
+        $fromCaddy('203.0.113.10')->assertTooManyRequests();
+        $fromCaddy('198.51.100.20')->assertOk();
+    }
+
     public function test_an_unknown_endpoint_answers_not_found_in_the_error_shape(): void
     {
         $response = $this->getJson('/api/v1/does-not-exist');

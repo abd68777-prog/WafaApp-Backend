@@ -55,14 +55,14 @@ For frontend developers who don't want PHP or MySQL installed. Requires Docker
 Desktop.
 
 ```sh
-cp .env.example .env        # optional: only needed for Clerk or LightOTP keys
+cp .env.example .env        # required: without it the containers run as production
 docker compose up --build -d
 ```
 
 | What                           | Where                                 |
 | ------------------------------ | ------------------------------------- |
 | API                            | http://localhost:8000/api/v1/ping     |
-| From a phone on the same Wi-Fi | `http://<your-computer-LAN-IP>:8000` |
+| From a phone on the same Wi-Fi | `http://<your-computer-LAN-IP>:8000`, after setting `API_BIND=0.0.0.0` in `.env` |
 
 The first start builds the images (several minutes), runs the migrations and
 loads demo data. Later starts reuse the existing data.
