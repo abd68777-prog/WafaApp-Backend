@@ -42,10 +42,12 @@ if [ "$1" = "php-fpm" ]; then
         sleep 3
     done
 
-    # Seed packages, settings and demo data on the very first start only.
+    # Seed packages, settings and demo data on the very first start only —
+    # never in production, where seeding is a deliberate manual step
+    # (`php artisan db:seed --force`, which leaves the demo data out).
     # `docker compose down -v` removes the volumes and seeds again next time.
     SEED_MARKER=storage/app/.docker-seeded
-    if [ ! -f "$SEED_MARKER" ]; then
+    if [ "${APP_ENV:-local}" != "production" ] && [ ! -f "$SEED_MARKER" ]; then
         php artisan db:seed --force --no-interaction
         touch "$SEED_MARKER"
     fi
