@@ -942,7 +942,8 @@ PUT /merchant/devices
 **`200`:** `{ "data": MerchantMe + "trial_granted": true }`، مع `registration_step: "pin"`.
 
 إذا البريد أخد تجربة قبل (حتى بحساب محذوف)، الطلب ما بينرفض: `trial_granted: false` و
-`subscription.status: "EXPIRED"`. بعد الـPIN بتوجّهه للدفع.
+`subscription.status: "EXPIRED"`، و`current_period: null`. بس `subscription.package` بيرجع الباقة يلي اختارها،
+فبتقدر تعرض اسمها بورقة «سبق استخدام التجربة المجانية». بعد الـPIN بتوجّهه للدفع.
 
 **أخطاء:** `409 REGISTRATION_STEP_MISMATCH`، و`422 VALIDATION_FAILED`.
 

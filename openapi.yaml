@@ -3392,7 +3392,9 @@ components:
       required: [status, package, current_period, trial_used, days_remaining, capabilities, banner, pending_payment]
       properties:
         status: { $ref: '#/components/schemas/MerchantStatus' }
-        package: { $ref: '#/components/schemas/PackageSummary' }
+        package:
+          allOf: [{ $ref: '#/components/schemas/PackageSummary' }]
+          description: 'الباقة الحالية. قبل أي فترة (التجربة مستعملة قبل بنفس البريد) الباقة يلي اختارها التاجر بالتسجيل'
         current_period: { oneOf: [{ $ref: '#/components/schemas/SubscriptionPeriod' }, { type: 'null' }] }
         trial_used: { type: boolean }
         days_remaining: { type: [integer, 'null'], description: لنهاية التجربة أو الاشتراك، أو لنهاية المهلة بـ`GRACE`. `null` بباقي الحالات }

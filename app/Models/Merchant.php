@@ -93,6 +93,17 @@ class Merchant extends Authenticatable
     }
 
     /**
+     * The package picked at registration: what the shop shows before it has
+     * any period, as when its email had already used the free trial.
+     *
+     * @return BelongsTo<Package, $this>
+     */
+    public function selectedPackage(): BelongsTo
+    {
+        return $this->belongsTo(Package::class, 'selected_package_id');
+    }
+
+    /**
      * @return BelongsTo<Governorate, $this>
      */
     public function governorate(): BelongsTo
