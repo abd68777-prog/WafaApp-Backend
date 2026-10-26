@@ -72,10 +72,13 @@ final class MerchantState
 
         $period = $this->currentPeriod($merchant);
         $pendingPayment = $merchant->payments()->with('package')->where('status', PaymentStatus::Pending)->first();
+        // Without a period yet (a trial refused at registration), the package
+        // the shop picked.
+        $package = $period?->package ?? $merchant->selectedPackage;
 
         return [
             'status' => $merchant->status->value,
-            'package' => $period ? new PackageSummaryResource($period->package) : null,
+            'package' => $package ? new PackageSummaryResource($package) : null,
             'current_period' => $period ? new SubscriptionPeriodResource($period) : null,
             'trial_used' => $this->trialUsed($merchant),
             'days_remaining' => $this->daysRemaining($merchant),

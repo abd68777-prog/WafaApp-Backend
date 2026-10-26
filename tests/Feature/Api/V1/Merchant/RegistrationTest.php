@@ -11,6 +11,7 @@ use App\Models\Package;
 use App\Models\Setting;
 use App\Models\TrialEmailHash;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
@@ -95,6 +96,8 @@ class RegistrationTest extends TestCase
             ->assertJsonPath('data.registration_step', 'pin')
             ->assertJsonPath('data.trial_granted', true)
             ->assertJsonPath('data.subscription.status', 'TRIAL')
+            ->assertJsonPath('data.subscription.package.id', $package->id)
+            ->assertJsonPath('data.subscription.package.name', $package->name)
             ->assertJsonPath('data.subscription.current_period.type', 'trial')
             ->assertJsonPath('data.subscription.current_period.ends_at', '2026-10-07T12:00:00Z');
 
@@ -120,9 +123,19 @@ class RegistrationTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.trial_granted', false)
             ->assertJsonPath('data.subscription.status', 'EXPIRED')
-            ->assertJsonPath('data.subscription.trial_used', true);
+            ->assertJsonPath('data.subscription.trial_used', true)
+            // No period, yet the app names the package on the "trial already used" sheet.
+            ->assertJsonPath('data.subscription.package.id', $package->id)
+            ->assertJsonPath('data.subscription.package.name', $package->name)
+            ->assertJsonPath('data.subscription.current_period', null);
 
         $this->assertSame(0, $merchant->subscriptionPeriods()->count());
+
+        $merchant->forceFill(['pin_hash' => Hash::make('1234')])->save();
+
+        $this->withToken($this->merchantToken())->getJson('/api/v1/merchant/me')
+            ->assertOk()
+            ->assertJsonPath('data.subscription.package.id', $package->id);
     }
 
     public function test_setting_the_pin_finishes_registration_and_unlocks_the_tabs_at_once(): void
