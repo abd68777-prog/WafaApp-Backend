@@ -105,6 +105,7 @@ class RegistrationController extends Controller
 
             $merchant->forceFill([
                 'status' => $trialGranted ? MerchantStatus::Trial : MerchantStatus::Expired,
+                'selected_package_id' => $package->id,
             ])->save();
         });
 
