@@ -39,3 +39,9 @@ Schedule::command('billing:purge-records')
     ->dailyAt('03:30')
     ->timezone(MerchantState::TIMEZONE)
     ->withoutOverlapping();
+
+// Store reviewers delete the review account and sign in again; this refills
+// it within the hour. Nothing happens while REVIEW_PHONE is unset.
+Schedule::command('review:prepare')
+    ->hourly()
+    ->withoutOverlapping();

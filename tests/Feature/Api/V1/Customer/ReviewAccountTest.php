@@ -2,13 +2,15 @@
 
 namespace Tests\Feature\Api\V1\Customer;
 
-use App\Enums\CardCycleStatus;
+use App\Models\Campaign;
+use App\Models\Card;
 use App\Models\CardCycle;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\OtpCode;
+use App\Models\Setting;
+use App\Models\Stamp;
 use Database\Seeders\DatabaseSeeder;
-use Database\Seeders\ReviewAccountSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -98,26 +100,106 @@ class ReviewAccountTest extends TestCase
         $this->assertFalse(Hash::check(self::REVIEW_CODE, OtpCode::query()->sole()->code_hash));
     }
 
-    public function test_the_seeder_gives_the_review_account_a_card_in_progress_and_a_ready_reward(): void
+    public function test_a_reviewer_finds_every_screen_populated(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        config(['otp.review_phone' => self::REVIEW_PHONE, 'otp.review_code' => self::REVIEW_CODE]);
+
+        $this->artisan('review:prepare')->assertSuccessful();
+
+        $token = $this->signInAsReviewer();
+
+        $cards = $this->withToken($token)->getJson('/api/v1/customer/cards')->assertOk()->json('data');
+        $this->assertCount(3, $cards);
+
+        $this->withToken($token)->getJson('/api/v1/customer/directory')->assertOk()->assertJsonCount(4, 'data');
+        $contacts = $this->withToken($token)->getJson('/api/v1/customer/shop-contacts')->assertOk()->json('data');
+        $this->assertCount(4, $contacts);
+        $this->assertNotContains(null, array_column($contacts, 'address'));
+        $this->assertNotContains(null, array_column($contacts, 'contact_phone'));
+
+        $this->withToken($token)->getJson('/api/v1/customer/notifications')
+            ->assertOk()
+            ->assertJsonCount(4, 'data')
+            ->assertJsonPath('meta.unread_count', 2)
+            ->assertJsonPath('data.0.type', 'stamp_added');
+
+        $reviewer = Customer::query()->where('phone', self::REVIEW_PHONE)->sole();
+        $this->assertSame(
+            ['COLLECTING', 'REWARD_READY', 'REDEEMED', 'COLLECTING'],
+            CardCycle::query()->where('customer_id', $reviewer->id)->orderBy('id')->pluck('status')->map->value->all(),
+        );
+        $this->assertSame(1, Campaign::query()->count());
+    }
+
+    public function test_preparing_again_adds_nothing_twice(): void
     {
         $this->seed(DatabaseSeeder::class);
         config(['otp.review_phone' => self::REVIEW_PHONE]);
 
-        $this->seed(ReviewAccountSeeder::class);
-        $this->seed(ReviewAccountSeeder::class);
+        $this->artisan('review:prepare')->assertSuccessful();
+        $counts = $this->counts();
 
-        $reviewer = Customer::query()->where('phone', self::REVIEW_PHONE)->sole();
-        $this->assertFalse($reviewer->isPending());
-        $this->assertNotNull($reviewer->qr_id);
-        $this->assertNotNull($reviewer->qr_secret);
-        $this->assertSame(1, $reviewer->policyConsents()->count());
+        $this->artisan('review:prepare')->assertSuccessful();
 
-        $cycles = CardCycle::query()->where('customer_id', $reviewer->id)->orderBy('id')->get();
-        $this->assertCount(2, $cycles);
-        $this->assertSame([CardCycleStatus::Collecting, CardCycleStatus::RewardReady], $cycles->pluck('status')->all());
-        $this->assertSame([3, 5], $cycles->pluck('stamps_count')->all());
-        $this->assertSame(8, $reviewer->stamps()->count());
+        $this->assertSame($counts, $this->counts());
+        $this->assertSame([4, 4, 4, 13, 4], array_values($counts));
+    }
 
-        $this->assertSame(2, Merchant::query()->where('clerk_user_id', 'like', 'review_demo_%')->count());
+    public function test_after_the_reviewer_deletes_the_account_the_next_sign_in_is_filled_again(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        config(['otp.review_phone' => self::REVIEW_PHONE, 'otp.review_code' => self::REVIEW_CODE]);
+        $this->artisan('review:prepare')->assertSuccessful();
+
+        $this->withToken($this->signInAsReviewer())->deleteJson('/api/v1/customer/me')->assertNoContent();
+        $this->app['auth']->forgetGuards();
+
+        // A brand-new account: the app asks for the name and birthdate first.
+        $token = $this->signInAsReviewer();
+        $this->withToken($token)->getJson('/api/v1/customer/cards')->assertJsonPath('error.code', 'PROFILE_INCOMPLETE');
+
+        $this->artisan('review:prepare')->assertSuccessful();
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($token)->getJson('/api/v1/customer/cards')->assertJsonCount(3, 'data');
+        $this->withToken($token)->getJson('/api/v1/customer/notifications')->assertJsonPath('meta.unread_count', 2);
+        $this->assertSame(4, Merchant::query()->where('clerk_user_id', 'like', 'review_demo_%')->count());
+    }
+
+    public function test_nothing_is_prepared_while_the_review_number_is_unset(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        config(['otp.review_phone' => null]);
+
+        $this->artisan('review:prepare')->assertSuccessful();
+
+        $this->assertSame(0, Merchant::query()->where('clerk_user_id', 'like', 'review_demo_%')->count());
+    }
+
+    private function signInAsReviewer(): string
+    {
+        Http::preventStrayRequests();
+        $this->postJson('/api/v1/customer/auth/otp', ['phone' => self::REVIEW_PHONE])->assertAccepted();
+
+        return $this->postJson('/api/v1/customer/auth/verify', [
+            'phone' => self::REVIEW_PHONE,
+            'code' => self::REVIEW_CODE,
+            'policy_version' => Setting::currentPolicyVersion(),
+        ])->assertOk()->json('data.token');
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function counts(): array
+    {
+        return [
+            'shops' => Merchant::query()->where('clerk_user_id', 'like', 'review_demo_%')->count(),
+            'cards' => Card::query()->count(),
+            'cycles' => CardCycle::query()->count(),
+            'stamps' => Stamp::query()->count(),
+            'notifications' => Customer::query()->where('phone', self::REVIEW_PHONE)->sole()->notifications()->count(),
+        ];
     }
 }
