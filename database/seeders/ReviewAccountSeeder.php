@@ -7,6 +7,7 @@ use App\Enums\MerchantStatus;
 use App\Enums\StampMethod;
 use App\Enums\SubscriptionPeriodType;
 use App\Models\BusinessType;
+use App\Models\Campaign;
 use App\Models\Card;
 use App\Models\CardCycle;
 use App\Models\Customer;
@@ -16,6 +17,10 @@ use App\Models\Merchant;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Stamp;
+use App\Notifications\CampaignReceived;
+use App\Notifications\CardCompleted;
+use App\Notifications\RewardRedeemed;
+use App\Notifications\StampAdded;
 use App\Services\Customer\CustomerQrCode;
 use App\Support\PhoneNumber;
 use Illuminate\Database\Seeder;
@@ -23,13 +28,16 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
- * Demo data for the store review account (REVIEW_PHONE): two shops, a card
- * being collected and a card with its reward ready, so reviewers see every
- * screen of the customer app populated.
+ * Demo data for the store review account (REVIEW_PHONE), so reviewers see
+ * every screen of the customer app populated: four shops with addresses and
+ * contact numbers, a card being collected, a reward ready, a reward already
+ * collected with its next card started, a shop not joined yet, a campaign,
+ * and an inbox with read and unread notifications.
  *
  * Runs in production, where Faker is not installed, so every row is created
  * explicitly rather than through factories. Safe to run again: it only adds
- * what is missing.
+ * what is missing, which is how `review:prepare` refills the account after
+ * a reviewer deletes it and signs in again.
  *
  * The demo shops use Clerk ids no Clerk user has, so nobody can sign in to
  * them as a merchant.
@@ -51,13 +59,32 @@ class ReviewAccountSeeder extends Seeder
 
         $reviewer = $this->reviewer($phone);
 
-        $cafe = $this->shop('review_demo_cafe', 'كافيه وفاء التجريبي', 'كافيه', '+963900000201');
-        $coffee = $this->card($cafe, 'coffee', 'بطاقة القهوة', 'قهوة مجانية من اختيارك');
-        $this->cycle($coffee, $reviewer, 3, CardCycleStatus::Collecting);
+        $cafe = $this->shop('review_demo_cafe', 'كافيه وفاء التجريبي', 'كافيه', '+963900000201', 'شارع الحمرا، دمشق', '+963112223301');
+        $coffee = $this->card($cafe, 'coffee', 'بطاقة القهوة', 'قهوة مجانية من اختيارك', 5);
+        $collecting = $this->cycle($coffee, $reviewer, 3, CardCycleStatus::Collecting);
 
-        $sweets = $this->shop('review_demo_sweets', 'حلويات وفاء التجريبية', 'حلويات', '+963900000202');
-        $cake = $this->card($sweets, 'cake', 'بطاقة الحلويات', 'قطعة كيك مجانية');
-        $this->cycle($cake, $reviewer, 5, CardCycleStatus::RewardReady);
+        $sweets = $this->shop('review_demo_sweets', 'حلويات وفاء التجريبية', 'حلويات', '+963900000202', 'شارع بغداد، دمشق', '+963112223302');
+        $cake = $this->card($sweets, 'cake', 'بطاقة الحلويات', 'قطعة كيك مجانية', 5);
+        $ready = $this->cycle($cake, $reviewer, 5, CardCycleStatus::RewardReady);
+
+        $bakery = $this->shop('review_demo_bakery', 'فرن وفاء التجريبي', 'مخبز', '+963900000203', 'المزة، دمشق', '+963112223303');
+        $bread = $this->card($bakery, 'bread', 'بطاقة الخبز', 'ربطة خبز مجانية', 4);
+        $redeemed = $this->cycle($bread, $reviewer, 4, CardCycleStatus::Redeemed);
+        $this->cycle($bread, $reviewer, 1, CardCycleStatus::Collecting);
+
+        // A shop the reviewer has not joined, to find in the directory.
+        $restaurant = $this->shop('review_demo_restaurant', 'مطعم وفاء التجريبي', 'مطعم', '+963900000204', 'باب توما، دمشق', '+963112223304');
+        $this->card($restaurant, 'hamburger', 'بطاقة البرغر', 'وجبة برغر مجانية', 6);
+
+        $campaign = $this->campaign($cafe, 'عرض نهاية الأسبوع', 'خصم 20% على كل المشروبات الباردة يومي الجمعة والسبت.');
+
+        $this->inbox($reviewer, [
+            new RewardRedeemed($redeemed, $bread),
+            new CampaignReceived($campaign, $cafe->business_name),
+        ], [
+            new CardCompleted($ready, $cake),
+            new StampAdded($collecting, $coffee),
+        ]);
     }
 
     private function reviewer(string $phone): Customer
@@ -85,11 +112,17 @@ class ReviewAccountSeeder extends Seeder
         return $customer;
     }
 
-    private function shop(string $clerkUserId, string $name, string $businessType, string $phone): Merchant
+    private function shop(string $clerkUserId, string $name, string $businessType, string $phone, string $address, string $contactPhone): Merchant
     {
         $existing = Merchant::query()->where('clerk_user_id', $clerkUserId)->first();
 
         if ($existing) {
+            // Shops seeded before addresses were part of the demo get them now.
+            $existing->forceFill([
+                'address' => $existing->address ?? $address,
+                'contact_phone' => $existing->contact_phone ?? $contactPhone,
+            ])->save();
+
             return $existing;
         }
 
@@ -97,21 +130,27 @@ class ReviewAccountSeeder extends Seeder
             'business_name' => $name,
             'business_type_id' => BusinessType::query()->where('name', $businessType)->value('id')
                 ?? BusinessType::query()->orderBy('sort_order')->value('id'),
-            'governorate_id' => Governorate::query()->orderBy('sort_order')->value('id'),
+            'governorate_id' => Governorate::query()->where('name', 'دمشق')->value('id')
+                ?? Governorate::query()->orderBy('sort_order')->value('id'),
+            'address' => $address,
             'owner_name' => 'Wafa Review',
             'phone' => $phone,
+            'contact_phone' => $contactPhone,
         ]);
+
+        $package = Package::query()->where('is_active', true)->orderBy('sort_order')->value('id');
 
         $merchant->forceFill([
             'clerk_user_id' => $clerkUserId,
             'status' => MerchantStatus::Active,
+            'selected_package_id' => $package,
             // Nobody signs in to a demo shop; the PIN only completes registration.
             'pin_hash' => Hash::make(Str::random(32)),
         ])->save();
 
         // A long paid period keeps the demo shops active and in the directory.
         $merchant->subscriptionPeriods()->create([
-            'package_id' => Package::query()->where('is_active', true)->orderBy('sort_order')->value('id'),
+            'package_id' => $package,
             'type' => SubscriptionPeriodType::Paid,
             'duration_months' => 12,
             'starts_at' => now(),
@@ -122,7 +161,7 @@ class ReviewAccountSeeder extends Seeder
         return $merchant;
     }
 
-    private function card(Merchant $merchant, string $iconKey, string $name, string $reward): Card
+    private function card(Merchant $merchant, string $iconKey, string $name, string $reward, int $stampsRequired): Card
     {
         $existing = Card::query()->where('merchant_id', $merchant->id)->where('name', $name)->first();
 
@@ -131,9 +170,10 @@ class ReviewAccountSeeder extends Seeder
         }
 
         $card = new Card([
-            'icon_id' => Icon::query()->where('key', $iconKey)->value('id'),
+            'icon_id' => Icon::query()->where('key', $iconKey)->value('id')
+                ?? Icon::query()->orderBy('sort_order')->value('id'),
             'name' => $name,
-            'stamps_required' => 5,
+            'stamps_required' => $stampsRequired,
             'reward_description' => $reward,
         ]);
 
@@ -142,15 +182,20 @@ class ReviewAccountSeeder extends Seeder
         return $card;
     }
 
-    private function cycle(Card $card, Customer $customer, int $stamps, CardCycleStatus $status): void
+    /**
+     * One cycle per card and status, so a collected reward and the card
+     * started after it sit side by side.
+     */
+    private function cycle(Card $card, Customer $customer, int $stamps, CardCycleStatus $status): CardCycle
     {
-        $exists = CardCycle::query()
+        $existing = CardCycle::query()
             ->where('card_id', $card->id)
             ->where('customer_id', $customer->id)
-            ->exists();
+            ->where('status', $status)
+            ->first();
 
-        if ($exists) {
-            return;
+        if ($existing) {
+            return $existing;
         }
 
         $cycle = CardCycle::query()->create([
@@ -159,13 +204,17 @@ class ReviewAccountSeeder extends Seeder
             'merchant_id' => $card->merchant_id,
         ]);
 
+        // A collected cycle happened a while ago; the rest are recent.
+        $daysAgo = $status === CardCycleStatus::Redeemed ? 20 : $stamps;
+
         $cycle->forceFill([
             'stamps_count' => $stamps,
             'status' => $status,
-            'completed_at' => $status === CardCycleStatus::RewardReady ? now() : null,
+            'completed_at' => $status === CardCycleStatus::Collecting ? null : now()->subDays($status === CardCycleStatus::Redeemed ? 12 : 0),
+            'redeemed_at' => $status === CardCycleStatus::Redeemed ? now()->subDays(10) : null,
         ])->save();
 
-        foreach (range(1, $stamps) as $day) {
+        foreach (range(1, $stamps) as $index) {
             Stamp::query()->create([
                 'card_cycle_id' => $cycle->id,
                 'card_id' => $card->id,
@@ -173,8 +222,53 @@ class ReviewAccountSeeder extends Seeder
                 'merchant_id' => $card->merchant_id,
                 'method' => StampMethod::Qr,
                 'client_uuid' => (string) Str::uuid(),
-                'stamped_at' => now()->subDays($stamps - $day + 1),
+                'stamped_at' => now()->subDays($daysAgo - $index + 1),
             ]);
+        }
+
+        return $cycle;
+    }
+
+    private function campaign(Merchant $merchant, string $title, string $body): Campaign
+    {
+        $existing = Campaign::query()->where('merchant_id', $merchant->id)->where('title', $title)->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $campaign = new Campaign(['title' => $title, 'body' => $body]);
+        $campaign->forceFill([
+            'merchant_id' => $merchant->id,
+            'recipients_count' => 1,
+            'sent_at' => now()->subDays(2),
+        ])->save();
+
+        return $campaign;
+    }
+
+    /**
+     * Filled once, oldest first, through the app's own notifications so each
+     * entry has the exact shape the app reads. The account has no phones
+     * registered, so no push goes anywhere.
+     *
+     * @param  list<object>  $read
+     * @param  list<object>  $unread
+     */
+    private function inbox(Customer $reviewer, array $read, array $unread): void
+    {
+        if ($reviewer->notifications()->exists()) {
+            return;
+        }
+
+        foreach ($read as $notification) {
+            $reviewer->notify($notification);
+        }
+
+        $reviewer->notifications()->update(['read_at' => now()]);
+
+        foreach ($unread as $notification) {
+            $reviewer->notify($notification);
         }
     }
 }
