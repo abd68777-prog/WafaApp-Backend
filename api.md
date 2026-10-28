@@ -2452,7 +2452,10 @@ export function useAdminApi() {
   `docker compose logs -f app` (دوّر على `OTP code issued`).
 - **رقم المراجع:**
   - `REVIEW_PHONE` و`REVIEW_OTP_CODE` بـ`.env` بيعطوا رقم برمز ثابت.
-  - `php artisan db:seed --class=ReviewAccountSeeder` بيعطيه بطاقة قيد التجميع وهدية جاهزة.
+  - `php artisan review:prepare` بيعبّي حسابه: 4 محلات بعناوين وأرقام تواصل، وبطاقة قيد التجميع، وهدية جاهزة،
+    وهدية مستلمة مع بطاقة جديدة بعدها، ومحل ما انضم إلو، وحملة، و4 إشعارات منهن 2 غير مقروءين.
+  - الأمر بيشتغل **كل ساعة** لحالو: إذا المراجع حذف الحساب ورجع دخل بنفس الرقم، بيرجع يتعبّى خلال ساعة.
+    بدون `REVIEW_PHONE` ما بيعمل شي.
 - **Push:** `php artisan push:test <رمز-FCM>` بيبعت إشعار تجريبي لجهاز مباشرة. بيحتاج `FIREBASE_CREDENTIALS`،
   والإرسال العادي بيحتاج `php artisan queue:work` (أو خدمة `worker` بـDocker).
 - **Clerk:** `php artisan clerk:smoke-test` بيجرّب التسجيل والـPIN ولوحة الإدارة على نسخة Clerk الحقيقية.

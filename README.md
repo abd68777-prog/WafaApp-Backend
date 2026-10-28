@@ -136,8 +136,12 @@ REVIEW_OTP_CODE=246810        # 6 digits, the normal code length
 ```
 
 ```sh
-php artisan db:seed --class=ReviewAccountSeeder   # two demo shops, a card in progress, a ready reward
+php artisan review:prepare   # four demo shops, cards at every stage, a campaign and an inbox
 ```
+
+The scheduler runs `review:prepare` hourly, so when a reviewer tries account
+deletion and signs in again, the new account is filled again within the hour.
+It does nothing while `REVIEW_PHONE` is empty.
 
 Write the number and the code under **App access** in Play Console and in the
 **App Review** notes in App Store Connect. The demo shops use Clerk ids no user
