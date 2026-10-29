@@ -17,9 +17,10 @@ class RegisterBusinessRequest extends FormRequest
 {
     /**
      * The shop logo, at registration and when changed later: JPEG, PNG or
-     * WebP up to 2 MB.
+     * WebP up to 2 MB. `dimensions` makes the file decode as a picture, so
+     * one that only starts like a JPEG is refused.
      */
-    public const LOGO_RULES = ['image', 'mimes:jpeg,png,webp', 'max:2048'];
+    public const LOGO_RULES = ['image', 'mimes:jpeg,png,webp', 'max:2048', 'dimensions:min_width=1,min_height=1'];
 
     public function authorize(): bool
     {
