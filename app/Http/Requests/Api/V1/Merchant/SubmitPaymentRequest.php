@@ -29,7 +29,7 @@ class SubmitPaymentRequest extends FormRequest
             'duration_months' => ['required', 'integer', Rule::in(self::DURATIONS)],
             'method' => ['required', Rule::enum(PaymentMethod::class)],
             'reference' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'proof' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            'proof' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:5120', 'dimensions:min_width=1,min_height=1'],
             'keep_card_ids' => ['sometimes', 'array'],
             'keep_card_ids.*' => ['integer', 'distinct'],
         ];
