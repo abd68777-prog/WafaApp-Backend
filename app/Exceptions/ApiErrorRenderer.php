@@ -57,6 +57,7 @@ final class ApiErrorRenderer
         'Array' => 'format',
         'Uuid' => 'format',
         'Image' => 'format',
+        'Dimensions' => 'format',
         'Mimes' => 'format',
         'Mimetypes' => 'format',
         'Enum' => 'format',

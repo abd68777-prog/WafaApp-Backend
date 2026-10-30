@@ -7,6 +7,7 @@ use App\Enums\ErrorCode;
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Merchant\StoreCardRequest;
+use App\Http\Requests\Api\V1\Merchant\UpdateCardColorRequest;
 use App\Http\Resources\MerchantCardResource;
 use App\Models\Card;
 use App\Models\Merchant;
@@ -19,7 +20,8 @@ use Illuminate\Validation\Rule;
 /**
  * The shop's cards (contract §5.8). A published card is never edited, only
  * suspended: its reward and stamp count are a promise to customers who
- * already started collecting, so there is no update route at all.
+ * already started collecting, so there is no update route for them. Only the
+ * color, which promises nothing, can change.
  */
 class CardController extends Controller
 {
@@ -70,10 +72,26 @@ class CardController extends Controller
             ]);
         }
 
-        $card = $merchant->cards()->make($request->safe()->only('name', 'stamps_required', 'reward_description', 'terms', 'icon_id'));
+        $card = $merchant->cards()->make($request->safe()->only('name', 'stamps_required', 'reward_description', 'terms', 'icon_id', 'color'));
         $card->forceFill(['status' => CardStatus::Active])->save();
 
         return $this->cardResponse($card, 201);
+    }
+
+    /**
+     * Repaint a card, active or suspended. Customers see the new color on
+     * their next refresh.
+     */
+    public function color(UpdateCardColorRequest $request, Card $card): JsonResponse
+    {
+        /** @var Merchant $merchant */
+        $merchant = $request->user();
+
+        abort_unless($card->merchant_id === $merchant->id, 404);
+
+        $card->update(['color' => $request->validated('color')]);
+
+        return $this->cardResponse($card, 200);
     }
 
     /**

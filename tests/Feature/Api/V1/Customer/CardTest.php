@@ -71,6 +71,15 @@ class CardTest extends TestCase
         $this->withToken($this->token())->getJson('/api/v1/customer/cards')->assertJsonPath('data.0.merchant_muted', true);
     }
 
+    public function test_each_card_carries_its_color_key(): void
+    {
+        $cycle = $this->collecting();
+        $cycle->card->update(['color' => 'burgundy']);
+
+        $this->withToken($this->token())->getJson("/api/v1/customer/cards/{$cycle->card_id}")
+            ->assertJsonPath('data.card.color', 'burgundy');
+    }
+
     public function test_the_card_detail_lists_the_current_stamps_without_the_cancelled_ones(): void
     {
         $cycle = $this->collecting(stampedAt: now()->subDays(2));

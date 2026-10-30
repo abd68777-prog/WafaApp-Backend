@@ -596,18 +596,17 @@ paths:
       tags: [التاجر — الحساب والتسجيل]
       operationId: merchantRegisterBusiness
       summary: 'التسجيل 1: بيانات النشاط'
-      description: مقبولة بس لما `registration_step = business`. مع الشعار ابعت الطلب `multipart/form-data`.
+      description: مقبولة بس لما `registration_step = business`. الشعار إلزامي، فالطلب `multipart/form-data`.
       security: [{ clerkSession: [] }]
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RegisterBusinessInput' }
           multipart/form-data:
             schema:
               allOf:
                 - $ref: '#/components/schemas/RegisterBusinessInput'
                 - type: object
+                  required: [logo]
                   properties:
                     logo: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
       responses:
@@ -832,7 +831,7 @@ paths:
       tags: [التاجر — البطاقات]
       operationId: merchantPublishCard
       summary: نشر بطاقة
-      description: '**ما بتتعدّل بعد النشر، وما في مسار تعديل.** البطاقات الموقوفة ما بتنحسب من حد الباقة.'
+      description: '**ما بتتعدّل بعد النشر، إلا لونها** (`PATCH /merchant/cards/{card_id}/color`). البطاقات الموقوفة ما بتنحسب من حد الباقة.'
       security: [{ clerkSession: [], pinToken: [] }]
       requestBody:
         required: true
@@ -840,13 +839,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, stamps_required, reward_description, icon_id]
+              required: [name, stamps_required, reward_description, icon_id, color]
               properties:
                 name: { type: string, minLength: 2, maxLength: 60 }
                 stamps_required: { type: integer, minimum: 3, maximum: 10, description: بين `limits.card_stamps_min` و`card_stamps_max` }
                 reward_description: { type: string, minLength: 2, maxLength: 120 }
                 terms: { type: [string, 'null'], maxLength: 500 }
                 icon_id: { type: integer, description: من `lookups.icons` }
+                color: { $ref: '#/components/schemas/CardColorInput' }
       responses:
         '201': { $ref: '#/components/responses/MerchantCardData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -882,6 +882,36 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/cards/{card_id}/color:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    patch:
+      tags: [التاجر — البطاقات]
+      operationId: merchantRecolorCard
+      summary: تغيير لون البطاقة
+      description: |
+        بيغيّر اللون بس، للبطاقة الفعّالة أو الموقوفة. أي حقل تاني بينتجاهل: الاسم والهدية وعدد الطوابع وعد للزبون.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: card_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [color]
+              properties:
+                color: { type: string, enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite] }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantCardData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   /merchant/scan/resolve:
@@ -3293,7 +3323,7 @@ components:
     # ── البطاقات ──
     CardSummary:
       type: object
-      required: [id, name, stamps_required, reward_description, terms, icon, status]
+      required: [id, name, stamps_required, reward_description, terms, icon, color, status]
       properties:
         id: { type: integer, example: 11 }
         name: { type: string, example: بطاقة القهوة }
@@ -3301,7 +3331,17 @@ components:
         reward_description: { type: string, example: فنجان قهوة مجاني }
         terms: { type: [string, 'null'] }
         icon: { $ref: '#/components/schemas/Icon' }
+        color:
+          type: string
+          example: navy
+          description: |
+            مفتاح من لوحة الألوان الثابتة (`lookups.card_colors`)، ما بيكون `null`. مفتاح مش معروف عند التطبيق بينرسم
+            `navy`.
         status: { $ref: '#/components/schemas/CardStatus' }
+    CardColorInput:
+      type: string
+      enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite]
+      description: مفتاح من `lookups.card_colors`، إلزامي مع كل بطاقة جديدة
     MerchantSummary:
       type: object
       required: [id, business_name, logo_url, business_type, governorate]
@@ -3377,7 +3417,8 @@ components:
             و`payment_approved` و`payment_rejected` (مع `payment_id`، والرفض مع `reason`).
 
             كل إشعار بينبعت كمان push عن طريق FCM بنفس العنوان والنص، و`data` فيها `type` و`notification_id`
-            والمعرّفات، **كلها نصوص**.
+            والمعرّفات، **كلها نصوص**. وفيه عدد غير المقروء (مع الإشعار الجديد) لرقم أيقونة التطبيق:
+            `apns.payload.aps.badge` على iOS و`android.notification.notification_count` على أندرويد.
         title: { type: string }
         body: { type: string }
         data:
@@ -3531,11 +3572,21 @@ components:
         usage: { oneOf: [{ $ref: '#/components/schemas/Usage' }, { type: 'null' }] }
     MerchantLookups:
       type: object
-      required: [governorates, business_types, icons, trial_days, packages, payment, limits, links]
+      required: [governorates, business_types, icons, card_colors, trial_days, packages, payment, limits, links]
       properties:
         governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         icons: { type: array, items: { $ref: '#/components/schemas/Icon' } }
+        card_colors:
+          type: array
+          description: لوحة ألوان البطاقات الثابتة بالترتيب، والأول (`navy`) هو الافتراضي
+          items:
+            type: object
+            required: [key, name, hex]
+            properties:
+              key: { type: string, example: navy }
+              name: { type: string, example: كحلي }
+              hex: { type: string, example: '#1B4F72' }
         trial_days: { type: integer, example: 14, description: مدة التجربة المجانية بالأيام. حقل زيادة عن العقد }
         packages:
           type: array

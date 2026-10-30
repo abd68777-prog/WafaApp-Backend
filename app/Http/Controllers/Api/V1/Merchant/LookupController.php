@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Merchant;
 
+use App\Enums\CardColor;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LookupResource;
 use App\Http\Resources\PackageResource;
@@ -32,6 +33,11 @@ class LookupController extends Controller
                 'icons' => LookupResource::collection(
                     Icon::query()->where('is_active', true)->orderBy('sort_order')->get()
                 ),
+                'card_colors' => array_map(fn (CardColor $color): array => [
+                    'key' => $color->value,
+                    'name' => $color->label(),
+                    'hex' => $color->hex(),
+                ], CardColor::cases()),
                 // Not in the contract: the package screen says how long the
                 // free trial lasts.
                 'trial_days' => (int) Setting::read('trial_days', 14),
