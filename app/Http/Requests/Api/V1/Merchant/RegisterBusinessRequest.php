@@ -51,7 +51,7 @@ class RegisterBusinessRequest extends FormRequest
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             'owner_name' => ['required', 'string', 'min:2', 'max:80'],
             'phone' => ['required', 'string', new SyrianPhone, Rule::unique('merchants', 'phone')],
-            'logo' => ['sometimes', 'nullable', ...self::LOGO_RULES],
+            'logo' => ['required', ...self::LOGO_RULES],
         ];
     }
 }
