@@ -8,6 +8,7 @@ use App\Enums\MerchantStatus;
 use App\Enums\StampMethod;
 use App\Enums\SubscriptionPeriodType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\Admin\RemoveMerchantCoverRequest;
 use App\Http\Requests\Api\V1\Admin\UpdateMerchantIdentityRequest;
 use App\Http\Resources\AdminMerchantResource;
 use App\Http\Resources\PaymentResource;
@@ -93,6 +94,7 @@ class MerchantController extends Controller
         return response()->json([
             'data' => [
                 ...(new AdminMerchantResource($merchant))->resolve(),
+                'cover_url' => $merchant->coverUrl(),
                 'address' => $merchant->address,
                 'last_login_at' => $merchant->last_login_at?->toIso8601ZuluString(),
                 'subscription' => $state->subscription($merchant),
@@ -154,6 +156,28 @@ class MerchantController extends Controller
                 'reason' => $request->string('reason')->trim()->value(),
             ], $request->ip());
         });
+
+        return $this->show($merchant->refresh(), $state);
+    }
+
+    /**
+     * Take down a cover that does not belong on the shop's page. The shop
+     * can upload another; the trail keeps who removed it and why.
+     */
+    public function destroyCover(RemoveMerchantCoverRequest $request, Merchant $merchant, AuditLogger $audit, MerchantState $state): JsonResponse
+    {
+        /** @var AdminUser $admin */
+        $admin = $request->user();
+        $path = $merchant->cover_path;
+
+        if ($path !== null) {
+            $merchant->removeCover();
+
+            $audit->record($admin, 'merchant.cover_removed', $merchant, ['cover_path' => $path], [
+                'cover_path' => null,
+                'reason' => $request->string('reason')->trim()->value(),
+            ], $request->ip());
+        }
 
         return $this->show($merchant->refresh(), $state);
     }
