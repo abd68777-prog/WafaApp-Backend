@@ -596,18 +596,17 @@ paths:
       tags: [التاجر — الحساب والتسجيل]
       operationId: merchantRegisterBusiness
       summary: 'التسجيل 1: بيانات النشاط'
-      description: مقبولة بس لما `registration_step = business`. مع الشعار ابعت الطلب `multipart/form-data`.
+      description: مقبولة بس لما `registration_step = business`. الشعار إلزامي، فالطلب `multipart/form-data`.
       security: [{ clerkSession: [] }]
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RegisterBusinessInput' }
           multipart/form-data:
             schema:
               allOf:
                 - $ref: '#/components/schemas/RegisterBusinessInput'
                 - type: object
+                  required: [logo]
                   properties:
                     logo: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
       responses:

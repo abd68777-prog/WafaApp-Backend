@@ -926,7 +926,8 @@ PUT /merchant/devices
 
 ### 4.3 `POST /merchant/registration/business`
 
-الخطوة 1: بيانات النشاط. مقبولة بس لما `registration_step = business`.
+الخطوة 1: بيانات النشاط. مقبولة بس لما `registration_step = business`. ابعت الطلب **`multipart/form-data`** لأنو
+الشعار إلزامي.
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
@@ -936,12 +937,12 @@ PUT /merchant/devices
 | `address` | string | — | لحد 255 |
 | `owner_name` | string | ✅ | 2–80 |
 | `phone` | string | ✅ | رقم تواصل المحل، مو للدخول. فريد بين التجار |
-| `logo` | ملف | — | JPEG أو PNG أو WebP لحد 2 MB. مع الشعار ابعت الطلب `multipart/form-data` |
+| `logo` | ملف | ✅ | JPEG أو PNG أو WebP لحد 2 MB. بيبيّن على كل بطاقات المحل |
 
 **`201`:** `{ "data": MerchantMe }` مع `registration_step: "package"` و`subscription: null`.
 
 **أخطاء:**
-- `422 VALIDATION_FAILED` (الرقم المستعمل: `phone: ["taken"]`).
+- `422 VALIDATION_FAILED` (الرقم المستعمل: `phone: ["taken"]`، وبلا شعار: `logo: ["required"]`).
 - `409 REGISTRATION_STEP_MISMATCH` مع `registration_step`.
 
 ### 4.4 `POST /merchant/registration/package`
