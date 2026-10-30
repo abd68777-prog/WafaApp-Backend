@@ -9,9 +9,11 @@
 # ---------------------------------------------------------------------------
 FROM php:8.3-fpm-alpine AS app
 
-RUN apk add --no-cache icu-libs libzip \
-    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libzip-dev \
-    && docker-php-ext-install -j"$(nproc)" pdo_mysql bcmath intl zip opcache \
+# GD with JPEG and WebP crops and re-encodes the shop covers.
+RUN apk add --no-cache icu-libs libzip libpng libjpeg-turbo libwebp \
+    && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS icu-dev libzip-dev libpng-dev libjpeg-turbo-dev libwebp-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp \
+    && docker-php-ext-install -j"$(nproc)" pdo_mysql bcmath intl zip opcache gd \
     && apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

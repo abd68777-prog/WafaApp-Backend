@@ -1241,6 +1241,45 @@ paths:
         '422': { $ref: '#/components/responses/ValidationFailed' }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
+  /merchant/profile/cover:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantUploadCover
+      summary: رفع غلاف المحل
+      description: |
+        الخادم بيقصّ الصورة من النص لنسبة 2:1، وبيصغّرها لحد 1200×600 (ما بيكبّرها)، وبيحفظها WebP بدون معلومات
+        الصورة. الغلاف القديم بينمسح.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [cover]
+              properties:
+                cover: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 5 MB }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+    delete:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantRemoveCover
+      summary: شيل غلاف المحل
+      description: '`cover_url` بيرجع `null`. التكرار ما بيغيّر شي.'
+      security: [{ clerkSession: [], pinToken: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
   /merchant/campaigns:
     parameters:
       - $ref: '#/components/parameters/AppVersion'
@@ -2055,6 +2094,33 @@ paths:
               properties:
                 business_name: { type: string, minLength: 2, maxLength: 80 }
                 business_type_id: { type: integer }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/cover:
+    delete:
+      tags: [الإدارة — التجار]
+      operationId: adminRemoveMerchantCover
+      summary: شيل غلاف غير لائق
+      description: |
+        الصلاحية `edit-business-identity`. السبب إلزامي، وبينكتب بسجل التدقيق (`merchant.cover_removed`). المحل بيقدر
+        يرفع غيره.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
                 reason: { type: string, minLength: 3, maxLength: 255 }
       responses:
         '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
@@ -3311,7 +3377,7 @@ components:
         phone: { $ref: '#/components/schemas/Phone', description: رقم تواصل المحل، مو للدخول. فريد بين التجار }
     MerchantProfile:
       type: object
-      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, logo_url, created_at]
+      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, logo_url, cover_url, created_at]
       properties:
         id: { type: integer }
         email: { type: string, format: email }
@@ -3323,7 +3389,12 @@ components:
         phone: { $ref: '#/components/schemas/Phone' }
         contact_phone: { type: [string, 'null'], description: الرقم المنشور للزبائن }
         logo_url: { type: [string, 'null'], format: uri }
+        cover_url: { $ref: '#/components/schemas/CoverUrl' }
         created_at: { $ref: '#/components/schemas/DateTime' }
+    CoverUrl:
+      type: [string, 'null']
+      format: uri
+      description: غلاف صفحة المحل، WebP بنسبة 2:1 (لحد 1200×600). `null` بدون غلاف، فالتطبيق بيعرض لون البطاقة
     PackageSummary:
       type: object
       required: [id, name, cards_limit, weekly_campaigns_limit]
@@ -3593,8 +3664,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'
         - type: object
-          required: [address, accepting_stamps, muted, cards]
+          required: [cover_url, address, accepting_stamps, muted, cards]
           properties:
+            cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             accepting_stamps: { type: boolean, description: '`false` للمنتهي أو الموقوف أو بانتظار الحذف' }
             muted: { type: boolean }
@@ -3782,8 +3854,9 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminMerchant'
         - type: object
-          required: [address, last_login_at, subscription, periods, payments, cards, stats, deletion]
+          required: [cover_url, address, last_login_at, subscription, periods, payments, cards, stats, deletion]
           properties:
+            cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
             subscription: { oneOf: [{ $ref: '#/components/schemas/Subscription' }, { type: 'null' }], description: '`null` لحد ما يختار باقة' }

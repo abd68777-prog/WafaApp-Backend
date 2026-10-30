@@ -85,6 +85,30 @@ class Merchant extends Authenticatable
     }
 
     /**
+     * Delete the cover file and forget it, whether the shop or the team
+     * removes it.
+     */
+    public function removeCover(): void
+    {
+        if ($this->cover_path === null) {
+            return;
+        }
+
+        $path = $this->cover_path;
+        $this->forceFill(['cover_path' => null])->save();
+
+        Storage::disk(config('filesystems.media_disk'))->delete($path);
+    }
+
+    /**
+     * The cover at the top of the shop's page, as a full URL like the logo.
+     */
+    public function coverUrl(): ?string
+    {
+        return $this->cover_path !== null ? Storage::disk(config('filesystems.media_disk'))->url($this->cover_path) : null;
+    }
+
+    /**
      * @return BelongsTo<BusinessType, $this>
      */
     public function businessType(): BelongsTo

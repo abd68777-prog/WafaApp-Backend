@@ -69,6 +69,8 @@
 | 51 | `GET /merchant/customers` | تاجر | مسجّل + PIN |
 | 52 | `PATCH /merchant/profile` | تاجر | مسجّل + PIN |
 | 53 | `POST /merchant/profile/logo` | تاجر | مسجّل + PIN |
+| 101 | `POST /merchant/profile/cover` | تاجر | مسجّل + PIN |
+| 102 | `DELETE /merchant/profile/cover` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
 | 54 | `GET /admin/auth/me` | إدارة | حساب فعّال |
 | 55 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
@@ -89,6 +91,7 @@
 | 70 | `GET /admin/merchants` | إدارة | `view-merchants-and-customers` |
 | 71 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
 | 72 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
+| 103 | `DELETE /admin/merchants/{id}/cover` | إدارة | `edit-business-identity` |
 | 73 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
 | 74 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
 | 75 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
@@ -703,6 +706,7 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
     "logo_url": null,
     "business_type": { "id": 1, "name": "كافيه" },
     "governorate": { "id": 1, "name": "دمشق" },
+    "cover_url": "https://res.cloudinary.com/…/merchants/covers/01a0f3c2-….webp",
     "address": "شارع الحمرا",
     "accepting_stamps": true,
     "muted": false,
@@ -712,6 +716,8 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
 ```
 
 - `cards`: البطاقات الفعّالة بس.
+- `cover_url`: غلاف الصفحة، WebP بنسبة **2:1** (لحد 1200×600). `null` إذا المحل ما رفع غلاف، وقتها اعرض خلفية بلون
+  البطاقة. **بصفحة المحل بس**، مو بالدليل ولا بـ`MerchantSummary`.
 - `accepting_stamps`: `false` للمحل المنتهي أو الموقوف أو بانتظار الحذف.
 - `muted`: الزبون موقّف عروض هالمحل (§3.18).
 - **محل مو بالدليل** (منتهي مثلاً): الصفحة بتفتح بس إذا الزبون إلو دورة عنده، ومع `cards: []`. غير هيك **`404`**.
@@ -1570,6 +1576,21 @@ PUT /merchant/devices
 
 **`200`:** `{ "data": MerchantProfile }` مع `logo_url` الجديد. الشعار القديم بينمسح، والشعار الجديد بيبيّن على كل بطاقات المحل.
 
+### 4.27.1 `POST /merchant/profile/cover` · `DELETE /merchant/profile/cover` 🔒 PIN
+
+غلاف صفحة المحل بتطبيق الزبون (متل غلاف فيسبوك، والشعار فوقه). الرفع بـ`multipart/form-data`:
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `cover` | ملف | ✅ | JPEG أو PNG أو WebP لحد **5 MB** |
+
+- الخادم بيقصّ الصورة من النص لنسبة **2:1**، وبيصغّرها لحد 1200×600 (ما بيكبّرها)، وبيحفظها WebP. فرجّي المعاينة
+  بنسبة 2:1 قبل الرفع.
+- معلومات الصورة (متل موقع الـGPS) ما بتنحفظ.
+- **`200`:** `{ "data": MerchantProfile }` مع `cover_url` الجديد، والغلاف القديم بينمسح.
+- `DELETE` بيشيل الغلاف (`cover_url: null`). التكرار ما بيغيّر شي.
+- **أخطاء:** `422 VALIDATION_FAILED` بـ`details.fields.cover` لملف مو صورة أو أكبر من 5 MB، و`403 PIN_REQUIRED`.
+
 ---
 
 ## 5. لوحة الإدارة
@@ -1942,6 +1963,10 @@ PUT /merchant/devices
 | `reason` | string | ✅ | 3–255، بينكتب بسجل التدقيق |
 
 **`200`:** صفحة التاجر (§5.17). كل تغيير بينسجّل (`merchant.identity_updated`) مع القيمة قبل وبعد.
+
+**شيل غلاف غير لائق: `DELETE /admin/merchants/{id}/cover`** بنفس الصلاحية، والجسم `{ "reason": "…" }` (3–255) إلزامي.
+بيمسح الملف وبيرجّع صفحة التاجر مع `cover_url: null`، وبينسجّل `merchant.cover_removed` مع السبب. المحل بيقدر يرفع غيره.
+صفحة التاجر (§5.17) فيها `cover_url` لتعرض الغلاف.
 
 ### 5.19 `POST /admin/merchants/{id}/suspend` · `POST /admin/merchants/{id}/reactivate` 🔒 `suspend-merchants`
 

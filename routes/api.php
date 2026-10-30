@@ -187,6 +187,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('customers', [MerchantCustomerController::class, 'index'])->name('customers.index');
                 Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
                 Route::post('profile/logo', [ProfileController::class, 'logo'])->name('profile.logo');
+                Route::post('profile/cover', [ProfileController::class, 'cover'])->name('profile.cover');
+                Route::delete('profile/cover', [ProfileController::class, 'destroyCover'])->name('profile.cover.destroy');
 
                 Route::get('customers/birthdays-today', [BirthdayController::class, 'index'])->name('customers.birthdays-today');
                 Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
@@ -260,6 +262,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('merchants/{merchant}', [AdminMerchantController::class, 'update'])
             ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
             ->name('merchants.update');
+        Route::delete('merchants/{merchant}/cover', [AdminMerchantController::class, 'destroyCover'])
+            ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
+            ->name('merchants.cover.destroy');
 
         Route::middleware('can:'.AdminPermission::SuspendMerchants->value)->group(function () {
             Route::post('merchants/{merchant}/suspend', [MerchantSuspensionController::class, 'suspend'])->name('merchants.suspend');

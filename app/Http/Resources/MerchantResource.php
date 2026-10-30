@@ -32,6 +32,7 @@ class MerchantResource extends JsonResource
             'phone' => $this->phone,
             'contact_phone' => $this->contact_phone,
             'logo_url' => $this->logoUrl(),
+            'cover_url' => $this->coverUrl(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
         ];
     }

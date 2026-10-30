@@ -145,6 +145,51 @@ class AdminMerchantsTest extends TestCase
             ->assertJsonPath('error.details.fields', ['business_name' => ['min'], 'reason' => ['required']]);
     }
 
+    public function test_support_takes_down_an_unsuitable_cover_with_a_reason(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('merchants/covers/c.webp', 'cover');
+        $merchant = Merchant::factory()->create(['cover_path' => 'merchants/covers/c.webp']);
+
+        $this->withToken($this->clerkToken('user_support'))
+            ->getJson("/api/v1/admin/merchants/{$merchant->id}")
+            ->assertJsonPath('data.cover_url', Storage::disk('public')->url('merchants/covers/c.webp'));
+
+        $this->withToken($this->clerkToken('user_support'))
+            ->deleteJson("/api/v1/admin/merchants/{$merchant->id}/cover", ['reason' => 'صورة غير لائقة'])
+            ->assertOk()
+            ->assertJsonPath('data.cover_url', null);
+
+        Storage::disk('public')->assertMissing('merchants/covers/c.webp');
+        $log = AuditLog::query()->sole();
+        $this->assertSame('merchant.cover_removed', $log->action);
+        $this->assertSame('merchants/covers/c.webp', $log->before['cover_path']);
+        $this->assertSame('صورة غير لائقة', $log->after['reason']);
+
+        // Nothing left to remove: no second entry in the trail.
+        $this->withToken($this->clerkToken('user_support'))
+            ->deleteJson("/api/v1/admin/merchants/{$merchant->id}/cover", ['reason' => 'صورة غير لائقة'])
+            ->assertOk();
+        $this->assertSame(1, AuditLog::query()->count());
+    }
+
+    public function test_removing_a_cover_needs_the_permission_and_a_reason(): void
+    {
+        AdminUser::factory()->paymentsReviewer()->create(['clerk_user_id' => 'user_reviewer']);
+        $merchant = Merchant::factory()->create(['cover_path' => 'merchants/covers/c.webp']);
+
+        $this->withToken($this->clerkToken('user_reviewer'))
+            ->deleteJson("/api/v1/admin/merchants/{$merchant->id}/cover", ['reason' => 'صورة غير لائقة'])
+            ->assertForbidden();
+
+        $this->withToken($this->clerkToken('user_support'))
+            ->deleteJson("/api/v1/admin/merchants/{$merchant->id}/cover")
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['reason' => ['required']]);
+
+        $this->assertSame('merchants/covers/c.webp', $merchant->fresh()->cover_path);
+    }
+
     public function test_the_payments_reviewer_does_not_see_shops(): void
     {
         AdminUser::factory()->paymentsReviewer()->create(['clerk_user_id' => 'user_reviewer']);

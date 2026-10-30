@@ -73,6 +73,8 @@ class DirectoryController extends Controller
 
         return response()->json(['data' => [
             ...(new MerchantSummaryResource($shop))->resolve($request),
+            // Only on the page: the directory lists every shop at once.
+            'cover_url' => $shop->coverUrl(),
             'address' => $shop->address,
             'accepting_stamps' => $shop->status->canCollectStamps(),
             'muted' => $customer->merchantMutes()->where('merchant_id', $shop->id)->exists(),
