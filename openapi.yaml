@@ -3280,7 +3280,8 @@ components:
             و`payment_approved` و`payment_rejected` (مع `payment_id`، والرفض مع `reason`).
 
             كل إشعار بينبعت كمان push عن طريق FCM بنفس العنوان والنص، و`data` فيها `type` و`notification_id`
-            والمعرّفات، **كلها نصوص**.
+            والمعرّفات، **كلها نصوص**. وفيه عدد غير المقروء (مع الإشعار الجديد) لرقم أيقونة التطبيق:
+            `apns.payload.aps.badge` على iOS و`android.notification.notification_count` على أندرويد.
         title: { type: string }
         body: { type: string }
         data:

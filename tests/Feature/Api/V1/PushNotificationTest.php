@@ -8,6 +8,7 @@ use App\Models\DeviceToken;
 use App\Notifications\StampAdded;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Kreait\Firebase\Contract\Messaging;
 use Kreait\Firebase\Exception\Messaging\NotFound;
 use Kreait\Firebase\Messaging\CloudMessage;
@@ -57,6 +58,30 @@ class PushNotificationTest extends TestCase
                 'card_id' => (string) $this->cycle->card_id,
                 'cycle_id' => (string) $this->cycle->id,
             ], $payload['data']);
+
+            return true;
+        });
+
+        $this->customer->notify(new StampAdded($this->cycle, $this->cycle->card));
+    }
+
+    public function test_the_push_carries_the_unread_count_for_the_app_icon_badge(): void
+    {
+        $this->deviceOf($this->customer, 'phone-token');
+        $this->inboxEntry(read: true);
+        $this->inboxEntry(read: false);
+
+        $this->expectPush(function (CloudMessage $message): bool {
+            $payload = $message->jsonSerialize();
+
+            // The earlier unread entry and this one; the read entry is not counted.
+            $this->assertSame(2, $payload['apns']['payload']['aps']['badge']);
+            $this->assertSame(2, $payload['android']['notification']['notification_count']);
+
+            // The badge does not replace the sound or the priority.
+            $this->assertSame('default', $payload['apns']['payload']['aps']['sound']);
+            $this->assertSame('default', $payload['android']['notification']['sound']);
+            $this->assertSame('high', $payload['android']['priority']);
 
             return true;
         });
@@ -136,6 +161,16 @@ class PushNotificationTest extends TestCase
             ->once()
             ->withArgs($check)
             ->andReturn($report ?? MulticastSendReport::withItems([])));
+    }
+
+    private function inboxEntry(bool $read): void
+    {
+        $this->customer->notifications()->create([
+            'id' => (string) Str::uuid7(),
+            'type' => 'campaign',
+            'data' => ['title' => 'Offer', 'body' => 'Text', 'data' => []],
+            'read_at' => $read ? now() : null,
+        ]);
     }
 
     private function deviceOf(Customer $customer, string $token): void

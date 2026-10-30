@@ -625,13 +625,18 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
     "merchant_id": "10",
     "card_id": "11",
     "cycle_id": "17"
-  }
+  },
+  "apns": { "payload": { "aps": { "badge": 3, "sound": "default" } } },
+  "android": { "notification": { "notification_count": 3, "sound": "default" } }
 }
 ```
 
 - **كل قيم `data` نصوص،** حوّل المعرّفات لأرقام بالتطبيق.
 - `notification_id` هو `id` نفس الإشعار بالصندوق: لما يضغط عليه علّمه مقروء بـ`POST /customer/notifications/{id}/read`.
 - أولوية عالية مع الصوت الافتراضي على أندرويد وiOS.
+- **رقم أيقونة التطبيق (badge):** كل push فيه عدد الإشعارات غير المقروءة، يعني نفس `meta.unread_count` بعد ما ينضاف
+  الإشعار الجديد. على iOS بـ`aps.badge`، وعلى أندرويد بـ`notification_count` (أغلب الأجهزة بتعرض نقطة، وسامسونج بتعرض
+  الرقم). تصفير الرقم لما ينفتح التطبيق أو ينقرأ إشعار شغل التطبيق نفسه. نفس الشي لإشعارات التاجر.
 - الرمز يلي بيرجّع عليه FCM `UNREGISTERED` (التطبيق انشال) بينحذف لحاله.
 
 ### 3.14 `POST /customer/notifications/{id}/read` 🔒 جاهز
