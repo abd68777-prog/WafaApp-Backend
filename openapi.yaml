@@ -832,7 +832,7 @@ paths:
       tags: [التاجر — البطاقات]
       operationId: merchantPublishCard
       summary: نشر بطاقة
-      description: '**ما بتتعدّل بعد النشر، وما في مسار تعديل.** البطاقات الموقوفة ما بتنحسب من حد الباقة.'
+      description: '**ما بتتعدّل بعد النشر، إلا لونها** (`PATCH /merchant/cards/{card_id}/color`). البطاقات الموقوفة ما بتنحسب من حد الباقة.'
       security: [{ clerkSession: [], pinToken: [] }]
       requestBody:
         required: true
@@ -847,6 +847,7 @@ paths:
                 reward_description: { type: string, minLength: 2, maxLength: 120 }
                 terms: { type: [string, 'null'], maxLength: 500 }
                 icon_id: { type: integer, description: من `lookups.icons` }
+                color: { $ref: '#/components/schemas/CardColorInput' }
       responses:
         '201': { $ref: '#/components/responses/MerchantCardData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -882,6 +883,36 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/cards/{card_id}/color:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    patch:
+      tags: [التاجر — البطاقات]
+      operationId: merchantRecolorCard
+      summary: تغيير لون البطاقة
+      description: |
+        بيغيّر اللون بس، للبطاقة الفعّالة أو الموقوفة. أي حقل تاني بينتجاهل: الاسم والهدية وعدد الطوابع وعد للزبون.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: card_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [color]
+              properties:
+                color: { type: string, enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite] }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantCardData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   /merchant/scan/resolve:
@@ -3196,7 +3227,7 @@ components:
     # ── البطاقات ──
     CardSummary:
       type: object
-      required: [id, name, stamps_required, reward_description, terms, icon, status]
+      required: [id, name, stamps_required, reward_description, terms, icon, color, status]
       properties:
         id: { type: integer, example: 11 }
         name: { type: string, example: بطاقة القهوة }
@@ -3204,7 +3235,17 @@ components:
         reward_description: { type: string, example: فنجان قهوة مجاني }
         terms: { type: [string, 'null'] }
         icon: { $ref: '#/components/schemas/Icon' }
+        color:
+          type: [string, 'null']
+          example: navy
+          description: |
+            مفتاح من لوحة الألوان الثابتة (`lookups.card_colors`). `null` للبطاقات القديمة؛ و`null` أو مفتاح مش معروف
+            بينرسم `navy`.
         status: { $ref: '#/components/schemas/CardStatus' }
+    CardColorInput:
+      type: [string, 'null']
+      enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite, null]
+      description: مفتاح من `lookups.card_colors`. بدونه البطاقة `null` وبتنرسم `navy`
     MerchantSummary:
       type: object
       required: [id, business_name, logo_url, business_type, governorate]
@@ -3426,11 +3467,21 @@ components:
         usage: { oneOf: [{ $ref: '#/components/schemas/Usage' }, { type: 'null' }] }
     MerchantLookups:
       type: object
-      required: [governorates, business_types, icons, trial_days, packages, payment, limits, links]
+      required: [governorates, business_types, icons, card_colors, trial_days, packages, payment, limits, links]
       properties:
         governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         icons: { type: array, items: { $ref: '#/components/schemas/Icon' } }
+        card_colors:
+          type: array
+          description: لوحة ألوان البطاقات الثابتة بالترتيب، والأول (`navy`) هو الافتراضي
+          items:
+            type: object
+            required: [key, name, hex]
+            properties:
+              key: { type: string, example: navy }
+              name: { type: string, example: كحلي }
+              hex: { type: string, example: '#1B4F72' }
         trial_days: { type: integer, example: 14, description: مدة التجربة المجانية بالأيام. حقل زيادة عن العقد }
         packages:
           type: array

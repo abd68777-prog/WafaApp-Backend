@@ -50,6 +50,7 @@
 | 32 | `GET /merchant/cards` | تاجر | مسجّل |
 | 33 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
 | 34 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 100 | `PATCH /merchant/cards/{card_id}/color` | تاجر | مسجّل + PIN |
 | 35 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
 | 36 | `POST /merchant/stamps` | تاجر | مسجّل |
 | 37 | `POST /merchant/redemptions` | تاجر | مسجّل |
@@ -873,6 +874,7 @@ PUT /merchant/devices
     "governorates": [ { "id": 1, "name": "دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, … ],
     "icons": [ { "id": 1, "key": "coffee", "name": "فنجان قهوة" }, { "id": 2, "key": "coffee-bean", "name": "حبة قهوة" }, … ],
+    "card_colors": [ { "key": "navy", "name": "كحلي", "hex": "#1B4F72" }, { "key": "royal", "name": "أزرق ملكي", "hex": "#2F4FB0" }, … ],
     "trial_days": 14,
     "packages": [
       {
@@ -1035,6 +1037,7 @@ PUT /merchant/devices
       "reward_description": "فنجان قهوة مجاني",
       "terms": "لا تُجمع مع عروض أخرى",
       "icon": { "id": 1, "key": "coffee", "name": "فنجان قهوة" },
+      "color": "teal",
       "status": "active",
       "created_at": "2026-09-29T15:00:52Z",
       "suspended_at": null,
@@ -1049,7 +1052,7 @@ PUT /merchant/devices
 
 ### 4.10 `POST /merchant/cards` 🔒 PIN
 
-نشر بطاقة. **ما بتتعدّل بعد النشر، وما في مسار تعديل**.
+نشر بطاقة. **ما بتتعدّل بعد النشر، إلا لونها** (تحت).
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
@@ -1058,6 +1061,7 @@ PUT /merchant/devices
 | `reward_description` | string | ✅ | 2–120 |
 | `terms` | string | — | لحد 500 |
 | `icon_id` | integer | ✅ | من `lookups.icons` |
+| `color` | string | — | مفتاح من `lookups.card_colors`. بدونه `null` |
 
 **`201`:** `{ "data": MerchantCard }` (نفس عنصر §4.9).
 
@@ -1066,6 +1070,16 @@ PUT /merchant/devices
 - `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `{ "status": "EXPIRED", "action": "cards" }`.
 - `422 VALIDATION_FAILED`.
 - `403 PIN_REQUIRED`.
+
+**تغيير اللون: `PATCH /merchant/cards/{card_id}/color` 🔒 PIN.** الجسم `{ "color": "plum" }`، والمفتاح من
+`lookups.card_colors`. بيغيّر اللون بس، للبطاقة الفعّالة أو الموقوفة. أي حقل تاني بالجسم بينتجاهل، لأن الاسم والهدية
+وعدد الطوابع وعد للزبون. **`200`:** `{ "data": MerchantCard }`. **أخطاء:** `422 VALIDATION_FAILED` لمفتاح برا
+اللوحة (`details.fields.color`)، و`404 NOT_FOUND` لبطاقة مو تبع المحل، و`403 PIN_REQUIRED`.
+
+**ألوان البطاقات:** لوحة ثابتة من 10 ألوان كلها غامقة مع نص أبيض، والخادم بيبعت **المفتاح بس**:
+`navy` (الافتراضي) · `royal` · `teal` · `forest` · `olive` · `coffee` · `burgundy` · `rose` · `plum` · `graphite`.
+`card.color` بيوصل بكل مكان فيه بطاقة، منها `/customer/cards`. البطاقات القديمة `null`، و`null` أو مفتاح مش معروف
+بينرسم `navy`. الـ`hex` بـ`lookups.card_colors` للوحة الإدارة وتطبيق التاجر، وتطبيق الزبون عنده ألوانه.
 
 ### 4.11 `POST /merchant/cards/{card_id}/suspend` 🔒 PIN
 
