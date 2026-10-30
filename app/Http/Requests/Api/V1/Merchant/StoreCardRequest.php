@@ -34,7 +34,7 @@ class StoreCardRequest extends FormRequest
             'reward_description' => ['required', 'string', 'min:2', 'max:120'],
             'terms' => ['sometimes', 'nullable', 'string', 'max:500'],
             'icon_id' => ['required', 'integer', Rule::exists('icons', 'id')->where('is_active', true)],
-            'color' => ['sometimes', 'nullable', Rule::enum(CardColor::class)],
+            'color' => ['required', Rule::enum(CardColor::class)],
         ];
     }
 }
