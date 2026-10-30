@@ -182,6 +182,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
                 Route::post('cards', [MerchantCardController::class, 'store'])->name('cards.store');
                 Route::post('cards/{card}/suspend', [MerchantCardController::class, 'suspend'])->whereNumber('card')->name('cards.suspend');
+                Route::patch('cards/{card}/color', [MerchantCardController::class, 'color'])->whereNumber('card')->name('cards.color');
 
                 Route::get('stats', [StatsController::class, 'show'])->name('stats');
                 Route::get('customers', [MerchantCustomerController::class, 'index'])->name('customers.index');

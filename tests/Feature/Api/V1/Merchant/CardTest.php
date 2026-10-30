@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1\Merchant;
 
+use App\Enums\CardColor;
 use App\Enums\CardStatus;
 use App\Models\Card;
 use App\Models\CardCycle;
@@ -16,7 +17,7 @@ use Tests\TestCase;
 
 /**
  * The shop's cards (contract §5.8): listed for the scan screen without the
- * PIN, published and suspended behind it, never edited.
+ * PIN, published, repainted and suspended behind it, otherwise never edited.
  */
 class CardTest extends TestCase
 {
@@ -80,6 +81,72 @@ class CardTest extends TestCase
             'name' => 'بطاقة القهوة',
             'status' => CardStatus::Active->value,
         ]);
+    }
+
+    public function test_a_card_is_published_in_the_chosen_color_or_without_one(): void
+    {
+        $merchant = $this->merchant();
+
+        $this->publish($merchant, $this->payload(['color' => 'teal']))
+            ->assertCreated()
+            ->assertJsonPath('data.color', 'teal');
+
+        $this->publish($merchant, $this->payload())
+            ->assertCreated()
+            ->assertJsonPath('data.color', null);
+    }
+
+    public function test_a_color_outside_the_palette_is_refused(): void
+    {
+        $this->publish($this->merchant(), $this->payload(['color' => 'yellow']))
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
+            ->assertJsonValidationErrors(['color'], 'error.details.fields');
+
+        $this->assertDatabaseCount('cards', 0);
+    }
+
+    public function test_only_the_color_of_a_published_card_changes(): void
+    {
+        $merchant = $this->merchant();
+        $card = Card::factory()->for($merchant)->create(['name' => 'بطاقة القهوة', 'stamps_required' => 8]);
+
+        $this->withPin($merchant)
+            ->patchJson("/api/v1/merchant/cards/{$card->id}/color", [
+                'color' => 'plum',
+                'name' => 'اسم جديد',
+                'stamps_required' => 3,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.color', 'plum')
+            ->assertJsonPath('data.name', 'بطاقة القهوة')
+            ->assertJsonPath('data.stamps_required', 8);
+
+        $this->assertSame(CardColor::Plum, $card->fresh()->color);
+    }
+
+    public function test_changing_the_color_needs_the_pin_a_palette_key_and_the_shops_own_card(): void
+    {
+        $merchant = $this->merchant();
+        $card = Card::factory()->for($merchant)->create();
+        $othersCard = Card::factory()->create();
+
+        $this->withToken($this->clerkToken(self::CLERK_USER))
+            ->patchJson("/api/v1/merchant/cards/{$card->id}/color", ['color' => 'plum'])
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'PIN_REQUIRED');
+
+        $this->withPin($merchant)
+            ->patchJson("/api/v1/merchant/cards/{$card->id}/color", ['color' => 'orange'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['color'], 'error.details.fields');
+
+        $this->withPin($merchant)
+            ->patchJson("/api/v1/merchant/cards/{$othersCard->id}/color", ['color' => 'plum'])
+            ->assertNotFound();
+
+        $this->assertNull($card->fresh()->color);
+        $this->assertNull($othersCard->fresh()->color);
     }
 
     public function test_the_package_limit_counts_active_cards_only(): void

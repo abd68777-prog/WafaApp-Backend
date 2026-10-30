@@ -28,6 +28,7 @@ class CardSummaryResource extends JsonResource
             'reward_description' => $this->reward_description,
             'terms' => $this->terms,
             'icon' => ['id' => $this->icon->id, 'key' => $this->icon->key, 'name' => $this->icon->name],
+            'color' => $this->color?->value,
             'status' => $this->status->value,
         ];
     }
