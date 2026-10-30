@@ -1072,7 +1072,7 @@ PUT /merchant/devices
 | `reward_description` | string | ✅ | 2–120 |
 | `terms` | string | — | لحد 500 |
 | `icon_id` | integer | ✅ | من `lookups.icons` |
-| `color` | string | — | مفتاح من `lookups.card_colors`. بدونه `null` |
+| `color` | string | ✅ | مفتاح من `lookups.card_colors` |
 
 **`201`:** `{ "data": MerchantCard }` (نفس عنصر §4.9).
 
@@ -1089,8 +1089,8 @@ PUT /merchant/devices
 
 **ألوان البطاقات:** لوحة ثابتة من 10 ألوان كلها غامقة مع نص أبيض، والخادم بيبعت **المفتاح بس**:
 `navy` (الافتراضي) · `royal` · `teal` · `forest` · `olive` · `coffee` · `burgundy` · `rose` · `plum` · `graphite`.
-`card.color` بيوصل بكل مكان فيه بطاقة، منها `/customer/cards`. البطاقات القديمة `null`، و`null` أو مفتاح مش معروف
-بينرسم `navy`. الـ`hex` بـ`lookups.card_colors` للوحة الإدارة وتطبيق التاجر، وتطبيق الزبون عنده ألوانه.
+`card.color` بيوصل بكل مكان فيه بطاقة، منها `/customer/cards`، وما بيكون `null` أبداً (البطاقات الأقدم من الألوان
+صارت `navy`). مفتاح مش معروف عند التطبيق (لون انضاف بعدين) بينرسم `navy`. الـ`hex` بـ`lookups.card_colors` للوحة الإدارة وتطبيق التاجر، وتطبيق الزبون عنده ألوانه.
 
 ### 4.11 `POST /merchant/cards/{card_id}/suspend` 🔒 PIN
 

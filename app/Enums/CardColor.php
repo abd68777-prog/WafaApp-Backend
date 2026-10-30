@@ -5,8 +5,8 @@ namespace App\Enums;
 /**
  * The fixed palette a card is drawn in. Only the key is stored and sent;
  * each app maps it to its own color, and the hex here is for the merchant
- * app's picker and the dashboard. A card without one (NULL, or a key an app
- * does not know yet) is drawn in navy. Every color is dark enough for white text
+ * app's picker and the dashboard. Every card has one; a key an app does
+ * not know yet is drawn in navy, the default. Every color is dark enough for white text
  * (contrast at least 4.5:1), and there is no yellow or orange: amber means
  * "your reward is ready". A new color reaches the apps first, then is added
  * here.

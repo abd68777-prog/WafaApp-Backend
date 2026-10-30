@@ -840,7 +840,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, stamps_required, reward_description, icon_id]
+              required: [name, stamps_required, reward_description, icon_id, color]
               properties:
                 name: { type: string, minLength: 2, maxLength: 60 }
                 stamps_required: { type: integer, minimum: 3, maximum: 10, description: بين `limits.card_stamps_min` و`card_stamps_max` }
@@ -3302,16 +3302,16 @@ components:
         terms: { type: [string, 'null'] }
         icon: { $ref: '#/components/schemas/Icon' }
         color:
-          type: [string, 'null']
+          type: string
           example: navy
           description: |
-            مفتاح من لوحة الألوان الثابتة (`lookups.card_colors`). `null` للبطاقات القديمة؛ و`null` أو مفتاح مش معروف
-            بينرسم `navy`.
+            مفتاح من لوحة الألوان الثابتة (`lookups.card_colors`)، ما بيكون `null`. مفتاح مش معروف عند التطبيق بينرسم
+            `navy`.
         status: { $ref: '#/components/schemas/CardStatus' }
     CardColorInput:
-      type: [string, 'null']
-      enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite, null]
-      description: مفتاح من `lookups.card_colors`. بدونه البطاقة `null` وبتنرسم `navy`
+      type: string
+      enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite]
+      description: مفتاح من `lookups.card_colors`، إلزامي مع كل بطاقة جديدة
     MerchantSummary:
       type: object
       required: [id, business_name, logo_url, business_type, governorate]

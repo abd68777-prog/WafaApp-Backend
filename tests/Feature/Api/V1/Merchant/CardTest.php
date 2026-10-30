@@ -83,7 +83,7 @@ class CardTest extends TestCase
         ]);
     }
 
-    public function test_a_card_is_published_in_the_chosen_color_or_without_one(): void
+    public function test_a_card_is_published_in_the_chosen_color_which_is_required(): void
     {
         $merchant = $this->merchant();
 
@@ -91,9 +91,14 @@ class CardTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.color', 'teal');
 
-        $this->publish($merchant, $this->payload())
-            ->assertCreated()
-            ->assertJsonPath('data.color', null);
+        $payload = $this->payload();
+        unset($payload['color']);
+
+        $this->publish($merchant, $payload)
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['color' => ['required']]);
+
+        $this->assertDatabaseCount('cards', 1);
     }
 
     public function test_a_color_outside_the_palette_is_refused(): void
@@ -128,8 +133,8 @@ class CardTest extends TestCase
     public function test_changing_the_color_needs_the_pin_a_palette_key_and_the_shops_own_card(): void
     {
         $merchant = $this->merchant();
-        $card = Card::factory()->for($merchant)->create();
-        $othersCard = Card::factory()->create();
+        $card = Card::factory()->for($merchant)->create(['color' => CardColor::Navy]);
+        $othersCard = Card::factory()->create(['color' => CardColor::Navy]);
 
         $this->withToken($this->clerkToken(self::CLERK_USER))
             ->patchJson("/api/v1/merchant/cards/{$card->id}/color", ['color' => 'plum'])
@@ -145,8 +150,8 @@ class CardTest extends TestCase
             ->patchJson("/api/v1/merchant/cards/{$othersCard->id}/color", ['color' => 'plum'])
             ->assertNotFound();
 
-        $this->assertNull($card->fresh()->color);
-        $this->assertNull($othersCard->fresh()->color);
+        $this->assertSame(CardColor::Navy, $card->fresh()->color);
+        $this->assertSame(CardColor::Navy, $othersCard->fresh()->color);
     }
 
     public function test_the_package_limit_counts_active_cards_only(): void
@@ -185,7 +190,7 @@ class CardTest extends TestCase
 
         $this->publish($merchant, [])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'stamps_required', 'reward_description', 'icon_id'], 'error.details.fields');
+            ->assertJsonValidationErrors(['name', 'stamps_required', 'reward_description', 'icon_id', 'color'], 'error.details.fields');
     }
 
     public function test_suspending_is_final_and_repeating_it_changes_nothing(): void
@@ -251,6 +256,7 @@ class CardTest extends TestCase
             'reward_description' => 'قهوة مجانية',
             'terms' => null,
             'icon_id' => $overrides['icon_id'] ?? Icon::factory()->create()->id,
+            'color' => 'navy',
             ...$overrides,
         ];
     }
