@@ -78,6 +78,10 @@ class DirectoryController extends Controller
             'address' => $shop->address,
             'accepting_stamps' => $shop->status->canCollectStamps(),
             'muted' => $customer->merchantMutes()->where('merchant_id', $shop->id)->exists(),
+            // Opened outside the app; only on the page, like the cover.
+            'instagram_url' => $shop->instagram_url,
+            'facebook_url' => $shop->facebook_url,
+            'maps_url' => $shop->maps_url,
             'cards' => CardSummaryResource::collection($cards)->resolve($request),
         ]]);
     }

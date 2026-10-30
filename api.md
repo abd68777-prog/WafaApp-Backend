@@ -92,6 +92,7 @@
 | 71 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
 | 72 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
 | 103 | `DELETE /admin/merchants/{id}/cover` | إدارة | `edit-business-identity` |
+| 104 | `DELETE /admin/merchants/{id}/links/{link}` | إدارة | `edit-business-identity` |
 | 73 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
 | 74 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
 | 75 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
@@ -710,6 +711,9 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
     "address": "شارع الحمرا",
     "accepting_stamps": true,
     "muted": false,
+    "instagram_url": "https://instagram.com/yasmin.cafe",
+    "facebook_url": null,
+    "maps_url": "https://maps.app.goo.gl/AbC123xyz",
     "cards": [ CardSummary ]
   }
 }
@@ -720,6 +724,8 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
   البطاقة. **بصفحة المحل بس**، مو بالدليل ولا بـ`MerchantSummary`.
 - `accepting_stamps`: `false` للمحل المنتهي أو الموقوف أو بانتظار الحذف.
 - `muted`: الزبون موقّف عروض هالمحل (§3.18).
+- `instagram_url` · `facebook_url` · `maps_url`: روابط المحل، كل واحد `null` إذا مو معبّى. اعرض أيقونة بس للمعبّى، وافتح
+  الرابط **برا التطبيق** (مو in-app browser). كلها `https://` ومن مواقعها بس (§4.26). **بصفحة المحل بس**، مو بالدليل.
 - **محل مو بالدليل** (منتهي مثلاً): الصفحة بتفتح بس إذا الزبون إلو دورة عنده، ومع `cards: []`. غير هيك **`404`**.
 
 ### 3.21 `GET /customer/shop-contacts` 🔒 جاهز
@@ -1563,6 +1569,19 @@ PUT /merchant/devices
 | `phone` | string | رقم سوري، فريد بين التجار (`taken` إذا مستعمل) |
 | `address` | string \| null | لحد 255. `null` بيمسحه |
 | `contact_phone` | string \| null | رقم التواصل يلي بيشوفه **كل الزبائن** بنافذة المحلات (§3.21). موبايل (`0944…`) أو أرضي (`011 222 3344`)، وبيرجع بصيغة `+963…`. `null` بيخبّيه |
+| `instagram_url` | string \| null | رابط إنستغرام المحل. `null` بيمسحه |
+| `facebook_url` | string \| null | رابط فيسبوك المحل. `null` بيمسحه |
+| `maps_url` | string \| null | رابط Google Maps جاهز بيلصقو التاجر (مو إحداثيات). `null` بيمسحه |
+
+**الروابط:** لحد 255، و`https://` بس، وكل حقل من مواقعه بس. ما بيقبل اسم مستخدم أو بورت بالرابط:
+
+| الحقل | المواقع المقبولة |
+|---|---|
+| `instagram_url` | `instagram.com` · `www.instagram.com` |
+| `facebook_url` | `facebook.com` · `www.facebook.com` · `m.facebook.com` · `fb.com` · `www.fb.com` · `fb.me` |
+| `maps_url` | `maps.app.goo.gl` · `maps.google.com` · `goo.gl/maps…` · `google.com/maps…` · `www.google.com/maps…` |
+
+غير هيك `422 VALIDATION_FAILED` مع `details.fields.<الحقل>: ["format"]`. الموقع الإلكتروني الخاص بالمحل مؤجّل لمرحلة تانية.
 
 **`200`:** `{ "data": MerchantProfile }`، نفس `merchant` بـ`GET /merchant/me`.
 
@@ -1967,6 +1986,10 @@ PUT /merchant/devices
 **شيل غلاف غير لائق: `DELETE /admin/merchants/{id}/cover`** بنفس الصلاحية، والجسم `{ "reason": "…" }` (3–255) إلزامي.
 بيمسح الملف وبيرجّع صفحة التاجر مع `cover_url: null`، وبينسجّل `merchant.cover_removed` مع السبب. المحل بيقدر يرفع غيره.
 صفحة التاجر (§5.17) فيها `cover_url` لتعرض الغلاف.
+
+**شيل رابط: `DELETE /admin/merchants/{id}/links/{link}`** بنفس الصلاحية، و`{link}` واحد من `instagram` · `facebook` ·
+`maps` (غيرهن `404`). الجسم `{ "reason": "…" }` (3–255) إلزامي. بيرجّع صفحة التاجر، وبينسجّل `merchant.link_removed` مع
+الرابط القديم والسبب. التكرار ما بيسجّل شي. صفحة التاجر فيها `links: { instagram_url, facebook_url, maps_url }`.
 
 ### 5.19 `POST /admin/merchants/{id}/suspend` · `POST /admin/merchants/{id}/reactivate` 🔒 `suspend-merchants`
 

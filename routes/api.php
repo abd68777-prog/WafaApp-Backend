@@ -265,6 +265,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::delete('merchants/{merchant}/cover', [AdminMerchantController::class, 'destroyCover'])
             ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
             ->name('merchants.cover.destroy');
+        Route::delete('merchants/{merchant}/links/{link}', [AdminMerchantController::class, 'destroyLink'])
+            ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
+            ->name('merchants.links.destroy');
 
         Route::middleware('can:'.AdminPermission::SuspendMerchants->value)->group(function () {
             Route::post('merchants/{merchant}/suspend', [MerchantSuspensionController::class, 'suspend'])->name('merchants.suspend');
