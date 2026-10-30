@@ -35,6 +35,9 @@ use Illuminate\Support\Facades\Storage;
     'owner_name',
     'phone',
     'contact_phone',
+    'instagram_url',
+    'facebook_url',
+    'maps_url',
     'logo_path',
 ])]
 #[Hidden(['pin_hash'])]

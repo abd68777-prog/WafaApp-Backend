@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -67,6 +68,70 @@ class ProfileTest extends TestCase
         $this->asMerchant()->patchJson('/api/v1/merchant/profile', ['contact_phone' => null])
             ->assertOk()
             ->assertJsonPath('data.contact_phone', null);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function acceptedLinks(): array
+    {
+        return [
+            'instagram' => ['instagram_url', 'https://instagram.com/yasmin.cafe'],
+            'instagram with www' => ['instagram_url', 'https://www.instagram.com/yasmin.cafe/'],
+            'facebook' => ['facebook_url', 'https://www.facebook.com/yasmincafe'],
+            'facebook mobile' => ['facebook_url', 'https://m.facebook.com/yasmincafe'],
+            'facebook short' => ['facebook_url', 'https://fb.me/yasmincafe'],
+            'facebook fb.com' => ['facebook_url', 'https://fb.com/yasmincafe'],
+            'maps share link' => ['maps_url', 'https://maps.app.goo.gl/AbC123xyz'],
+            'maps old short link' => ['maps_url', 'https://goo.gl/maps/AbC123'],
+            'maps full link' => ['maps_url', 'https://www.google.com/maps/place/Yasmin+Cafe/@33.51,36.29,17z'],
+            'maps subdomain' => ['maps_url', 'https://maps.google.com/?q=33.51,36.29'],
+        ];
+    }
+
+    #[DataProvider('acceptedLinks')]
+    public function test_a_link_to_its_own_site_is_saved_and_null_removes_it(string $field, string $url): void
+    {
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => $url])
+            ->assertOk()
+            ->assertJsonPath("data.{$field}", $url);
+
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => null])
+            ->assertOk()
+            ->assertJsonPath("data.{$field}", null);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function refusedLinks(): array
+    {
+        return [
+            'plain http' => ['instagram_url', 'http://instagram.com/yasmin.cafe'],
+            'another site' => ['instagram_url', 'https://example.com/yasmin'],
+            'a lookalike host' => ['instagram_url', 'https://instagram.com.evil.sy/yasmin'],
+            'a host ending like it' => ['instagram_url', 'https://evilinstagram.com/yasmin'],
+            'instagram in the facebook field' => ['facebook_url', 'https://instagram.com/yasmin.cafe'],
+            'google outside maps' => ['maps_url', 'https://www.google.com/search?q=yasmin'],
+            'goo.gl outside maps' => ['maps_url', 'https://goo.gl/AbC123'],
+            'credentials before the host' => ['instagram_url', 'https://instagram.com@evil.sy/x'],
+            'a user name' => ['instagram_url', 'https://user@instagram.com/yasmin'],
+            'a port' => ['facebook_url', 'https://facebook.com:8443/yasmin'],
+            'a script' => ['maps_url', 'javascript:alert(1)'],
+            'no scheme' => ['instagram_url', 'instagram.com/yasmin.cafe'],
+            'a space inside' => ['instagram_url', 'https://instagram.com/yasmin cafe'],
+        ];
+    }
+
+    #[DataProvider('refusedLinks')]
+    public function test_a_link_to_any_other_site_is_refused(string $field, string $url): void
+    {
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => $url])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
+            ->assertJsonPath('error.details.fields', [$field => ['format']]);
+
+        $this->assertNull($this->merchant->fresh()->{$field});
     }
 
     public function test_a_phone_another_shop_uses_is_taken(): void

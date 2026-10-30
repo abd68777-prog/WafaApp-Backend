@@ -1224,7 +1224,7 @@ paths:
     patch:
       tags: [التاجر — ملف المحل]
       operationId: merchantUpdateProfile
-      summary: تعديل الهاتف والعنوان واسم المالك
+      summary: تعديل الهاتف والعنوان واسم المالك وروابط المحل
       description: اسم النشاط ونوعه والمحافظة ما بيتعدّلوا من التطبيق. ابعت الحقول يلي بدك تغيّرها بس.
       security: [{ clerkSession: [], pinToken: [] }]
       requestBody:
@@ -1238,6 +1238,9 @@ paths:
                 phone: { $ref: '#/components/schemas/Phone' }
                 address: { type: [string, 'null'], maxLength: 255, description: '`null` بيمسح العنوان' }
                 contact_phone: { type: [string, 'null'], description: 'رقم التواصل يلي بيشوفه كل الزبائن: موبايل أو أرضي، وبيرجع `+963…`. `null` بيخبّيه', example: 011 222 3344 }
+                instagram_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `instagram.com` أو `www.instagram.com`. `null` بيمسحه', example: 'https://instagram.com/yasmin.cafe' }
+                facebook_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `facebook.com` · `www.facebook.com` · `m.facebook.com` · `fb.com` · `www.fb.com` · `fb.me`. `null` بيمسحه' }
+                maps_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `maps.app.goo.gl` · `maps.google.com`، أو `goo.gl` و`google.com` و`www.google.com` بمسار بيبلش بـ`/maps`. `null` بيمسحه', example: 'https://maps.app.goo.gl/AbC123xyz' }
       responses:
         '200': { $ref: '#/components/responses/MerchantProfileData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -2124,6 +2127,34 @@ paths:
               properties:
                 business_name: { type: string, minLength: 2, maxLength: 80 }
                 business_type_id: { type: integer }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/links/{link}:
+    delete:
+      tags: [الإدارة — التجار]
+      operationId: adminRemoveMerchantLink
+      summary: شيل رابط من صفحة المحل
+      description: |
+        الصلاحية `edit-business-identity`. السبب إلزامي، وبينكتب بسجل التدقيق (`merchant.link_removed`) مع الرابط القديم.
+        التكرار ما بيسجّل شي.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: link, in: path, required: true, schema: { type: string, enum: [instagram, facebook, maps] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
                 reason: { type: string, minLength: 3, maxLength: 255 }
       responses:
         '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
@@ -3418,7 +3449,7 @@ components:
         phone: { $ref: '#/components/schemas/Phone', description: رقم تواصل المحل، مو للدخول. فريد بين التجار }
     MerchantProfile:
       type: object
-      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, logo_url, cover_url, created_at]
+      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, instagram_url, facebook_url, maps_url, logo_url, cover_url, created_at]
       properties:
         id: { type: integer }
         email: { type: string, format: email }
@@ -3429,6 +3460,9 @@ components:
         owner_name: { type: string }
         phone: { $ref: '#/components/schemas/Phone' }
         contact_phone: { type: [string, 'null'], description: الرقم المنشور للزبائن }
+        instagram_url: { type: [string, 'null'], format: uri }
+        facebook_url: { type: [string, 'null'], format: uri }
+        maps_url: { type: [string, 'null'], format: uri }
         logo_url: { type: [string, 'null'], format: uri }
         cover_url: { $ref: '#/components/schemas/CoverUrl' }
         created_at: { $ref: '#/components/schemas/DateTime' }
@@ -3715,12 +3749,15 @@ components:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'
         - type: object
-          required: [cover_url, address, accepting_stamps, muted, cards]
+          required: [cover_url, address, accepting_stamps, muted, instagram_url, facebook_url, maps_url, cards]
           properties:
             cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             accepting_stamps: { type: boolean, description: '`false` للمنتهي أو الموقوف أو بانتظار الحذف' }
             muted: { type: boolean }
+            instagram_url: { type: [string, 'null'], format: uri, description: بينفتح برا التطبيق }
+            facebook_url: { type: [string, 'null'], format: uri, description: بينفتح برا التطبيق }
+            maps_url: { type: [string, 'null'], format: uri, description: رابط Google Maps جاهز، بينفتح برا التطبيق }
             cards:
               type: array
               description: البطاقات الفعّالة بس
@@ -3905,11 +3942,18 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminMerchant'
         - type: object
-          required: [cover_url, address, last_login_at, subscription, periods, payments, cards, stats, deletion]
+          required: [cover_url, address, last_login_at, links, subscription, periods, payments, cards, stats, deletion]
           properties:
             cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+            links:
+              type: object
+              required: [instagram_url, facebook_url, maps_url]
+              properties:
+                instagram_url: { type: [string, 'null'], format: uri }
+                facebook_url: { type: [string, 'null'], format: uri }
+                maps_url: { type: [string, 'null'], format: uri }
             subscription: { oneOf: [{ $ref: '#/components/schemas/Subscription' }, { type: 'null' }], description: '`null` لحد ما يختار باقة' }
             periods:
               type: array

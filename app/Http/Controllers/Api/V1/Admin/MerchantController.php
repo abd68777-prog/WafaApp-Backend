@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Enums\CardCycleStatus;
 use App\Enums\DeletionSubjectType;
 use App\Enums\MerchantStatus;
+use App\Enums\ShopLink;
 use App\Enums\StampMethod;
 use App\Enums\SubscriptionPeriodType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Admin\RemoveMerchantCoverRequest;
+use App\Http\Requests\Api\V1\Admin\RemoveMerchantLinkRequest;
 use App\Http\Requests\Api\V1\Admin\UpdateMerchantIdentityRequest;
 use App\Http\Resources\AdminMerchantResource;
 use App\Http\Resources\PaymentResource;
@@ -97,6 +99,11 @@ class MerchantController extends Controller
                 'cover_url' => $merchant->coverUrl(),
                 'address' => $merchant->address,
                 'last_login_at' => $merchant->last_login_at?->toIso8601ZuluString(),
+                'links' => [
+                    'instagram_url' => $merchant->instagram_url,
+                    'facebook_url' => $merchant->facebook_url,
+                    'maps_url' => $merchant->maps_url,
+                ],
                 'subscription' => $state->subscription($merchant),
                 'periods' => SubscriptionPeriodResource::collection(
                     $merchant->subscriptionPeriods()->with('package')->orderByDesc('starts_at')->orderByDesc('id')->get()
@@ -175,6 +182,29 @@ class MerchantController extends Controller
 
             $audit->record($admin, 'merchant.cover_removed', $merchant, ['cover_path' => $path], [
                 'cover_path' => null,
+                'reason' => $request->string('reason')->trim()->value(),
+            ], $request->ip());
+        }
+
+        return $this->show($merchant->refresh(), $state);
+    }
+
+    /**
+     * Take down a link that does not belong on the shop's page. The shop can
+     * add another; the trail keeps the old link, who removed it and why.
+     */
+    public function destroyLink(RemoveMerchantLinkRequest $request, Merchant $merchant, ShopLink $link, AuditLogger $audit, MerchantState $state): JsonResponse
+    {
+        /** @var AdminUser $admin */
+        $admin = $request->user();
+        $column = $link->column();
+        $previous = $merchant->{$column};
+
+        if ($previous !== null) {
+            $merchant->forceFill([$column => null])->save();
+
+            $audit->record($admin, 'merchant.link_removed', $merchant, [$column => $previous], [
+                $column => null,
                 'reason' => $request->string('reason')->trim()->value(),
             ], $request->ip());
         }

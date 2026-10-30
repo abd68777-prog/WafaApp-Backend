@@ -63,6 +63,7 @@ final class ApiErrorRenderer
         'Enum' => 'format',
         'In' => 'format',
         'SyrianPhone' => 'format',
+        'ShopLinkUrl' => 'format',
     ];
 
     public function __invoke(Throwable $exception, Request $request): ?JsonResponse
