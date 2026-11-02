@@ -1211,7 +1211,7 @@ paths:
                   data:
                     type: array
                     items: { $ref: '#/components/schemas/MerchantCustomer' }
-                  meta: { $ref: '#/components/schemas/CursorMeta' }
+                  meta: { $ref: '#/components/schemas/CustomersMeta' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
@@ -3729,6 +3729,12 @@ components:
       required: [next_cursor]
       properties:
         next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+    CustomersMeta:
+      type: object
+      required: [next_cursor, total]
+      properties:
+        next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+        total: { type: integer, example: 412, description: عدد كل زبائن المحل حتى المعلّقين. نفسه بكل صفحة، و`q` ما بيأثر عليه }
     DirectoryMerchant:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'

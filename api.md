@@ -1571,10 +1571,11 @@ PUT /merchant/devices
     },
     { "id": 21, "name": null, "phone_masked": "0944***111", "registered": false, "last_stamp_at": "…", "cards": [ … ] }
   ],
-  "meta": { "next_cursor": null }
+  "meta": { "next_cursor": null, "total": 412 }
 }
 ```
 
+- `meta.total`: عدد كل زبائن المحل (حتى المعلّقين)، لعنوان الشاشة. نفس الرقم بكل صفحة، و`q` ما بيأثر عليه.
 - `name: null` و`registered: false` للزبون المعلّق.
 - `cards`: الدورات المفتوحة بس (`COLLECTING` أو `REWARD_READY`).
 - `last_stamp_at`: آخر طابع غير ملغى بهالمحل.
