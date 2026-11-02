@@ -53,6 +53,9 @@ class MerchantCustomersTest extends TestCase
 
         $response = $this->customers('')->assertOk();
 
+        // A customer with two cycles here counts once; Omar's cycle elsewhere is not this shop's.
+        $response->assertJsonPath('meta.total', 3);
+
         $this->assertSame([$pending->id, $sara->id, $omar->id], array_column($response->json('data'), 'id'));
         $response->assertJsonPath('data.0.name', null)
             ->assertJsonPath('data.0.registered', false)
@@ -75,13 +78,14 @@ class MerchantCustomersTest extends TestCase
             $this->cycle(Customer::factory()->create(['name' => $name]), ['updated_at' => now()->subHours($i)]);
         }
 
-        $this->customers('?q=سا')->assertJsonCount(2, 'data');
+        $this->customers('?q=سا')->assertJsonCount(2, 'data')->assertJsonPath('meta.total', 3);
 
-        $first = $this->customers('?limit=2')->assertJsonCount(2, 'data');
+        $first = $this->customers('?limit=2')->assertJsonCount(2, 'data')->assertJsonPath('meta.total', 3);
         $this->customers('?limit=2&cursor='.$first->json('meta.next_cursor'))
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.name', 'عمر')
-            ->assertJsonPath('meta.next_cursor', null);
+            ->assertJsonPath('meta.next_cursor', null)
+            ->assertJsonPath('meta.total', 3);
 
         $this->customers('?q=س')->assertUnprocessable()->assertJsonPath('error.details.fields.q', ['min']);
     }
