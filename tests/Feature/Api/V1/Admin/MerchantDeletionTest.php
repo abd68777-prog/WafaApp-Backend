@@ -75,6 +75,29 @@ class MerchantDeletionTest extends TestCase
             ->assertJsonPath('error.code', 'MERCHANT_STATUS_CONFLICT');
     }
 
+    public function test_the_shop_sees_when_it_will_be_deleted_until_the_deletion_is_cancelled(): void
+    {
+        $merchant = Merchant::factory()->suspended()->create(['clerk_user_id' => 'user_leaving_shop']);
+        SubscriptionPeriod::factory()->for($merchant)->create();
+
+        $this->asAdmin()->postJson("/api/v1/admin/merchants/{$merchant->id}/deletion", ['source' => 'support'])->assertCreated();
+
+        $this->withToken($this->clerkToken('user_leaving_shop'))->getJson('/api/v1/merchant/me')
+            ->assertOk()
+            ->assertJsonPath('data.subscription.banner', [
+                'code' => 'PENDING_DELETION',
+                'level' => 'danger',
+                'params' => ['ends_at' => '2026-10-31T12:00:00Z'],
+            ]);
+
+        $deletionRequest = DeletionRequest::query()->where('subject_id', $merchant->id)->sole();
+        $this->asAdmin()->postJson("/api/v1/admin/deletion-requests/{$deletionRequest->id}/cancel")->assertOk();
+        $this->app['auth']->forgetGuards();
+
+        $this->withToken($this->clerkToken('user_leaving_shop'))->getJson('/api/v1/merchant/me')
+            ->assertJsonPath('data.subscription.banner.code', 'SUSPENDED');
+    }
+
     public function test_cancelling_returns_the_shop_to_where_it_was(): void
     {
         $running = Merchant::factory()->active()->create();

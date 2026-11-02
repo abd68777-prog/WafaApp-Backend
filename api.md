@@ -876,7 +876,8 @@ PUT /merchant/devices
 | `TRIAL_ENDING` | باقي للتجربة 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
 | `SUBSCRIPTION_ENDING` | باقي للاشتراك 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
 | `GRACE` | مهلة السماح | `danger` | `days_remaining`, `ends_at` |
-| `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` | الحالة نفسها | `danger` | — |
+| `EXPIRED` · `SUSPENDED` | الحالة نفسها | `danger` | — |
+| `PENDING_DELETION` | الحساب بمهلة الحذف | `danger` | `ends_at` (موعد الحذف) |
 
 **`capabilities` حسب الحالة:** `TRIAL` و`ACTIVE` و`GRACE` كلها `true`. وبـ`EXPIRED` و`SUSPENDED`
 و`PENDING_DELETION` بس `redemptions: true` (تسليم الهدايا مسموح دايماً)، والباقي `false`.
