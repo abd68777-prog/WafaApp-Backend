@@ -94,6 +94,9 @@
 | 72 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
 | 103 | `DELETE /admin/merchants/{id}/cover` | إدارة | `edit-business-identity` |
 | 104 | `DELETE /admin/merchants/{id}/links/{link}` | إدارة | `edit-business-identity` |
+| 105 | `PATCH /admin/settings/payment-methods/{method}` | إدارة | `manage-settings` |
+| 106 | `POST /admin/settings/payment-methods/{method}/qr` | إدارة | `manage-settings` |
+| 107 | `DELETE /admin/settings/payment-methods/{method}/qr` | إدارة | `manage-settings` |
 | 73 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
 | 74 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
 | 75 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
@@ -908,9 +911,11 @@ PUT /merchant/devices
     ],
     "payment": {
       "exchange_rate_syp": "13000.00",
-      "syriatel_cash_number": "…",
-      "bank_transfer_details": "…",
-      "review_sla_hours": 24
+      "review_sla_hours": 24,
+      "methods": [
+        { "key": "sham_cash", "recipient_name": null, "account": "SC-998877", "qr_url": "https://res.cloudinary.com/…/payment-methods/….png", "note": null },
+        { "key": "haram", "recipient_name": "محمد أحمد", "account": "0933123456", "qr_url": null, "note": "اكتب اسم المحل بالملاحظات" }
+      ]
     },
     "limits": {
       "card_stamps_min": 3,
@@ -1398,13 +1403,25 @@ PUT /merchant/devices
 
 ### 4.21 `POST /merchant/payments` 🔒 PIN
 
-رفع إثبات دفع، بـ`multipart/form-data`. التاجر بيحوّل برّا التطبيق (المعلومات بـ`lookups.payment`)، وبعدين بيرفع الصورة هون.
+رفع إثبات دفع، بـ`multipart/form-data`. التاجر بيحوّل برّا التطبيق (المعلومات بـ`lookups.payment.methods`)، وبعدين بيرفع الصورة هون.
+
+**طرق الدفع:** `sham_cash` (شام كاش) و`haram` (الهرم) بس. `lookups.payment.methods` فيها الطرق الفعّالة بالترتيب يلي
+حددته الإدارة، وكل طريقة فيها:
+
+| الحقل | شام كاش | الهرم |
+|---|---|---|
+| `account` | رمز الحساب | رقم المستلم |
+| `recipient_name` | — | اسم المستلم |
+| `qr_url` | صورة رمز QR (ممكن `null`) | — |
+| `note` | تعليمات قصيرة اختيارية | تعليمات قصيرة اختيارية |
+
+اعرض بطاقة لكل طريقة بالقائمة بس، وخيارات `method` من نفس القائمة.
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
 | `package_id` | integer | ✅ | باقة فعّالة من `lookups.packages` |
 | `duration_months` | integer | ✅ | `1` أو `3` أو `12` |
-| `method` | string | ✅ | `syriatel_cash` أو `transfer` |
+| `method` | string | ✅ | `sham_cash` أو `haram`، ولازم تكون فعّالة (بـ`lookups.payment.methods`) |
 | `reference` | string | — | رقم العملية، لحد 100 حرف |
 | `proof` | ملف | ✅ | صورة JPEG أو PNG أو WebP لحد 5 MB |
 | `keep_card_ids[]` | integer[] | للتخفيض بس | البطاقات يلي بتضل فعّالة. بالـmultipart ابعتها `keep_card_ids[]` مكررة |
@@ -1420,7 +1437,7 @@ PUT /merchant/devices
     "price_usd": "46.00",
     "exchange_rate": "13000.0000",
     "amount_syp": "598000.00",
-    "method": "syriatel_cash",
+    "method": "haram",
     "reference": "SC-778812",
     "proof_url": "http://…/storage/payments/proofs/UHur….png?expires=1791464950&signature=9bb3…",
     "status": "PENDING",
@@ -1829,16 +1846,19 @@ PUT /merchant/devices
 ### 5.10 `GET /admin/settings/billing` · `PATCH /admin/settings/billing` 🔒 `manage-settings`
 
 يلي بتعرضه شاشة الدفع بتطبيق التاجر، ومدة التجربة والمهلة. بالتعديل ابعت الحقول يلي بدك تغيّرها بس.
+`payment_methods` للعرض بس هون، وكل طريقة بتتعدّل بمسارها (تحت).
 
 ```json
 {
   "data": {
     "exchange_rate_syp": "13000.00",
-    "syriatel_cash_number": "0933000111",
-    "bank_transfer_details": "بنك سورية الدولي الإسلامي — حساب 12345",
     "payment_review_sla_hours": 24,
     "trial_days": 14,
-    "grace_days": 3
+    "grace_days": 3,
+    "payment_methods": [
+      { "key": "sham_cash", "name": "شام كاش", "is_active": true, "sort_order": 1, "recipient_name": null, "account": "SC-998877", "qr_url": "https://…", "note": null },
+      { "key": "haram", "name": "الهرم", "is_active": false, "sort_order": 2, "recipient_name": null, "account": null, "qr_url": null, "note": null }
+    ]
   }
 }
 ```
@@ -1846,11 +1866,24 @@ PUT /merchant/devices
 | الحقل | القيم |
 |---|---|
 | `exchange_rate_syp` | من 1 |
-| `syriatel_cash_number` | لحد 30 حرف |
-| `bank_transfer_details` | لحد 1000 حرف |
 | `payment_review_sla_hours` | 1–168. بعدها الدفعة بتنعلّم متأخرة (`overdue`) |
 | `trial_days` | 1–90، للتجارب الجديدة |
 | `grace_days` | 0–30، للدفعات يلي بتنقبل بعدين |
+
+**طريقة دفع: `PATCH /admin/settings/payment-methods/{method}`** (`{method}`: `sham_cash` أو `haram`، غيرهن `404`). ابعت
+الحقول يلي بدك تغيّرها بس، و`null` بيمسح النص:
+
+| الحقل | القيم |
+|---|---|
+| `is_active` | `true` بيعرضها بتطبيق التاجر. **ما بتتفعّل بلا `account`** (`422`، `fields.account: ["invalid"]`) |
+| `sort_order` | 0–1000، الأصغر أول |
+| `recipient_name` | لحد 100 (للهرم) |
+| `account` | لحد 100: رمز حساب شام كاش أو رقم مستلم الهرم |
+| `note` | لحد 500 |
+
+**صورة QR:** `POST /admin/settings/payment-methods/{method}/qr` بـ`multipart/form-data` (حقل `qr`، JPEG أو PNG أو WebP
+لحد 2 MB) بتحط صورة جديدة وبتمسح القديمة، و`DELETE` على نفس المسار بيشيلها. الطريقتين بالبداية موقوفتين لحد ما تتعبّى.
+**`200`:** الطريقة بنفس شكل عنصر `payment_methods`. كل تعديل بينسجّل `settings.payment_method_updated` مع قبل وبعد.
 
 ### 5.11 `GET /admin/payments` 🔒 `review-payments`
 
@@ -1869,7 +1902,7 @@ PUT /merchant/devices
 
 - `overdue`: مرّت `payment_review_sla_hours` والدفعة لسا معلّقة.
 - `duplicate_reference`: نفس رقم المرجع انستعمل بدفعة تانية. **انتبه:** ممكن يكون نفس الإيصال انرفع مرتين.
-- **الصورة مو الدليل.** الدليل إنو المبلغ وصل للحساب، فطابق مع سيريتل كاش أو دفتر الحوالات قبل ما تقبل.
+- **الصورة مو الدليل.** الدليل إنو المبلغ وصل للحساب، فطابق مع حساب شام كاش أو الهرم قبل ما تقبل.
 
 ### 5.12 `GET /admin/payments/{id}` 🔒 `review-payments`
 
@@ -2329,7 +2362,7 @@ PUT /merchant/devices
 | الاستعلام | القيم |
 |---|---|
 | `status` | `PENDING` · `APPROVED` · `REJECTED` |
-| `method` | `syriatel_cash` · `transfer` |
+| `method` | `sham_cash` · `haram` |
 | `merchant_id` | دفعات تاجر واحد |
 | `from` · `to` | `YYYY-MM-DD` بتوقيت دمشق، حسب يوم الرفع. `to` قبل `from` بيرجع `422` |
 
@@ -2348,7 +2381,7 @@ PUT /merchant/devices
       { "month": "2026-10", "count": 2, "price_usd": "35.50", "amount_syp": "461500.00" }
     ],
     "by_package": [ { "package": { "id": 1, "name": "الأساسية" }, "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ],
-    "by_method": [ { "method": "syriatel_cash", "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ]
+    "by_method": [ { "method": "sham_cash", "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ]
   }
 }
 ```

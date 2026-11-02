@@ -4,6 +4,7 @@ namespace Tests\Feature\Security;
 
 use App\Enums\AdminPermission;
 use App\Enums\AdminRole;
+use App\Enums\PaymentMethod;
 use App\Enums\ShopLink;
 use App\Models\AdminUser;
 use App\Models\BusinessType;
@@ -259,6 +260,7 @@ class RouteProtectionTest extends TestCase
             'notification' => '0199a1b2-0000-7000-8000-000000000000',
             'token' => 'fcm-token-that-does-not-exist',
             'link' => ShopLink::Instagram->value,
+            'paymentAccount' => PaymentMethod::ShamCash->value,
         ];
     }
 

@@ -32,11 +32,11 @@ class FinanceTest extends TestCase
         $basic = Package::factory()->create(['name' => 'الأساسية']);
         $plus = Package::factory()->create(['name' => 'المميزة']);
 
-        $this->approved($basic, '2026-09-10 10:00:00', '10.00', '130000.00', PaymentMethod::SyriatelCash);
-        $this->approved($plus, '2026-10-02 10:00:00', '25.50', '331500.00', PaymentMethod::Transfer);
-        $this->approved($basic, '2026-10-03 10:00:00', '10.00', '130000.00', PaymentMethod::SyriatelCash);
+        $this->approved($basic, '2026-09-10 10:00:00', '10.00', '130000.00', PaymentMethod::ShamCash);
+        $this->approved($plus, '2026-10-02 10:00:00', '25.50', '331500.00', PaymentMethod::Haram);
+        $this->approved($basic, '2026-10-03 10:00:00', '10.00', '130000.00', PaymentMethod::ShamCash);
         // Approved at 22:30 UTC on 31 October: 1 November in Damascus, outside the range.
-        $this->approved($basic, '2026-10-31 22:30:00', '10.00', '130000.00', PaymentMethod::SyriatelCash);
+        $this->approved($basic, '2026-10-31 22:30:00', '10.00', '130000.00', PaymentMethod::ShamCash);
         // Pending and rejected payments are not income.
         Payment::factory()->create(['package_id' => $basic->id]);
         Payment::factory()->rejected()->create(['package_id' => $basic->id]);
@@ -52,8 +52,8 @@ class FinanceTest extends TestCase
             ->assertJsonPath('data.by_package.0.count', 2)
             ->assertJsonPath('data.by_package.1.price_usd', '25.50')
             ->assertJsonPath('data.by_method', [
-                ['method' => 'syriatel_cash', 'count' => 2, 'price_usd' => '20.00', 'amount_syp' => '260000.00'],
-                ['method' => 'transfer', 'count' => 1, 'price_usd' => '25.50', 'amount_syp' => '331500.00'],
+                ['method' => 'haram', 'count' => 1, 'price_usd' => '25.50', 'amount_syp' => '331500.00'],
+                ['method' => 'sham_cash', 'count' => 2, 'price_usd' => '20.00', 'amount_syp' => '260000.00'],
             ]);
 
         // Without dates: this month so far.
