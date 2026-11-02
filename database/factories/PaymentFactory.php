@@ -29,7 +29,7 @@ class PaymentFactory extends Factory
             'price_usd' => '10.00',
             'exchange_rate' => '13000.0000',
             'amount_syp' => '130000.00',
-            'method' => PaymentMethod::SyriatelCash,
+            'method' => PaymentMethod::ShamCash,
             'reference' => fake()->numerify('TX########'),
             'proof_path' => 'payments/proofs/'.fake()->uuid().'.jpg',
             'status' => PaymentStatus::Pending,

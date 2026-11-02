@@ -43,7 +43,11 @@ class CustomerController extends Controller
             ->orderByDesc('shop_activity.last_activity_at')
             ->orderByDesc('customers.id');
 
-        return CursorPage::respond($request, $customers, MerchantCustomerResource::class, [], function (Collection $page) use ($merchant): void {
+        // The size of the shop's whole customer base for the screen title,
+        // the same on every page and whatever is searched.
+        $total = CardCycle::query()->where('merchant_id', $merchant->id)->distinct()->count('customer_id');
+
+        return CursorPage::respond($request, $customers, MerchantCustomerResource::class, ['total' => $total], function (Collection $page) use ($merchant): void {
             $this->loadShopDetails($page, $merchant);
         });
     }

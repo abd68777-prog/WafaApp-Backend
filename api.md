@@ -50,6 +50,7 @@
 | 32 | `GET /merchant/cards` | تاجر | مسجّل |
 | 33 | `POST /merchant/cards` | تاجر | مسجّل + PIN |
 | 34 | `POST /merchant/cards/{card_id}/suspend` | تاجر | مسجّل + PIN |
+| 100 | `PATCH /merchant/cards/{card_id}/color` | تاجر | مسجّل + PIN |
 | 35 | `POST /merchant/scan/resolve` | تاجر | مسجّل |
 | 36 | `POST /merchant/stamps` | تاجر | مسجّل |
 | 37 | `POST /merchant/redemptions` | تاجر | مسجّل |
@@ -69,6 +70,8 @@
 | 51 | `GET /merchant/customers` | تاجر | مسجّل + PIN |
 | 52 | `PATCH /merchant/profile` | تاجر | مسجّل + PIN |
 | 53 | `POST /merchant/profile/logo` | تاجر | مسجّل + PIN |
+| 101 | `POST /merchant/profile/cover` | تاجر | مسجّل + PIN |
+| 102 | `DELETE /merchant/profile/cover` | تاجر | مسجّل + PIN |
 | | **لوحة الإدارة** | | |
 | 54 | `GET /admin/auth/me` | إدارة | حساب فعّال |
 | 55 | `GET /admin/admin-users` | إدارة | `manage-admin-accounts` |
@@ -89,6 +92,11 @@
 | 70 | `GET /admin/merchants` | إدارة | `view-merchants-and-customers` |
 | 71 | `GET /admin/merchants/{id}` | إدارة | `view-merchants-and-customers` |
 | 72 | `PATCH /admin/merchants/{id}` | إدارة | `edit-business-identity` |
+| 103 | `DELETE /admin/merchants/{id}/cover` | إدارة | `edit-business-identity` |
+| 104 | `DELETE /admin/merchants/{id}/links/{link}` | إدارة | `edit-business-identity` |
+| 105 | `PATCH /admin/settings/payment-methods/{method}` | إدارة | `manage-settings` |
+| 106 | `POST /admin/settings/payment-methods/{method}/qr` | إدارة | `manage-settings` |
+| 107 | `DELETE /admin/settings/payment-methods/{method}/qr` | إدارة | `manage-settings` |
 | 73 | `POST /admin/merchants/{id}/suspend` | إدارة | `suspend-merchants` |
 | 74 | `POST /admin/merchants/{id}/reactivate` | إدارة | `suspend-merchants` |
 | 75 | `POST /admin/cards/{id}/suspend` | إدارة | `suspend-merchants` |
@@ -625,13 +633,18 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
     "merchant_id": "10",
     "card_id": "11",
     "cycle_id": "17"
-  }
+  },
+  "apns": { "payload": { "aps": { "badge": 3, "sound": "default" } } },
+  "android": { "notification": { "notification_count": 3, "sound": "default" } }
 }
 ```
 
 - **كل قيم `data` نصوص،** حوّل المعرّفات لأرقام بالتطبيق.
 - `notification_id` هو `id` نفس الإشعار بالصندوق: لما يضغط عليه علّمه مقروء بـ`POST /customer/notifications/{id}/read`.
 - أولوية عالية مع الصوت الافتراضي على أندرويد وiOS.
+- **رقم أيقونة التطبيق (badge):** كل push فيه عدد الإشعارات غير المقروءة، يعني نفس `meta.unread_count` بعد ما ينضاف
+  الإشعار الجديد. على iOS بـ`aps.badge`، وعلى أندرويد بـ`notification_count` (أغلب الأجهزة بتعرض نقطة، وسامسونج بتعرض
+  الرقم). تصفير الرقم لما ينفتح التطبيق أو ينقرأ إشعار شغل التطبيق نفسه. نفس الشي لإشعارات التاجر.
 - الرمز يلي بيرجّع عليه FCM `UNREGISTERED` (التطبيق انشال) بينحذف لحاله.
 
 ### 3.14 `POST /customer/notifications/{id}/read` 🔒 جاهز
@@ -703,17 +716,25 @@ Messaging لكل أجهزة الحساب المسجّلة بـ`PUT /customer/dev
     "logo_url": null,
     "business_type": { "id": 1, "name": "كافيه" },
     "governorate": { "id": 1, "name": "دمشق" },
+    "cover_url": "https://res.cloudinary.com/…/merchants/covers/01a0f3c2-….webp",
     "address": "شارع الحمرا",
     "accepting_stamps": true,
     "muted": false,
+    "instagram_url": "https://instagram.com/yasmin.cafe",
+    "facebook_url": null,
+    "maps_url": "https://maps.app.goo.gl/AbC123xyz",
     "cards": [ CardSummary ]
   }
 }
 ```
 
 - `cards`: البطاقات الفعّالة بس.
+- `cover_url`: غلاف الصفحة، WebP بنسبة **2:1** (لحد 1200×600). `null` إذا المحل ما رفع غلاف، وقتها اعرض خلفية بلون
+  البطاقة. **بصفحة المحل بس**، مو بالدليل ولا بـ`MerchantSummary`.
 - `accepting_stamps`: `false` للمحل المنتهي أو الموقوف أو بانتظار الحذف.
 - `muted`: الزبون موقّف عروض هالمحل (§3.18).
+- `instagram_url` · `facebook_url` · `maps_url`: روابط المحل، كل واحد `null` إذا مو معبّى. اعرض أيقونة بس للمعبّى، وافتح
+  الرابط **برا التطبيق** (مو in-app browser). كلها `https://` ومن مواقعها بس (§4.26). **بصفحة المحل بس**، مو بالدليل.
 - **محل مو بالدليل** (منتهي مثلاً): الصفحة بتفتح بس إذا الزبون إلو دورة عنده، ومع `cards: []`. غير هيك **`404`**.
 
 ### 3.21 `GET /customer/shop-contacts` 🔒 جاهز
@@ -858,7 +879,8 @@ PUT /merchant/devices
 | `TRIAL_ENDING` | باقي للتجربة 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
 | `SUBSCRIPTION_ENDING` | باقي للاشتراك 3 أيام أو أقل | `warning` | `days_remaining`, `ends_at` |
 | `GRACE` | مهلة السماح | `danger` | `days_remaining`, `ends_at` |
-| `EXPIRED` · `SUSPENDED` · `PENDING_DELETION` | الحالة نفسها | `danger` | — |
+| `EXPIRED` · `SUSPENDED` | الحالة نفسها | `danger` | — |
+| `PENDING_DELETION` | الحساب بمهلة الحذف | `danger` | `ends_at` (موعد الحذف) |
 
 **`capabilities` حسب الحالة:** `TRIAL` و`ACTIVE` و`GRACE` كلها `true`. وبـ`EXPIRED` و`SUSPENDED`
 و`PENDING_DELETION` بس `redemptions: true` (تسليم الهدايا مسموح دايماً)، والباقي `false`.
@@ -873,6 +895,7 @@ PUT /merchant/devices
     "governorates": [ { "id": 1, "name": "دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, … ],
     "icons": [ { "id": 1, "key": "coffee", "name": "فنجان قهوة" }, { "id": 2, "key": "coffee-bean", "name": "حبة قهوة" }, … ],
+    "card_colors": [ { "key": "navy", "name": "كحلي", "hex": "#1B4F72" }, { "key": "royal", "name": "أزرق ملكي", "hex": "#2F4FB0" }, … ],
     "trial_days": 14,
     "packages": [
       {
@@ -889,9 +912,11 @@ PUT /merchant/devices
     ],
     "payment": {
       "exchange_rate_syp": "13000.00",
-      "syriatel_cash_number": "…",
-      "bank_transfer_details": "…",
-      "review_sla_hours": 24
+      "review_sla_hours": 24,
+      "methods": [
+        { "key": "sham_cash", "recipient_name": null, "account": "SC-998877", "qr_url": "https://res.cloudinary.com/…/payment-methods/….png", "note": null },
+        { "key": "haram", "recipient_name": "محمد أحمد", "account": "0933123456", "qr_url": null, "note": "اكتب اسم المحل بالملاحظات" }
+      ]
     },
     "limits": {
       "card_stamps_min": 3,
@@ -913,7 +938,8 @@ PUT /merchant/devices
 
 ### 4.3 `POST /merchant/registration/business`
 
-الخطوة 1: بيانات النشاط. مقبولة بس لما `registration_step = business`.
+الخطوة 1: بيانات النشاط. مقبولة بس لما `registration_step = business`. ابعت الطلب **`multipart/form-data`** لأنو
+الشعار إلزامي.
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
@@ -923,12 +949,12 @@ PUT /merchant/devices
 | `address` | string | — | لحد 255 |
 | `owner_name` | string | ✅ | 2–80 |
 | `phone` | string | ✅ | رقم تواصل المحل، مو للدخول. فريد بين التجار |
-| `logo` | ملف | — | JPEG أو PNG أو WebP لحد 2 MB. مع الشعار ابعت الطلب `multipart/form-data` |
+| `logo` | ملف | ✅ | JPEG أو PNG أو WebP لحد 2 MB. بيبيّن على كل بطاقات المحل |
 
 **`201`:** `{ "data": MerchantMe }` مع `registration_step: "package"` و`subscription: null`.
 
 **أخطاء:**
-- `422 VALIDATION_FAILED` (الرقم المستعمل: `phone: ["taken"]`).
+- `422 VALIDATION_FAILED` (الرقم المستعمل: `phone: ["taken"]`، وبلا شعار: `logo: ["required"]`).
 - `409 REGISTRATION_STEP_MISMATCH` مع `registration_step`.
 
 ### 4.4 `POST /merchant/registration/package`
@@ -1035,6 +1061,7 @@ PUT /merchant/devices
       "reward_description": "فنجان قهوة مجاني",
       "terms": "لا تُجمع مع عروض أخرى",
       "icon": { "id": 1, "key": "coffee", "name": "فنجان قهوة" },
+      "color": "teal",
       "status": "active",
       "created_at": "2026-09-29T15:00:52Z",
       "suspended_at": null,
@@ -1049,7 +1076,7 @@ PUT /merchant/devices
 
 ### 4.10 `POST /merchant/cards` 🔒 PIN
 
-نشر بطاقة. **ما بتتعدّل بعد النشر، وما في مسار تعديل**.
+نشر بطاقة. **ما بتتعدّل بعد النشر، إلا لونها** (تحت).
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
@@ -1058,6 +1085,7 @@ PUT /merchant/devices
 | `reward_description` | string | ✅ | 2–120 |
 | `terms` | string | — | لحد 500 |
 | `icon_id` | integer | ✅ | من `lookups.icons` |
+| `color` | string | ✅ | مفتاح من `lookups.card_colors` |
 
 **`201`:** `{ "data": MerchantCard }` (نفس عنصر §4.9).
 
@@ -1066,6 +1094,16 @@ PUT /merchant/devices
 - `422 MERCHANT_STATUS_BLOCKS_ACTION` مع `{ "status": "EXPIRED", "action": "cards" }`.
 - `422 VALIDATION_FAILED`.
 - `403 PIN_REQUIRED`.
+
+**تغيير اللون: `PATCH /merchant/cards/{card_id}/color` 🔒 PIN.** الجسم `{ "color": "plum" }`، والمفتاح من
+`lookups.card_colors`. بيغيّر اللون بس، للبطاقة الفعّالة أو الموقوفة. أي حقل تاني بالجسم بينتجاهل، لأن الاسم والهدية
+وعدد الطوابع وعد للزبون. **`200`:** `{ "data": MerchantCard }`. **أخطاء:** `422 VALIDATION_FAILED` لمفتاح برا
+اللوحة (`details.fields.color`)، و`404 NOT_FOUND` لبطاقة مو تبع المحل، و`403 PIN_REQUIRED`.
+
+**ألوان البطاقات:** لوحة ثابتة من 10 ألوان كلها غامقة مع نص أبيض، والخادم بيبعت **المفتاح بس**:
+`navy` (الافتراضي) · `royal` · `teal` · `forest` · `olive` · `coffee` · `burgundy` · `rose` · `plum` · `graphite`.
+`card.color` بيوصل بكل مكان فيه بطاقة، منها `/customer/cards`، وما بيكون `null` أبداً (البطاقات الأقدم من الألوان
+صارت `navy`). مفتاح مش معروف عند التطبيق (لون انضاف بعدين) بينرسم `navy`. الـ`hex` بـ`lookups.card_colors` للوحة الإدارة وتطبيق التاجر، وتطبيق الزبون عنده ألوانه.
 
 ### 4.11 `POST /merchant/cards/{card_id}/suspend` 🔒 PIN
 
@@ -1366,13 +1404,25 @@ PUT /merchant/devices
 
 ### 4.21 `POST /merchant/payments` 🔒 PIN
 
-رفع إثبات دفع، بـ`multipart/form-data`. التاجر بيحوّل برّا التطبيق (المعلومات بـ`lookups.payment`)، وبعدين بيرفع الصورة هون.
+رفع إثبات دفع، بـ`multipart/form-data`. التاجر بيحوّل برّا التطبيق (المعلومات بـ`lookups.payment.methods`)، وبعدين بيرفع الصورة هون.
+
+**طرق الدفع:** `sham_cash` (شام كاش) و`haram` (الهرم) بس. `lookups.payment.methods` فيها الطرق الفعّالة بالترتيب يلي
+حددته الإدارة، وكل طريقة فيها:
+
+| الحقل | شام كاش | الهرم |
+|---|---|---|
+| `account` | رمز الحساب | رقم المستلم |
+| `recipient_name` | — | اسم المستلم |
+| `qr_url` | صورة رمز QR (ممكن `null`) | — |
+| `note` | تعليمات قصيرة اختيارية | تعليمات قصيرة اختيارية |
+
+اعرض بطاقة لكل طريقة بالقائمة بس، وخيارات `method` من نفس القائمة.
 
 | الحقل | النوع | مطلوب | ملاحظة |
 |---|---|---|---|
 | `package_id` | integer | ✅ | باقة فعّالة من `lookups.packages` |
 | `duration_months` | integer | ✅ | `1` أو `3` أو `12` |
-| `method` | string | ✅ | `syriatel_cash` أو `transfer` |
+| `method` | string | ✅ | `sham_cash` أو `haram`، ولازم تكون فعّالة (بـ`lookups.payment.methods`) |
 | `reference` | string | — | رقم العملية، لحد 100 حرف |
 | `proof` | ملف | ✅ | صورة JPEG أو PNG أو WebP لحد 5 MB |
 | `keep_card_ids[]` | integer[] | للتخفيض بس | البطاقات يلي بتضل فعّالة. بالـmultipart ابعتها `keep_card_ids[]` مكررة |
@@ -1388,7 +1438,7 @@ PUT /merchant/devices
     "price_usd": "46.00",
     "exchange_rate": "13000.0000",
     "amount_syp": "598000.00",
-    "method": "syriatel_cash",
+    "method": "haram",
     "reference": "SC-778812",
     "proof_url": "http://…/storage/payments/proofs/UHur….png?expires=1791464950&signature=9bb3…",
     "status": "PENDING",
@@ -1539,10 +1589,11 @@ PUT /merchant/devices
     },
     { "id": 21, "name": null, "phone_masked": "0944***111", "registered": false, "last_stamp_at": "…", "cards": [ … ] }
   ],
-  "meta": { "next_cursor": null }
+  "meta": { "next_cursor": null, "total": 412 }
 }
 ```
 
+- `meta.total`: عدد كل زبائن المحل (حتى المعلّقين)، لعنوان الشاشة. نفس الرقم بكل صفحة، و`q` ما بيأثر عليه.
 - `name: null` و`registered: false` للزبون المعلّق.
 - `cards`: الدورات المفتوحة بس (`COLLECTING` أو `REWARD_READY`).
 - `last_stamp_at`: آخر طابع غير ملغى بهالمحل.
@@ -1557,6 +1608,19 @@ PUT /merchant/devices
 | `phone` | string | رقم سوري، فريد بين التجار (`taken` إذا مستعمل) |
 | `address` | string \| null | لحد 255. `null` بيمسحه |
 | `contact_phone` | string \| null | رقم التواصل يلي بيشوفه **كل الزبائن** بنافذة المحلات (§3.21). موبايل (`0944…`) أو أرضي (`011 222 3344`)، وبيرجع بصيغة `+963…`. `null` بيخبّيه |
+| `instagram_url` | string \| null | رابط إنستغرام المحل. `null` بيمسحه |
+| `facebook_url` | string \| null | رابط فيسبوك المحل. `null` بيمسحه |
+| `maps_url` | string \| null | رابط Google Maps جاهز بيلصقو التاجر (مو إحداثيات). `null` بيمسحه |
+
+**الروابط:** لحد 255، و`https://` بس، وكل حقل من مواقعه بس. ما بيقبل اسم مستخدم أو بورت بالرابط:
+
+| الحقل | المواقع المقبولة |
+|---|---|
+| `instagram_url` | `instagram.com` · `www.instagram.com` |
+| `facebook_url` | `facebook.com` · `www.facebook.com` · `m.facebook.com` · `fb.com` · `www.fb.com` · `fb.me` |
+| `maps_url` | `maps.app.goo.gl` · `maps.google.com` · `goo.gl/maps…` · `google.com/maps…` · `www.google.com/maps…` |
+
+غير هيك `422 VALIDATION_FAILED` مع `details.fields.<الحقل>: ["format"]`. الموقع الإلكتروني الخاص بالمحل مؤجّل لمرحلة تانية.
 
 **`200`:** `{ "data": MerchantProfile }`، نفس `merchant` بـ`GET /merchant/me`.
 
@@ -1569,6 +1633,21 @@ PUT /merchant/devices
 | `logo` | ملف | ✅ | JPEG أو PNG أو WebP لحد 2 MB |
 
 **`200`:** `{ "data": MerchantProfile }` مع `logo_url` الجديد. الشعار القديم بينمسح، والشعار الجديد بيبيّن على كل بطاقات المحل.
+
+### 4.27.1 `POST /merchant/profile/cover` · `DELETE /merchant/profile/cover` 🔒 PIN
+
+غلاف صفحة المحل بتطبيق الزبون (متل غلاف فيسبوك، والشعار فوقه). الرفع بـ`multipart/form-data`:
+
+| الحقل | النوع | مطلوب | ملاحظة |
+|---|---|---|---|
+| `cover` | ملف | ✅ | JPEG أو PNG أو WebP لحد **5 MB** |
+
+- الخادم بيقصّ الصورة من النص لنسبة **2:1**، وبيصغّرها لحد 1200×600 (ما بيكبّرها)، وبيحفظها WebP. فرجّي المعاينة
+  بنسبة 2:1 قبل الرفع.
+- معلومات الصورة (متل موقع الـGPS) ما بتنحفظ.
+- **`200`:** `{ "data": MerchantProfile }` مع `cover_url` الجديد، والغلاف القديم بينمسح.
+- `DELETE` بيشيل الغلاف (`cover_url: null`). التكرار ما بيغيّر شي.
+- **أخطاء:** `422 VALIDATION_FAILED` بـ`details.fields.cover` لملف مو صورة أو أكبر من 5 MB، و`403 PIN_REQUIRED`.
 
 ---
 
@@ -1769,16 +1848,19 @@ PUT /merchant/devices
 ### 5.10 `GET /admin/settings/billing` · `PATCH /admin/settings/billing` 🔒 `manage-settings`
 
 يلي بتعرضه شاشة الدفع بتطبيق التاجر، ومدة التجربة والمهلة. بالتعديل ابعت الحقول يلي بدك تغيّرها بس.
+`payment_methods` للعرض بس هون، وكل طريقة بتتعدّل بمسارها (تحت).
 
 ```json
 {
   "data": {
     "exchange_rate_syp": "13000.00",
-    "syriatel_cash_number": "0933000111",
-    "bank_transfer_details": "بنك سورية الدولي الإسلامي — حساب 12345",
     "payment_review_sla_hours": 24,
     "trial_days": 14,
-    "grace_days": 3
+    "grace_days": 3,
+    "payment_methods": [
+      { "key": "sham_cash", "name": "شام كاش", "is_active": true, "sort_order": 1, "recipient_name": null, "account": "SC-998877", "qr_url": "https://…", "note": null },
+      { "key": "haram", "name": "الهرم", "is_active": false, "sort_order": 2, "recipient_name": null, "account": null, "qr_url": null, "note": null }
+    ]
   }
 }
 ```
@@ -1786,11 +1868,24 @@ PUT /merchant/devices
 | الحقل | القيم |
 |---|---|
 | `exchange_rate_syp` | من 1 |
-| `syriatel_cash_number` | لحد 30 حرف |
-| `bank_transfer_details` | لحد 1000 حرف |
 | `payment_review_sla_hours` | 1–168. بعدها الدفعة بتنعلّم متأخرة (`overdue`) |
 | `trial_days` | 1–90، للتجارب الجديدة |
 | `grace_days` | 0–30، للدفعات يلي بتنقبل بعدين |
+
+**طريقة دفع: `PATCH /admin/settings/payment-methods/{method}`** (`{method}`: `sham_cash` أو `haram`، غيرهن `404`). ابعت
+الحقول يلي بدك تغيّرها بس، و`null` بيمسح النص:
+
+| الحقل | القيم |
+|---|---|
+| `is_active` | `true` بيعرضها بتطبيق التاجر. **ما بتتفعّل بلا `account`** (`422`، `fields.account: ["invalid"]`) |
+| `sort_order` | 0–1000، الأصغر أول |
+| `recipient_name` | لحد 100 (للهرم) |
+| `account` | لحد 100: رمز حساب شام كاش أو رقم مستلم الهرم |
+| `note` | لحد 500 |
+
+**صورة QR:** `POST /admin/settings/payment-methods/{method}/qr` بـ`multipart/form-data` (حقل `qr`، JPEG أو PNG أو WebP
+لحد 2 MB) بتحط صورة جديدة وبتمسح القديمة، و`DELETE` على نفس المسار بيشيلها. الطريقتين بالبداية موقوفتين لحد ما تتعبّى.
+**`200`:** الطريقة بنفس شكل عنصر `payment_methods`. كل تعديل بينسجّل `settings.payment_method_updated` مع قبل وبعد.
 
 ### 5.11 `GET /admin/payments` 🔒 `review-payments`
 
@@ -1809,7 +1904,7 @@ PUT /merchant/devices
 
 - `overdue`: مرّت `payment_review_sla_hours` والدفعة لسا معلّقة.
 - `duplicate_reference`: نفس رقم المرجع انستعمل بدفعة تانية. **انتبه:** ممكن يكون نفس الإيصال انرفع مرتين.
-- **الصورة مو الدليل.** الدليل إنو المبلغ وصل للحساب، فطابق مع سيريتل كاش أو دفتر الحوالات قبل ما تقبل.
+- **الصورة مو الدليل.** الدليل إنو المبلغ وصل للحساب، فطابق مع حساب شام كاش أو الهرم قبل ما تقبل.
 
 ### 5.12 `GET /admin/payments/{id}` 🔒 `review-payments`
 
@@ -1942,6 +2037,14 @@ PUT /merchant/devices
 | `reason` | string | ✅ | 3–255، بينكتب بسجل التدقيق |
 
 **`200`:** صفحة التاجر (§5.17). كل تغيير بينسجّل (`merchant.identity_updated`) مع القيمة قبل وبعد.
+
+**شيل غلاف غير لائق: `DELETE /admin/merchants/{id}/cover`** بنفس الصلاحية، والجسم `{ "reason": "…" }` (3–255) إلزامي.
+بيمسح الملف وبيرجّع صفحة التاجر مع `cover_url: null`، وبينسجّل `merchant.cover_removed` مع السبب. المحل بيقدر يرفع غيره.
+صفحة التاجر (§5.17) فيها `cover_url` لتعرض الغلاف.
+
+**شيل رابط: `DELETE /admin/merchants/{id}/links/{link}`** بنفس الصلاحية، و`{link}` واحد من `instagram` · `facebook` ·
+`maps` (غيرهن `404`). الجسم `{ "reason": "…" }` (3–255) إلزامي. بيرجّع صفحة التاجر، وبينسجّل `merchant.link_removed` مع
+الرابط القديم والسبب. التكرار ما بيسجّل شي. صفحة التاجر فيها `links: { instagram_url, facebook_url, maps_url }`.
 
 ### 5.19 `POST /admin/merchants/{id}/suspend` · `POST /admin/merchants/{id}/reactivate` 🔒 `suspend-merchants`
 
@@ -2261,7 +2364,7 @@ PUT /merchant/devices
 | الاستعلام | القيم |
 |---|---|
 | `status` | `PENDING` · `APPROVED` · `REJECTED` |
-| `method` | `syriatel_cash` · `transfer` |
+| `method` | `sham_cash` · `haram` |
 | `merchant_id` | دفعات تاجر واحد |
 | `from` · `to` | `YYYY-MM-DD` بتوقيت دمشق، حسب يوم الرفع. `to` قبل `from` بيرجع `422` |
 
@@ -2280,7 +2383,7 @@ PUT /merchant/devices
       { "month": "2026-10", "count": 2, "price_usd": "35.50", "amount_syp": "461500.00" }
     ],
     "by_package": [ { "package": { "id": 1, "name": "الأساسية" }, "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ],
-    "by_method": [ { "method": "syriatel_cash", "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ]
+    "by_method": [ { "method": "sham_cash", "count": 2, "price_usd": "20.00", "amount_syp": "260000.00" } ]
   }
 }
 ```

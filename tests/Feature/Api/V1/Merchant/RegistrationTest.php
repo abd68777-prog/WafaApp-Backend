@@ -11,7 +11,9 @@ use App\Models\Package;
 use App\Models\Setting;
 use App\Models\TrialEmailHash;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -25,15 +27,28 @@ class RegistrationTest extends TestCase
 
     private const EMAIL = 'shop@example.com';
 
+    /**
+     * The business step carries the logo, so the app sends it as multipart.
+     */
+    private const MULTIPART = ['Accept' => 'application/json'];
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake(config('filesystems.media_disk'));
+    }
+
     public function test_the_business_step_creates_the_shop_and_asks_for_a_package_next(): void
     {
         $response = $this->withToken($this->merchantToken())
-            ->postJson('/api/v1/merchant/registration/business', $this->businessPayload());
+            ->post('/api/v1/merchant/registration/business', $this->businessPayload(), self::MULTIPART);
 
         $response->assertCreated()
             ->assertJsonPath('data.registration_step', 'package')
             ->assertJsonPath('data.merchant.business_name', 'كافيه الياسمين')
             ->assertJsonPath('data.merchant.phone', '+963933111222')
+            ->assertJsonPath('data.merchant.logo_url', fn (?string $url): bool => $url !== null && str_contains($url, 'merchants/logos'))
             ->assertJsonPath('data.subscription', null);
 
         $this->assertDatabaseHas('merchants', [
@@ -48,9 +63,22 @@ class RegistrationTest extends TestCase
         Merchant::factory()->create(['phone' => '+963933111222']);
 
         $response = $this->withToken($this->merchantToken())
-            ->postJson('/api/v1/merchant/registration/business', $this->businessPayload());
+            ->post('/api/v1/merchant/registration/business', $this->businessPayload(), self::MULTIPART);
 
         $response->assertUnprocessable()->assertJsonPath('error.details.fields.phone', ['taken']);
+    }
+
+    public function test_the_business_step_needs_the_shop_logo(): void
+    {
+        $payload = $this->businessPayload();
+        unset($payload['logo']);
+
+        $this->withToken($this->merchantToken())
+            ->post('/api/v1/merchant/registration/business', $payload, self::MULTIPART)
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['logo' => ['required']]);
+
+        $this->assertDatabaseCount('merchants', 0);
     }
 
     public function test_the_business_step_rejects_an_unknown_business_type(): void
@@ -59,7 +87,7 @@ class RegistrationTest extends TestCase
         $payload['business_type_id'] = 9999;
 
         $response = $this->withToken($this->merchantToken())
-            ->postJson('/api/v1/merchant/registration/business', $payload);
+            ->post('/api/v1/merchant/registration/business', $payload, self::MULTIPART);
 
         $response->assertUnprocessable()->assertJsonPath('error.details.fields.business_type_id', ['exists']);
     }
@@ -69,7 +97,7 @@ class RegistrationTest extends TestCase
         Merchant::factory()->awaitingPin()->create(['clerk_user_id' => self::CLERK_USER]);
 
         $this->withToken($this->merchantToken())
-            ->postJson('/api/v1/merchant/registration/business', $this->businessPayload())
+            ->post('/api/v1/merchant/registration/business', $this->businessPayload(), self::MULTIPART)
             ->assertConflict()
             ->assertJsonPath('error.code', 'REGISTRATION_STEP_MISMATCH')
             ->assertJsonPath('error.details.registration_step', 'pin');
@@ -220,6 +248,7 @@ class RegistrationTest extends TestCase
             'address' => 'شارع الحمرا',
             'owner_name' => 'أحمد',
             'phone' => '0933 111 222',
+            'logo' => UploadedFile::fake()->image('logo.png', 200, 200),
         ];
     }
 }

@@ -596,18 +596,17 @@ paths:
       tags: [التاجر — الحساب والتسجيل]
       operationId: merchantRegisterBusiness
       summary: 'التسجيل 1: بيانات النشاط'
-      description: مقبولة بس لما `registration_step = business`. مع الشعار ابعت الطلب `multipart/form-data`.
+      description: مقبولة بس لما `registration_step = business`. الشعار إلزامي، فالطلب `multipart/form-data`.
       security: [{ clerkSession: [] }]
       requestBody:
         required: true
         content:
-          application/json:
-            schema: { $ref: '#/components/schemas/RegisterBusinessInput' }
           multipart/form-data:
             schema:
               allOf:
                 - $ref: '#/components/schemas/RegisterBusinessInput'
                 - type: object
+                  required: [logo]
                   properties:
                     logo: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
       responses:
@@ -832,7 +831,7 @@ paths:
       tags: [التاجر — البطاقات]
       operationId: merchantPublishCard
       summary: نشر بطاقة
-      description: '**ما بتتعدّل بعد النشر، وما في مسار تعديل.** البطاقات الموقوفة ما بتنحسب من حد الباقة.'
+      description: '**ما بتتعدّل بعد النشر، إلا لونها** (`PATCH /merchant/cards/{card_id}/color`). البطاقات الموقوفة ما بتنحسب من حد الباقة.'
       security: [{ clerkSession: [], pinToken: [] }]
       requestBody:
         required: true
@@ -840,13 +839,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [name, stamps_required, reward_description, icon_id]
+              required: [name, stamps_required, reward_description, icon_id, color]
               properties:
                 name: { type: string, minLength: 2, maxLength: 60 }
                 stamps_required: { type: integer, minimum: 3, maximum: 10, description: بين `limits.card_stamps_min` و`card_stamps_max` }
                 reward_description: { type: string, minLength: 2, maxLength: 120 }
                 terms: { type: [string, 'null'], maxLength: 500 }
                 icon_id: { type: integer, description: من `lookups.icons` }
+                color: { $ref: '#/components/schemas/CardColorInput' }
       responses:
         '201': { $ref: '#/components/responses/MerchantCardData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -882,6 +882,36 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/cards/{card_id}/color:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    patch:
+      tags: [التاجر — البطاقات]
+      operationId: merchantRecolorCard
+      summary: تغيير لون البطاقة
+      description: |
+        بيغيّر اللون بس، للبطاقة الفعّالة أو الموقوفة. أي حقل تاني بينتجاهل: الاسم والهدية وعدد الطوابع وعد للزبون.
+      security: [{ clerkSession: [], pinToken: [] }]
+      parameters:
+        - { name: card_id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [color]
+              properties:
+                color: { type: string, enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite] }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantCardData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   /merchant/scan/resolve:
@@ -1181,7 +1211,7 @@ paths:
                   data:
                     type: array
                     items: { $ref: '#/components/schemas/MerchantCustomer' }
-                  meta: { $ref: '#/components/schemas/CursorMeta' }
+                  meta: { $ref: '#/components/schemas/CustomersMeta' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
@@ -1194,7 +1224,7 @@ paths:
     patch:
       tags: [التاجر — ملف المحل]
       operationId: merchantUpdateProfile
-      summary: تعديل الهاتف والعنوان واسم المالك
+      summary: تعديل الهاتف والعنوان واسم المالك وروابط المحل
       description: اسم النشاط ونوعه والمحافظة ما بيتعدّلوا من التطبيق. ابعت الحقول يلي بدك تغيّرها بس.
       security: [{ clerkSession: [], pinToken: [] }]
       requestBody:
@@ -1208,6 +1238,9 @@ paths:
                 phone: { $ref: '#/components/schemas/Phone' }
                 address: { type: [string, 'null'], maxLength: 255, description: '`null` بيمسح العنوان' }
                 contact_phone: { type: [string, 'null'], description: 'رقم التواصل يلي بيشوفه كل الزبائن: موبايل أو أرضي، وبيرجع `+963…`. `null` بيخبّيه', example: 011 222 3344 }
+                instagram_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `instagram.com` أو `www.instagram.com`. `null` بيمسحه', example: 'https://instagram.com/yasmin.cafe' }
+                facebook_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `facebook.com` · `www.facebook.com` · `m.facebook.com` · `fb.com` · `www.fb.com` · `fb.me`. `null` بيمسحه' }
+                maps_url: { type: [string, 'null'], maxLength: 255, description: '`https://` على `maps.app.goo.gl` · `maps.google.com`، أو `goo.gl` و`google.com` و`www.google.com` بمسار بيبلش بـ`/maps`. `null` بيمسحه', example: 'https://maps.app.goo.gl/AbC123xyz' }
       responses:
         '200': { $ref: '#/components/responses/MerchantProfileData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -1239,6 +1272,45 @@ paths:
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '403': { $ref: '#/components/responses/PinRequired' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+
+  /merchant/profile/cover:
+    parameters:
+      - $ref: '#/components/parameters/AppVersion'
+      - $ref: '#/components/parameters/AppPlatform'
+    post:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantUploadCover
+      summary: رفع غلاف المحل
+      description: |
+        الخادم بيقصّ الصورة من النص لنسبة 2:1، وبيصغّرها لحد 1200×600 (ما بيكبّرها)، وبيحفظها WebP بدون معلومات
+        الصورة. الغلاف القديم بينمسح.
+      security: [{ clerkSession: [], pinToken: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [cover]
+              properties:
+                cover: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 5 MB }
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '426': { $ref: '#/components/responses/AppVersionUnsupported' }
+    delete:
+      tags: [التاجر — ملف المحل]
+      operationId: merchantRemoveCover
+      summary: شيل غلاف المحل
+      description: '`cover_url` بيرجع `null`. التكرار ما بيغيّر شي.'
+      security: [{ clerkSession: [], pinToken: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/MerchantProfileData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/PinRequired' }
         '426': { $ref: '#/components/responses/AppVersionUnsupported' }
 
   /merchant/campaigns:
@@ -1559,7 +1631,7 @@ paths:
       security: [{ clerkSession: [] }]
       parameters:
         - { name: status, in: query, required: false, schema: { type: string, enum: [PENDING, APPROVED, REJECTED] } }
-        - { name: method, in: query, required: false, schema: { type: string, enum: [syriatel_cash, transfer] } }
+        - { name: method, in: query, required: false, schema: { $ref: '#/components/schemas/PaymentMethod' } }
         - { name: merchant_id, in: query, required: false, schema: { type: integer } }
         - { name: from, in: query, required: false, schema: { type: string, format: date } }
         - { name: to, in: query, required: false, schema: { type: string, format: date } }
@@ -1850,8 +1922,6 @@ paths:
               type: object
               properties:
                 exchange_rate_syp: { type: number, minimum: 1 }
-                syriatel_cash_number: { type: [string, 'null'], maxLength: 30 }
-                bank_transfer_details: { type: [string, 'null'], maxLength: 1000 }
                 payment_review_sla_hours: { type: integer, minimum: 1, maximum: 168 }
                 trial_days: { type: integer, minimum: 1, maximum: 90 }
                 grace_days: { type: integer, minimum: 0, maximum: 30 }
@@ -2055,6 +2125,61 @@ paths:
               properties:
                 business_name: { type: string, minLength: 2, maxLength: 80 }
                 business_type_id: { type: integer }
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/links/{link}:
+    delete:
+      tags: [الإدارة — التجار]
+      operationId: adminRemoveMerchantLink
+      summary: شيل رابط من صفحة المحل
+      description: |
+        الصلاحية `edit-business-identity`. السبب إلزامي، وبينكتب بسجل التدقيق (`merchant.link_removed`) مع الرابط القديم.
+        التكرار ما بيسجّل شي.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: link, in: path, required: true, schema: { type: string, enum: [instagram, facebook, maps] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3, maxLength: 255 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/merchants/{id}/cover:
+    delete:
+      tags: [الإدارة — التجار]
+      operationId: adminRemoveMerchantCover
+      summary: شيل غلاف غير لائق
+      description: |
+        الصلاحية `edit-business-identity`. السبب إلزامي، وبينكتب بسجل التدقيق (`merchant.cover_removed`). المحل بيقدر
+        يرفع غيره.
+      security: [{ clerkSession: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
                 reason: { type: string, minLength: 3, maxLength: 255 }
       responses:
         '200': { $ref: '#/components/responses/AdminMerchantDetailData' }
@@ -2405,6 +2530,72 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/settings/payment-methods/{method}:
+    parameters:
+      - { name: method, in: path, required: true, schema: { $ref: '#/components/schemas/PaymentMethod' } }
+    patch:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminUpdatePaymentMethod
+      summary: تعديل طريقة دفع
+      description: |
+        الصلاحية `manage-settings`. ابعت الحقول يلي بدك تغيّرها بس، و`null` بيمسح النص. ما بتتفعّل بلا `account`
+        (`422`، `fields.account: ["invalid"]`). بتنكتب بسجل التدقيق (`settings.payment_method_updated`).
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                is_active: { type: boolean }
+                sort_order: { type: integer, minimum: 0, maximum: 1000 }
+                recipient_name: { type: [string, 'null'], maxLength: 100 }
+                account: { type: [string, 'null'], maxLength: 100 }
+                note: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentAccountData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+
+  /admin/settings/payment-methods/{method}/qr:
+    parameters:
+      - { name: method, in: path, required: true, schema: { $ref: '#/components/schemas/PaymentMethod' } }
+    post:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminUploadPaymentMethodQr
+      summary: رفع صورة QR لطريقة دفع
+      description: الصلاحية `manage-settings`. الصورة القديمة بتنمسح.
+      security: [{ clerkSession: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [qr]
+              properties:
+                qr: { type: string, format: binary, description: JPEG أو PNG أو WebP لحد 2 MB }
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentAccountData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+    delete:
+      tags: [الإدارة — الباقات والإعدادات]
+      operationId: adminRemovePaymentMethodQr
+      summary: شيل صورة QR
+      description: '`qr_url` بيرجع `null`. التكرار ما بيغيّر شي.'
+      security: [{ clerkSession: [] }]
+      responses:
+        '200': { $ref: '#/components/responses/AdminPaymentAccountData' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/settings/app:
     get:
@@ -2902,6 +3093,15 @@ components:
             required: [data]
             properties:
               data: { $ref: '#/components/schemas/AdminPayment' }
+    AdminPaymentAccountData:
+      description: طريقة الدفع
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: '#/components/schemas/AdminPaymentAccount' }
     BillingSettingsData:
       description: الإعدادات
       content:
@@ -2912,14 +3112,16 @@ components:
             properties:
               data:
                 type: object
-                required: [exchange_rate_syp, syriatel_cash_number, bank_transfer_details, payment_review_sla_hours, trial_days, grace_days]
+                required: [exchange_rate_syp, payment_review_sla_hours, trial_days, grace_days]
                 properties:
                   exchange_rate_syp: { $ref: '#/components/schemas/Money' }
-                  syriatel_cash_number: { type: string }
-                  bank_transfer_details: { type: string }
                   payment_review_sla_hours: { type: integer }
                   trial_days: { type: integer }
                   grace_days: { type: integer }
+                  payment_methods:
+                    type: array
+                    description: بـ`GET` بس، كل الطرق حتى الموقوفة. بتتعدّل بـ`PATCH /admin/settings/payment-methods/{method}`
+                    items: { $ref: '#/components/schemas/AdminPaymentAccount' }
     AdminMerchantDetailData:
       description: صفحة التاجر
       content:
@@ -3196,7 +3398,7 @@ components:
     # ── البطاقات ──
     CardSummary:
       type: object
-      required: [id, name, stamps_required, reward_description, terms, icon, status]
+      required: [id, name, stamps_required, reward_description, terms, icon, color, status]
       properties:
         id: { type: integer, example: 11 }
         name: { type: string, example: بطاقة القهوة }
@@ -3204,7 +3406,17 @@ components:
         reward_description: { type: string, example: فنجان قهوة مجاني }
         terms: { type: [string, 'null'] }
         icon: { $ref: '#/components/schemas/Icon' }
+        color:
+          type: string
+          example: navy
+          description: |
+            مفتاح من لوحة الألوان الثابتة (`lookups.card_colors`)، ما بيكون `null`. مفتاح مش معروف عند التطبيق بينرسم
+            `navy`.
         status: { $ref: '#/components/schemas/CardStatus' }
+    CardColorInput:
+      type: string
+      enum: [navy, royal, teal, forest, olive, coffee, burgundy, rose, plum, graphite]
+      description: مفتاح من `lookups.card_colors`، إلزامي مع كل بطاقة جديدة
     MerchantSummary:
       type: object
       required: [id, business_name, logo_url, business_type, governorate]
@@ -3280,7 +3492,8 @@ components:
             و`payment_approved` و`payment_rejected` (مع `payment_id`، والرفض مع `reason`).
 
             كل إشعار بينبعت كمان push عن طريق FCM بنفس العنوان والنص، و`data` فيها `type` و`notification_id`
-            والمعرّفات، **كلها نصوص**.
+            والمعرّفات، **كلها نصوص**. وفيه عدد غير المقروء (مع الإشعار الجديد) لرقم أيقونة التطبيق:
+            `apns.payload.aps.badge` على iOS و`android.notification.notification_count` على أندرويد.
         title: { type: string }
         body: { type: string }
         data:
@@ -3311,7 +3524,7 @@ components:
         phone: { $ref: '#/components/schemas/Phone', description: رقم تواصل المحل، مو للدخول. فريد بين التجار }
     MerchantProfile:
       type: object
-      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, logo_url, created_at]
+      required: [id, email, business_name, business_type, governorate, address, owner_name, phone, contact_phone, instagram_url, facebook_url, maps_url, logo_url, cover_url, created_at]
       properties:
         id: { type: integer }
         email: { type: string, format: email }
@@ -3322,8 +3535,16 @@ components:
         owner_name: { type: string }
         phone: { $ref: '#/components/schemas/Phone' }
         contact_phone: { type: [string, 'null'], description: الرقم المنشور للزبائن }
+        instagram_url: { type: [string, 'null'], format: uri }
+        facebook_url: { type: [string, 'null'], format: uri }
+        maps_url: { type: [string, 'null'], format: uri }
         logo_url: { type: [string, 'null'], format: uri }
+        cover_url: { $ref: '#/components/schemas/CoverUrl' }
         created_at: { $ref: '#/components/schemas/DateTime' }
+    CoverUrl:
+      type: [string, 'null']
+      format: uri
+      description: غلاف صفحة المحل، WebP بنسبة 2:1 (لحد 1200×600). `null` بدون غلاف، فالتطبيق بيعرض لون البطاقة
     PackageSummary:
       type: object
       required: [id, name, cards_limit, weekly_campaigns_limit]
@@ -3377,7 +3598,8 @@ components:
       type: object
       description: |
         `TRIAL_ENDING` / `SUBSCRIPTION_ENDING`: باقي 3 أيام أو أقل (`warning`). `GRACE`: مهلة السماح (`danger`).
-        `EXPIRED` · `SUSPENDED` · `PENDING_DELETION`: الحالة نفسها (`danger`، بدون `params`).
+        `EXPIRED` · `SUSPENDED`: الحالة نفسها (`danger`، `params` فاضي). `PENDING_DELETION`: `danger`، و`params.ends_at`
+        هو موعد الحذف.
       required: [code, level, params]
       properties:
         code: { type: string, enum: [TRIAL_ENDING, SUBSCRIPTION_ENDING, GRACE, EXPIRED, SUSPENDED, PENDING_DELETION] }
@@ -3426,11 +3648,21 @@ components:
         usage: { oneOf: [{ $ref: '#/components/schemas/Usage' }, { type: 'null' }] }
     MerchantLookups:
       type: object
-      required: [governorates, business_types, icons, trial_days, packages, payment, limits, links]
+      required: [governorates, business_types, icons, card_colors, trial_days, packages, payment, limits, links]
       properties:
         governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         icons: { type: array, items: { $ref: '#/components/schemas/Icon' } }
+        card_colors:
+          type: array
+          description: لوحة ألوان البطاقات الثابتة بالترتيب، والأول (`navy`) هو الافتراضي
+          items:
+            type: object
+            required: [key, name, hex]
+            properties:
+              key: { type: string, example: navy }
+              name: { type: string, example: كحلي }
+              hex: { type: string, example: '#1B4F72' }
         trial_days: { type: integer, example: 14, description: مدة التجربة المجانية بالأيام. حقل زيادة عن العقد }
         packages:
           type: array
@@ -3451,12 +3683,14 @@ components:
                         amount_syp: { $ref: '#/components/schemas/Money', description: بسعر الصرف الحالي، للعرض بس }
         payment:
           type: object
-          required: [exchange_rate_syp, syriatel_cash_number, bank_transfer_details, review_sla_hours]
+          required: [exchange_rate_syp, review_sla_hours, methods]
           properties:
             exchange_rate_syp: { $ref: '#/components/schemas/Money' }
-            syriatel_cash_number: { type: string }
-            bank_transfer_details: { type: string }
             review_sla_hours: { type: integer, example: 24 }
+            methods:
+              type: array
+              description: الطرق الفعّالة بس، بالترتيب يلي بتحدده الإدارة
+              items: { $ref: '#/components/schemas/PaymentAccount' }
         limits:
           type: object
           required: [card_stamps_min, card_stamps_max, campaign_title_max, campaign_body_max, stamp_interval_minutes, pin_unlock_hours]
@@ -3573,6 +3807,12 @@ components:
       required: [next_cursor]
       properties:
         next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+    CustomersMeta:
+      type: object
+      required: [next_cursor, total]
+      properties:
+        next_cursor: { type: [string, 'null'], description: '`null` = ما في صفحات بعد' }
+        total: { type: integer, example: 412, description: عدد كل زبائن المحل حتى المعلّقين. نفسه بكل صفحة، و`q` ما بيأثر عليه }
     DirectoryMerchant:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'
@@ -3593,11 +3833,15 @@ components:
       allOf:
         - $ref: '#/components/schemas/MerchantSummary'
         - type: object
-          required: [address, accepting_stamps, muted, cards]
+          required: [cover_url, address, accepting_stamps, muted, instagram_url, facebook_url, maps_url, cards]
           properties:
+            cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             accepting_stamps: { type: boolean, description: '`false` للمنتهي أو الموقوف أو بانتظار الحذف' }
             muted: { type: boolean }
+            instagram_url: { type: [string, 'null'], format: uri, description: بينفتح برا التطبيق }
+            facebook_url: { type: [string, 'null'], format: uri, description: بينفتح برا التطبيق }
+            maps_url: { type: [string, 'null'], format: uri, description: رابط Google Maps جاهز، بينفتح برا التطبيق }
             cards:
               type: array
               description: البطاقات الفعّالة بس
@@ -3672,7 +3916,26 @@ components:
         sent_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
     PaymentMethod:
       type: string
-      enum: [syriatel_cash, transfer]
+      enum: [sham_cash, haram]
+      description: '`sham_cash` شام كاش · `haram` الهرم'
+    PaymentAccount:
+      type: object
+      required: [key, recipient_name, account, qr_url, note]
+      properties:
+        key: { $ref: '#/components/schemas/PaymentMethod' }
+        recipient_name: { type: [string, 'null'], description: 'الهرم: اسم المستلم' }
+        account: { type: [string, 'null'], description: 'شام كاش: رمز الحساب · الهرم: رقم المستلم' }
+        qr_url: { type: [string, 'null'], format: uri, description: 'شام كاش: صورة رمز QR' }
+        note: { type: [string, 'null'], description: تعليمات قصيرة اختيارية }
+    AdminPaymentAccount:
+      allOf:
+        - $ref: '#/components/schemas/PaymentAccount'
+        - type: object
+          required: [name, is_active, sort_order]
+          properties:
+            name: { type: string, example: شام كاش }
+            is_active: { type: boolean, description: '`true` = ظاهرة بتطبيق التاجر' }
+            sort_order: { type: integer }
     PaymentRejectionReason:
       type: string
       enum: [transfer_not_received, amount_short, unclear_image, invalid_proof]
@@ -3782,10 +4045,18 @@ components:
       allOf:
         - $ref: '#/components/schemas/AdminMerchant'
         - type: object
-          required: [address, last_login_at, subscription, periods, payments, cards, stats, deletion]
+          required: [cover_url, address, last_login_at, links, subscription, periods, payments, cards, stats, deletion]
           properties:
+            cover_url: { $ref: '#/components/schemas/CoverUrl' }
             address: { type: [string, 'null'] }
             last_login_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+            links:
+              type: object
+              required: [instagram_url, facebook_url, maps_url]
+              properties:
+                instagram_url: { type: [string, 'null'], format: uri }
+                facebook_url: { type: [string, 'null'], format: uri }
+                maps_url: { type: [string, 'null'], format: uri }
             subscription: { oneOf: [{ $ref: '#/components/schemas/Subscription' }, { type: 'null' }], description: '`null` لحد ما يختار باقة' }
             periods:
               type: array
@@ -3980,7 +4251,7 @@ components:
             allOf:
               - type: object
                 required: [method]
-                properties: { method: { type: string, enum: [syriatel_cash, transfer] } }
+                properties: { method: { $ref: '#/components/schemas/PaymentMethod' } }
               - $ref: '#/components/schemas/RevenueTotals'
     AdminOverview:
       type: object

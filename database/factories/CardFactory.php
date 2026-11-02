@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CardColor;
 use App\Enums\CardStatus;
 use App\Models\Card;
 use App\Models\Icon;
@@ -21,6 +22,7 @@ class CardFactory extends Factory
         return [
             'merchant_id' => Merchant::factory(),
             'icon_id' => Icon::factory(),
+            'color' => fake()->randomElement(CardColor::cases()),
             'name' => fake()->words(2, true),
             'stamps_required' => fake()->numberBetween(3, 10),
             'reward_description' => fake()->sentence(3),

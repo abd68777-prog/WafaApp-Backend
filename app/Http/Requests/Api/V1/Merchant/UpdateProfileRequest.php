@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Api\V1\Merchant;
 
+use App\Enums\ShopLink;
+use App\Rules\ShopLinkUrl;
 use App\Rules\SyrianPhone;
 use App\Support\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,7 +11,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * What the merchant may change about the shop (contract §5.10): the owner's
- * name, the contact phone and the address. The business name, type and
+ * name, the contact phone, the address and the shop's links. The business name, type and
  * governorate are changed by support only.
  */
 class UpdateProfileRequest extends FormRequest
@@ -45,6 +47,10 @@ class UpdateProfileRequest extends FormRequest
             'address' => ['sometimes', 'nullable', 'string', 'max:255'],
             // Shown to every customer in the shops list; null hides it.
             'contact_phone' => ['sometimes', 'nullable', 'string', 'regex:/^\+963[1-9]\d{7,8}$/'],
+            // Icons on the shop's page; null removes one.
+            'instagram_url' => ['sometimes', 'nullable', 'string', 'max:255', new ShopLinkUrl(ShopLink::Instagram)],
+            'facebook_url' => ['sometimes', 'nullable', 'string', 'max:255', new ShopLinkUrl(ShopLink::Facebook)],
+            'maps_url' => ['sometimes', 'nullable', 'string', 'max:255', new ShopLinkUrl(ShopLink::Maps)],
         ];
     }
 }

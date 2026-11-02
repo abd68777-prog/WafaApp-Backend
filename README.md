@@ -20,7 +20,8 @@ The full endpoint reference for frontend developers is in [api.md](api.md).
 | MySQL    | 8.4          |
 
 Required PHP extensions: `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`,
-`ctype`, `json`, `bcmath`, `fileinfo`, `curl`, `zip`.
+`ctype`, `json`, `bcmath`, `fileinfo`, `curl`, `zip`, and `gd` with JPEG and WebP
+support (shop covers are cropped and re-encoded with it).
 
 ## Setup
 

@@ -36,10 +36,8 @@ class SettingSeeder extends Seeder
             'campaign_title_max' => 60,
             'campaign_body_max' => 300,
 
-            // Payment details shown on the merchant payment screen
+            // The exchange rate on the merchant payment screen (where to pay: payment_accounts)
             'exchange_rate_syp' => 13000,
-            'syriatel_cash_number' => '',
-            'bank_transfer_details' => '',
 
             // Policy and links
             'privacy_policy_version' => '1.2',

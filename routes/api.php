@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Admin\MerchantController as AdminMerchantControl
 use App\Http\Controllers\Api\V1\Admin\MerchantSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\OverviewController;
 use App\Http\Controllers\Api\V1\Admin\PackageController as AdminPackageController;
+use App\Http\Controllers\Api\V1\Admin\PaymentAccountController;
 use App\Http\Controllers\Api\V1\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\StampController as AdminStampController;
 use App\Http\Controllers\Api\V1\Admin\TrialExtensionController;
@@ -182,11 +183,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
                 Route::post('cards', [MerchantCardController::class, 'store'])->name('cards.store');
                 Route::post('cards/{card}/suspend', [MerchantCardController::class, 'suspend'])->whereNumber('card')->name('cards.suspend');
+                Route::patch('cards/{card}/color', [MerchantCardController::class, 'color'])->whereNumber('card')->name('cards.color');
 
                 Route::get('stats', [StatsController::class, 'show'])->name('stats');
                 Route::get('customers', [MerchantCustomerController::class, 'index'])->name('customers.index');
                 Route::patch('profile', [ProfileController::class, 'update'])->name('profile.update');
                 Route::post('profile/logo', [ProfileController::class, 'logo'])->name('profile.logo');
+                Route::post('profile/cover', [ProfileController::class, 'cover'])->name('profile.cover');
+                Route::delete('profile/cover', [ProfileController::class, 'destroyCover'])->name('profile.cover.destroy');
 
                 Route::get('customers/birthdays-today', [BirthdayController::class, 'index'])->name('customers.birthdays-today');
                 Route::post('customers/{customer}/birthday-greeting', [BirthdayController::class, 'store'])
@@ -239,6 +243,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('can:'.AdminPermission::ManageSettings->value)->group(function () {
             Route::get('settings/billing', [BillingSettingsController::class, 'show'])->name('settings.billing.show');
             Route::patch('settings/billing', [BillingSettingsController::class, 'update'])->name('settings.billing.update');
+            Route::patch('settings/payment-methods/{paymentAccount:method}', [PaymentAccountController::class, 'update'])->name('settings.payment-methods.update');
+            Route::post('settings/payment-methods/{paymentAccount:method}/qr', [PaymentAccountController::class, 'qr'])->name('settings.payment-methods.qr');
+            Route::delete('settings/payment-methods/{paymentAccount:method}/qr', [PaymentAccountController::class, 'destroyQr'])->name('settings.payment-methods.qr.destroy');
             Route::get('settings/app', [AppSettingsController::class, 'show'])->name('settings.app.show');
             Route::patch('settings/app', [AppSettingsController::class, 'update'])->name('settings.app.update');
         });
@@ -260,6 +267,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::patch('merchants/{merchant}', [AdminMerchantController::class, 'update'])
             ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
             ->name('merchants.update');
+        Route::delete('merchants/{merchant}/cover', [AdminMerchantController::class, 'destroyCover'])
+            ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
+            ->name('merchants.cover.destroy');
+        Route::delete('merchants/{merchant}/links/{link}', [AdminMerchantController::class, 'destroyLink'])
+            ->middleware('can:'.AdminPermission::EditBusinessIdentity->value)
+            ->name('merchants.links.destroy');
 
         Route::middleware('can:'.AdminPermission::SuspendMerchants->value)->group(function () {
             Route::post('merchants/{merchant}/suspend', [MerchantSuspensionController::class, 'suspend'])->name('merchants.suspend');

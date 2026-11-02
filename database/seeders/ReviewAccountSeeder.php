@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\CardColor;
 use App\Enums\CardCycleStatus;
 use App\Enums\MerchantStatus;
 use App\Enums\StampMethod;
@@ -60,21 +61,21 @@ class ReviewAccountSeeder extends Seeder
         $reviewer = $this->reviewer($phone);
 
         $cafe = $this->shop('review_demo_cafe', 'كافيه وفاء التجريبي', 'كافيه', '+963900000201', 'شارع الحمرا، دمشق', '+963112223301');
-        $coffee = $this->card($cafe, 'coffee', 'بطاقة القهوة', 'قهوة مجانية من اختيارك', 5);
+        $coffee = $this->card($cafe, 'coffee', CardColor::Coffee, 'بطاقة القهوة', 'قهوة مجانية من اختيارك', 5);
         $collecting = $this->cycle($coffee, $reviewer, 3, CardCycleStatus::Collecting);
 
         $sweets = $this->shop('review_demo_sweets', 'حلويات وفاء التجريبية', 'حلويات', '+963900000202', 'شارع بغداد، دمشق', '+963112223302');
-        $cake = $this->card($sweets, 'cake', 'بطاقة الحلويات', 'قطعة كيك مجانية', 5);
+        $cake = $this->card($sweets, 'cake', CardColor::Rose, 'بطاقة الحلويات', 'قطعة كيك مجانية', 5);
         $ready = $this->cycle($cake, $reviewer, 5, CardCycleStatus::RewardReady);
 
         $bakery = $this->shop('review_demo_bakery', 'فرن وفاء التجريبي', 'مخبز', '+963900000203', 'المزة، دمشق', '+963112223303');
-        $bread = $this->card($bakery, 'bread', 'بطاقة الخبز', 'ربطة خبز مجانية', 4);
+        $bread = $this->card($bakery, 'bread', CardColor::Olive, 'بطاقة الخبز', 'ربطة خبز مجانية', 4);
         $redeemed = $this->cycle($bread, $reviewer, 4, CardCycleStatus::Redeemed);
         $this->cycle($bread, $reviewer, 1, CardCycleStatus::Collecting);
 
         // A shop the reviewer has not joined, to find in the directory.
         $restaurant = $this->shop('review_demo_restaurant', 'مطعم وفاء التجريبي', 'مطعم', '+963900000204', 'باب توما، دمشق', '+963112223304');
-        $this->card($restaurant, 'hamburger', 'بطاقة البرغر', 'وجبة برغر مجانية', 6);
+        $this->card($restaurant, 'hamburger', CardColor::Burgundy, 'بطاقة البرغر', 'وجبة برغر مجانية', 6);
 
         $campaign = $this->campaign($cafe, 'عرض نهاية الأسبوع', 'خصم 20% على كل المشروبات الباردة يومي الجمعة والسبت.');
 
@@ -161,7 +162,7 @@ class ReviewAccountSeeder extends Seeder
         return $merchant;
     }
 
-    private function card(Merchant $merchant, string $iconKey, string $name, string $reward, int $stampsRequired): Card
+    private function card(Merchant $merchant, string $iconKey, CardColor $color, string $name, string $reward, int $stampsRequired): Card
     {
         $existing = Card::query()->where('merchant_id', $merchant->id)->where('name', $name)->first();
 
@@ -172,6 +173,7 @@ class ReviewAccountSeeder extends Seeder
         $card = new Card([
             'icon_id' => Icon::query()->where('key', $iconKey)->value('id')
                 ?? Icon::query()->orderBy('sort_order')->value('id'),
+            'color' => $color,
             'name' => $name,
             'stamps_required' => $stampsRequired,
             'reward_description' => $reward,

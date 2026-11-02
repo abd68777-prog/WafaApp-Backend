@@ -36,6 +36,11 @@ class ClerkSmokeTest extends Command
 {
     private const PIN = '4321';
 
+    /**
+     * A 1×1 PNG: registration needs a logo.
+     */
+    private const LOGO_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
     private ClerkBackendApi $clerk;
 
     private string $apiUrl;
@@ -158,7 +163,8 @@ class ClerkSmokeTest extends Command
 
         $lookups = $api->get('/merchant/lookups');
 
-        $business = $api->post('/merchant/registration/business', [
+        // A request of its own: attach() makes the rest multipart too.
+        $business = $this->api($token)->attach('logo', base64_decode(self::LOGO_PNG), 'logo.png')->post('/merchant/registration/business', [
             'business_name' => "Smoke Test Shop {$suffix}",
             'business_type_id' => $lookups->json('data.business_types.0.id'),
             'governorate_id' => $lookups->json('data.governorates.0.id'),

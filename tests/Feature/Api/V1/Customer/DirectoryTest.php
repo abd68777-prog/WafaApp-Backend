@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Merchant;
 use App\Models\MerchantMute;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -82,6 +83,35 @@ class DirectoryTest extends TestCase
             ->assertJsonPath('data.muted', true)
             ->assertJsonCount(1, 'data.cards')
             ->assertJsonPath('data.cards.0.id', $card->id);
+    }
+
+    public function test_the_cover_is_on_the_shop_page_and_not_in_the_directory(): void
+    {
+        $shop = Merchant::factory()->create(['cover_path' => 'merchants/covers/c.webp']);
+        Card::factory()->for($shop)->create();
+
+        $this->asCustomer()->getJson("/api/v1/customer/merchants/{$shop->id}")
+            ->assertJsonPath('data.cover_url', Storage::disk(config('filesystems.media_disk'))->url('merchants/covers/c.webp'));
+
+        $this->assertArrayNotHasKey('cover_url', $this->asCustomer()->getJson('/api/v1/customer/directory')->json('data.0'));
+    }
+
+    public function test_the_shop_links_are_on_its_page_and_not_in_the_directory(): void
+    {
+        $shop = Merchant::factory()->create([
+            'instagram_url' => 'https://instagram.com/yasmin.cafe',
+            'maps_url' => 'https://maps.app.goo.gl/AbC123xyz',
+        ]);
+        Card::factory()->for($shop)->create();
+
+        $this->asCustomer()->getJson("/api/v1/customer/merchants/{$shop->id}")
+            ->assertJsonPath('data.instagram_url', 'https://instagram.com/yasmin.cafe')
+            ->assertJsonPath('data.facebook_url', null)
+            ->assertJsonPath('data.maps_url', 'https://maps.app.goo.gl/AbC123xyz');
+
+        $listed = $this->asCustomer()->getJson('/api/v1/customer/directory')->json('data.0');
+        $this->assertArrayNotHasKey('instagram_url', $listed);
+        $this->assertArrayNotHasKey('maps_url', $listed);
     }
 
     public function test_a_shop_outside_the_directory_opens_only_for_its_own_customers_and_without_cards(): void

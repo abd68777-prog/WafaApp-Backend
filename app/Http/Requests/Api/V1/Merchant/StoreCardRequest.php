@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1\Merchant;
 
+use App\Enums\CardColor;
 use App\Models\Setting;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,7 @@ class StoreCardRequest extends FormRequest
             'reward_description' => ['required', 'string', 'min:2', 'max:120'],
             'terms' => ['sometimes', 'nullable', 'string', 'max:500'],
             'icon_id' => ['required', 'integer', Rule::exists('icons', 'id')->where('is_active', true)],
+            'color' => ['required', Rule::enum(CardColor::class)],
         ];
     }
 }

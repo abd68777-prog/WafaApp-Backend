@@ -2,13 +2,16 @@
 
 namespace App\Http\Controllers\Api\V1\Merchant;
 
+use App\Enums\CardColor;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LookupResource;
 use App\Http\Resources\PackageResource;
+use App\Http\Resources\PaymentAccountResource;
 use App\Models\BusinessType;
 use App\Models\Governorate;
 use App\Models\Icon;
 use App\Models\Package;
+use App\Models\PaymentAccount;
 use App\Models\Setting;
 use Illuminate\Http\JsonResponse;
 
@@ -32,6 +35,11 @@ class LookupController extends Controller
                 'icons' => LookupResource::collection(
                     Icon::query()->where('is_active', true)->orderBy('sort_order')->get()
                 ),
+                'card_colors' => array_map(fn (CardColor $color): array => [
+                    'key' => $color->value,
+                    'name' => $color->label(),
+                    'hex' => $color->hex(),
+                ], CardColor::cases()),
                 // Not in the contract: the package screen says how long the
                 // free trial lasts.
                 'trial_days' => (int) Setting::read('trial_days', 14),
@@ -40,9 +48,8 @@ class LookupController extends Controller
                 ),
                 'payment' => [
                     'exchange_rate_syp' => number_format((float) Setting::read('exchange_rate_syp', 0), 2, '.', ''),
-                    'syriatel_cash_number' => (string) Setting::read('syriatel_cash_number', ''),
-                    'bank_transfer_details' => (string) Setting::read('bank_transfer_details', ''),
                     'review_sla_hours' => (int) Setting::read('payment_review_sla_hours', 24),
+                    'methods' => PaymentAccountResource::collection(PaymentAccount::offered()->get()),
                 ],
                 'limits' => [
                     'card_stamps_min' => (int) Setting::read('card_stamps_min', 3),

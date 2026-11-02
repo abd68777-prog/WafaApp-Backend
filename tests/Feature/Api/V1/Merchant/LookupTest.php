@@ -38,6 +38,15 @@ class LookupTest extends TestCase
             ->assertJsonPath('data.icons.0.key', 'coffee');
     }
 
+    public function test_the_card_color_palette_comes_with_names_and_hex_values(): void
+    {
+        $colors = $this->lookups()->assertOk()->json('data.card_colors');
+
+        $this->assertCount(10, $colors);
+        $this->assertSame(['key' => 'navy', 'name' => 'كحلي', 'hex' => '#1B4F72'], $colors[0]);
+        $this->assertSame('graphite', $colors[9]['key']);
+    }
+
     public function test_packages_carry_prices_as_decimal_strings_with_the_current_pound_amount(): void
     {
         Setting::write('exchange_rate_syp', 13000);

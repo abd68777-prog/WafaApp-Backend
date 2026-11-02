@@ -44,6 +44,20 @@ class DeletionRequest extends Model
     }
 
     /**
+     * The shop's deletion still in its waiting period, if any.
+     */
+    public static function pendingForMerchant(Merchant $merchant): ?self
+    {
+        return self::query()
+            ->where('subject_type', DeletionSubjectType::Merchant)
+            ->where('subject_id', $merchant->id)
+            ->whereNull('executed_at')
+            ->whereNull('cancelled_at')
+            ->latest('id')
+            ->first();
+    }
+
+    /**
      * @return BelongsTo<AdminUser, $this>
      */
     public function handledBy(): BelongsTo

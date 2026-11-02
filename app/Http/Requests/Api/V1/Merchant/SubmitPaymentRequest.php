@@ -27,7 +27,8 @@ class SubmitPaymentRequest extends FormRequest
         return [
             'package_id' => ['required', 'integer', Rule::exists('packages', 'id')->where('is_active', true)],
             'duration_months' => ['required', 'integer', Rule::in(self::DURATIONS)],
-            'method' => ['required', Rule::enum(PaymentMethod::class)],
+            // A method the dashboard paused is refused like an unknown one.
+            'method' => ['bail', 'required', Rule::enum(PaymentMethod::class), Rule::exists('payment_accounts', 'method')->where('is_active', true)],
             'reference' => ['sometimes', 'nullable', 'string', 'max:100'],
             'proof' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:5120', 'dimensions:min_width=1,min_height=1'],
             'keep_card_ids' => ['sometimes', 'array'],

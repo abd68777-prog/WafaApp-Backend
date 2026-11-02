@@ -7,6 +7,7 @@ use App\Models\Card;
 use App\Models\Merchant;
 use App\Models\Package;
 use App\Models\Payment;
+use App\Models\PaymentAccount;
 use App\Models\Setting;
 use App\Models\SubscriptionPeriod;
 use App\Services\Merchant\PinUnlockToken;
@@ -14,6 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -38,18 +40,19 @@ class PaymentTest extends TestCase
         Setting::write('exchange_rate_syp', 13000);
         $this->medium = Package::factory()->withPrices(17)->create(['cards_limit' => 2]);
         $this->merchant = Merchant::factory()->onPackage($this->medium)->create(['clerk_user_id' => self::CLERK_USER]);
+        PaymentAccount::query()->update(['is_active' => true, 'account' => 'SC-1234']);
     }
 
     public function test_the_proof_joins_the_queue_with_the_price_and_rate_of_the_moment(): void
     {
-        $response = $this->submit(['package_id' => $this->medium->id, 'duration_months' => 1, 'reference' => 'TX123']);
+        $response = $this->submit(['package_id' => $this->medium->id, 'duration_months' => 1, 'method' => 'haram', 'reference' => 'TX123']);
 
         $response->assertCreated()
             ->assertJsonPath('data.package.id', $this->medium->id)
             ->assertJsonPath('data.price_usd', '17.00')
             ->assertJsonPath('data.exchange_rate', '13000.0000')
             ->assertJsonPath('data.amount_syp', '221000.00')
-            ->assertJsonPath('data.method', 'syriatel_cash')
+            ->assertJsonPath('data.method', 'haram')
             ->assertJsonPath('data.reference', 'TX123')
             ->assertJsonPath('data.status', 'PENDING')
             ->assertJsonPath('data.rejection_reason', null);
@@ -117,6 +120,36 @@ class PaymentTest extends TestCase
             ]);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function methodsNoLongerOffered(): array
+    {
+        return ['bank transfer' => ['transfer'], 'syriatel cash' => ['syriatel_cash']];
+    }
+
+    #[DataProvider('methodsNoLongerOffered')]
+    public function test_the_old_payment_methods_are_refused(string $method): void
+    {
+        $this->submit(['package_id' => $this->medium->id, 'duration_months' => 1, 'method' => $method])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.details.fields', ['method' => ['format']]);
+
+        $this->assertDatabaseCount('payments', 0);
+    }
+
+    public function test_a_method_the_dashboard_paused_is_refused(): void
+    {
+        PaymentAccount::query()->where('method', 'haram')->update(['is_active' => false]);
+
+        $this->submit(['package_id' => $this->medium->id, 'duration_months' => 1, 'method' => 'haram'])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
+            ->assertJsonPath('error.details.fields', ['method' => ['exists']]);
+
+        $this->submit(['package_id' => $this->medium->id, 'duration_months' => 1, 'method' => 'sham_cash'])->assertCreated();
+    }
+
     public function test_the_history_lists_payments_newest_first_and_the_subscription_lists_its_periods(): void
     {
         $older = Payment::factory()->for($this->merchant)->for($this->medium)->rejected()->create();
@@ -157,7 +190,7 @@ class PaymentTest extends TestCase
     private function submit(array $fields): TestResponse
     {
         return $this->withPin()->post('/api/v1/merchant/payments', [
-            'method' => 'syriatel_cash',
+            'method' => 'sham_cash',
             'proof' => UploadedFile::fake()->image('proof.jpg'),
             ...$fields,
         ], ['Accept' => 'application/json']);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CardColor;
 use App\Enums\CardCycleStatus;
 use App\Enums\CardStatus;
 use Database\Factories\CardFactory;
@@ -18,9 +19,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * It is never edited after publishing, only suspended: raising the required
  * stamps from 10 to 15 on a customer who already has 9 would be a cheat, and
- * removing the route is safer than hiding the button.
+ * removing the route is safer than hiding the button. Its color is the one
+ * exception: it changes how the card looks, not what it promises.
  */
-#[Fillable(['icon_id', 'name', 'stamps_required', 'reward_description', 'terms'])]
+#[Fillable(['icon_id', 'color', 'name', 'stamps_required', 'reward_description', 'terms'])]
 class Card extends Model
 {
     /** @use HasFactory<CardFactory> */
@@ -32,6 +34,7 @@ class Card extends Model
     protected function casts(): array
     {
         return [
+            'color' => CardColor::class,
             'stamps_required' => 'integer',
             'status' => CardStatus::class,
             'suspended_at' => 'datetime',

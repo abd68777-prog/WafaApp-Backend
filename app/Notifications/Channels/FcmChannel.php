@@ -9,6 +9,8 @@ use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Contract\Messaging;
+use Kreait\Firebase\Messaging\AndroidConfig;
+use Kreait\Firebase\Messaging\ApnsConfig;
 use Kreait\Firebase\Messaging\CloudMessage;
 use Kreait\Firebase\Messaging\Notification as PushNotification;
 
@@ -19,6 +21,8 @@ use Kreait\Firebase\Messaging\Notification as PushNotification;
  *
  * The push repeats the inbox entry the same notification has just written —
  * same title, body and ids — so a tap opens exactly what the inbox shows.
+ * It also carries the inbox's unread count for the badge on the app icon,
+ * which the system draws from the push alone while the app is closed.
  * Without Firebase credentials (local development, tests) nothing is sent.
  */
 class FcmChannel
@@ -33,8 +37,10 @@ class FcmChannel
 
     /**
      * The message for one inbox entry. FCM only carries strings in `data`.
+     * `$unread` is the badge: `aps.badge` on iOS, `notification_count` on
+     * Android (most launchers show a dot, Samsung shows the number).
      */
-    public static function messageFor(DatabaseNotification $entry): CloudMessage
+    public static function messageFor(DatabaseNotification $entry, int $unread): CloudMessage
     {
         $data = ['type' => $entry->type, 'notification_id' => $entry->id];
 
@@ -42,9 +48,12 @@ class FcmChannel
             $data[$key] = (string) $value;
         }
 
+        // Set before the priority and sounds, which add to these configs.
         return CloudMessage::new()
             ->withNotification(PushNotification::create($entry->data['title'], $entry->data['body']))
             ->withData($data)
+            ->withApnsConfig(ApnsConfig::new()->withBadge($unread))
+            ->withAndroidConfig(AndroidConfig::fromArray(['notification' => ['notification_count' => $unread]]))
             ->withHighestPossiblePriority()
             ->withDefaultSounds();
     }
@@ -65,7 +74,11 @@ class FcmChannel
             return;
         }
 
-        $report = app(Messaging::class)->sendMulticast(self::messageFor($entry), $tokens);
+        // Counted now, so it includes this entry and leaves out anything read
+        // while the push waited in the queue.
+        $unread = $notifiable->unreadNotifications()->count();
+
+        $report = app(Messaging::class)->sendMulticast(self::messageFor($entry, $unread), $tokens);
 
         // Uninstalled apps and tokens FCM no longer recognises.
         $dead = [...$report->unknownTokens(), ...$report->invalidTokens()];

@@ -7,6 +7,8 @@ use App\Services\Merchant\PinUnlockToken;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Testing\TestResponse;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 /**
@@ -68,6 +70,70 @@ class ProfileTest extends TestCase
             ->assertJsonPath('data.contact_phone', null);
     }
 
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function acceptedLinks(): array
+    {
+        return [
+            'instagram' => ['instagram_url', 'https://instagram.com/yasmin.cafe'],
+            'instagram with www' => ['instagram_url', 'https://www.instagram.com/yasmin.cafe/'],
+            'facebook' => ['facebook_url', 'https://www.facebook.com/yasmincafe'],
+            'facebook mobile' => ['facebook_url', 'https://m.facebook.com/yasmincafe'],
+            'facebook short' => ['facebook_url', 'https://fb.me/yasmincafe'],
+            'facebook fb.com' => ['facebook_url', 'https://fb.com/yasmincafe'],
+            'maps share link' => ['maps_url', 'https://maps.app.goo.gl/AbC123xyz'],
+            'maps old short link' => ['maps_url', 'https://goo.gl/maps/AbC123'],
+            'maps full link' => ['maps_url', 'https://www.google.com/maps/place/Yasmin+Cafe/@33.51,36.29,17z'],
+            'maps subdomain' => ['maps_url', 'https://maps.google.com/?q=33.51,36.29'],
+        ];
+    }
+
+    #[DataProvider('acceptedLinks')]
+    public function test_a_link_to_its_own_site_is_saved_and_null_removes_it(string $field, string $url): void
+    {
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => $url])
+            ->assertOk()
+            ->assertJsonPath("data.{$field}", $url);
+
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => null])
+            ->assertOk()
+            ->assertJsonPath("data.{$field}", null);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function refusedLinks(): array
+    {
+        return [
+            'plain http' => ['instagram_url', 'http://instagram.com/yasmin.cafe'],
+            'another site' => ['instagram_url', 'https://example.com/yasmin'],
+            'a lookalike host' => ['instagram_url', 'https://instagram.com.evil.sy/yasmin'],
+            'a host ending like it' => ['instagram_url', 'https://evilinstagram.com/yasmin'],
+            'instagram in the facebook field' => ['facebook_url', 'https://instagram.com/yasmin.cafe'],
+            'google outside maps' => ['maps_url', 'https://www.google.com/search?q=yasmin'],
+            'goo.gl outside maps' => ['maps_url', 'https://goo.gl/AbC123'],
+            'credentials before the host' => ['instagram_url', 'https://instagram.com@evil.sy/x'],
+            'a user name' => ['instagram_url', 'https://user@instagram.com/yasmin'],
+            'a port' => ['facebook_url', 'https://facebook.com:8443/yasmin'],
+            'a script' => ['maps_url', 'javascript:alert(1)'],
+            'no scheme' => ['instagram_url', 'instagram.com/yasmin.cafe'],
+            'a space inside' => ['instagram_url', 'https://instagram.com/yasmin cafe'],
+        ];
+    }
+
+    #[DataProvider('refusedLinks')]
+    public function test_a_link_to_any_other_site_is_refused(string $field, string $url): void
+    {
+        $this->asMerchant()->patchJson('/api/v1/merchant/profile', [$field => $url])
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
+            ->assertJsonPath('error.details.fields', [$field => ['format']]);
+
+        $this->assertNull($this->merchant->fresh()->{$field});
+    }
+
     public function test_a_phone_another_shop_uses_is_taken(): void
     {
         Merchant::factory()->create(['phone' => '+963955000111']);
@@ -95,12 +161,97 @@ class ProfileTest extends TestCase
         ], ['Accept' => 'application/json'])->assertUnprocessable();
     }
 
+    public function test_a_wide_photo_becomes_a_1200_by_600_webp_cover_and_replaces_the_old_one(): void
+    {
+        $this->merchant->forceFill(['cover_path' => 'merchants/covers/old.webp'])->save();
+        Storage::disk('public')->put('merchants/covers/old.webp', 'old');
+
+        $response = $this->uploadCover(UploadedFile::fake()->image('cover.jpg', 3000, 1000));
+
+        $path = $this->merchant->fresh()->cover_path;
+        $response->assertOk()->assertJsonPath('data.cover_url', Storage::disk('public')->url($path));
+        $this->assertStringStartsWith('merchants/covers/', $path);
+        $this->assertStringEndsWith('.webp', $path);
+        Storage::disk('public')->assertMissing('merchants/covers/old.webp');
+
+        $this->assertStoredCover($path, 1200, 600);
+    }
+
+    public function test_a_small_portrait_photo_is_cropped_to_2_1_without_being_enlarged(): void
+    {
+        $this->uploadCover(UploadedFile::fake()->image('cover.png', 400, 900))->assertOk();
+
+        $this->assertStoredCover($this->merchant->fresh()->cover_path, 400, 200);
+    }
+
+    public function test_nothing_appended_to_the_photo_survives_into_the_cover(): void
+    {
+        $photo = UploadedFile::fake()->image('cover.jpg', 800, 400);
+        file_put_contents($photo->getRealPath(), '<?php echo 1; ?>', FILE_APPEND);
+
+        $this->uploadCover($photo)->assertOk();
+
+        $stored = Storage::disk('public')->get($this->merchant->fresh()->cover_path);
+        $this->assertStringNotContainsString('<?php', $stored);
+    }
+
+    public function test_a_cover_must_be_an_image_of_at_most_5_mb(): void
+    {
+        $this->assertCoverRefused(UploadedFile::fake()->create('cover.pdf', 10, 'application/pdf'));
+        $this->assertCoverRefused(UploadedFile::fake()->image('cover.jpg', 800, 400)->size(5121));
+    }
+
+    public function test_a_script_dressed_as_a_jpeg_is_refused(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'cover');
+        file_put_contents($path, "\xFF\xD8\xFF\xE0<?php echo 1; ?>");
+
+        $this->assertCoverRefused(new UploadedFile($path, 'cover.jpg', null, null, true));
+    }
+
+    public function test_the_shop_removes_its_cover(): void
+    {
+        $this->uploadCover(UploadedFile::fake()->image('cover.jpg', 800, 400))->assertOk();
+        $path = $this->merchant->fresh()->cover_path;
+
+        foreach ([1, 2] as $attempt) {
+            $this->asMerchant()->deleteJson('/api/v1/merchant/profile/cover')
+                ->assertOk()
+                ->assertJsonPath('data.cover_url', null);
+        }
+
+        Storage::disk('public')->assertMissing($path);
+    }
+
     public function test_the_profile_is_behind_the_pin(): void
     {
         $this->withToken($this->clerkToken(self::CLERK_USER))
             ->patchJson('/api/v1/merchant/profile', ['owner_name' => 'أحمد'])
             ->assertForbidden()
             ->assertJsonPath('error.code', 'PIN_REQUIRED');
+    }
+
+    private function uploadCover(UploadedFile $file): TestResponse
+    {
+        return $this->asMerchant()->post('/api/v1/merchant/profile/cover', ['cover' => $file], ['Accept' => 'application/json']);
+    }
+
+    private function assertCoverRefused(UploadedFile $file): void
+    {
+        $this->uploadCover($file)
+            ->assertUnprocessable()
+            ->assertJsonPath('error.code', 'VALIDATION_FAILED')
+            ->assertJsonStructure(['error' => ['details' => ['fields' => ['cover']]]]);
+
+        $this->assertNull($this->merchant->fresh()->cover_path);
+        $this->assertSame([], Storage::disk('public')->allFiles('merchants/covers'));
+    }
+
+    private function assertStoredCover(string $path, int $width, int $height): void
+    {
+        $size = getimagesizefromstring(Storage::disk('public')->get($path));
+
+        $this->assertSame([$width, $height, 'image/webp'], [$size[0], $size[1], $size['mime']]);
     }
 
     private function asMerchant(): self
