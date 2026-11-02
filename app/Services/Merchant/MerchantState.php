@@ -10,6 +10,7 @@ use App\Http\Resources\MerchantResource;
 use App\Http\Resources\PackageSummaryResource;
 use App\Http\Resources\PaymentResource;
 use App\Http\Resources\SubscriptionPeriodResource;
+use App\Models\DeletionRequest;
 use App\Models\Merchant;
 use App\Models\SubscriptionPeriod;
 use App\Models\TrialEmailHash;
@@ -219,7 +220,9 @@ final class MerchantState
             ],
             $merchant->status === MerchantStatus::Expired => ['EXPIRED', 'danger', []],
             $merchant->status === MerchantStatus::Suspended => ['SUSPENDED', 'danger', []],
-            $merchant->status === MerchantStatus::PendingDeletion => ['PENDING_DELETION', 'danger', []],
+            $merchant->status === MerchantStatus::PendingDeletion => [
+                'PENDING_DELETION', 'danger', ['ends_at' => DeletionRequest::pendingForMerchant($merchant)?->executes_at->toIso8601ZuluString()],
+            ],
             default => [null, null, []],
         };
 

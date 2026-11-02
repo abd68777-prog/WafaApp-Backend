@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\CardCycleStatus;
-use App\Enums\DeletionSubjectType;
 use App\Enums\MerchantStatus;
 use App\Enums\ShopLink;
 use App\Enums\StampMethod;
@@ -126,13 +125,7 @@ class MerchantController extends Controller
      */
     private function pendingDeletion(Merchant $merchant): ?array
     {
-        $deletionRequest = DeletionRequest::query()
-            ->where('subject_type', DeletionSubjectType::Merchant)
-            ->where('subject_id', $merchant->id)
-            ->whereNull('executed_at')
-            ->whereNull('cancelled_at')
-            ->latest('id')
-            ->first();
+        $deletionRequest = DeletionRequest::pendingForMerchant($merchant);
 
         return $deletionRequest === null ? null : [
             'id' => $deletionRequest->id,

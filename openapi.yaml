@@ -3598,7 +3598,8 @@ components:
       type: object
       description: |
         `TRIAL_ENDING` / `SUBSCRIPTION_ENDING`: باقي 3 أيام أو أقل (`warning`). `GRACE`: مهلة السماح (`danger`).
-        `EXPIRED` · `SUSPENDED` · `PENDING_DELETION`: الحالة نفسها (`danger`، بدون `params`).
+        `EXPIRED` · `SUSPENDED`: الحالة نفسها (`danger`، `params` فاضي). `PENDING_DELETION`: `danger`، و`params.ends_at`
+        هو موعد الحذف.
       required: [code, level, params]
       properties:
         code: { type: string, enum: [TRIAL_ENDING, SUBSCRIPTION_ENDING, GRACE, EXPIRED, SUSPENDED, PENDING_DELETION] }
