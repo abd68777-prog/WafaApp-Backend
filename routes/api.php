@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\V1\Admin\MerchantController as AdminMerchantControl
 use App\Http\Controllers\Api\V1\Admin\MerchantSuspensionController;
 use App\Http\Controllers\Api\V1\Admin\OverviewController;
 use App\Http\Controllers\Api\V1\Admin\PackageController as AdminPackageController;
+use App\Http\Controllers\Api\V1\Admin\PaymentAccountController;
 use App\Http\Controllers\Api\V1\Admin\PaymentController as AdminPaymentController;
 use App\Http\Controllers\Api\V1\Admin\StampController as AdminStampController;
 use App\Http\Controllers\Api\V1\Admin\TrialExtensionController;
@@ -242,6 +243,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('can:'.AdminPermission::ManageSettings->value)->group(function () {
             Route::get('settings/billing', [BillingSettingsController::class, 'show'])->name('settings.billing.show');
             Route::patch('settings/billing', [BillingSettingsController::class, 'update'])->name('settings.billing.update');
+            Route::patch('settings/payment-methods/{paymentAccount:method}', [PaymentAccountController::class, 'update'])->name('settings.payment-methods.update');
+            Route::post('settings/payment-methods/{paymentAccount:method}/qr', [PaymentAccountController::class, 'qr'])->name('settings.payment-methods.qr');
+            Route::delete('settings/payment-methods/{paymentAccount:method}/qr', [PaymentAccountController::class, 'destroyQr'])->name('settings.payment-methods.qr.destroy');
             Route::get('settings/app', [AppSettingsController::class, 'show'])->name('settings.app.show');
             Route::patch('settings/app', [AppSettingsController::class, 'update'])->name('settings.app.update');
         });
