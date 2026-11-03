@@ -3350,7 +3350,7 @@ components:
         privacy_policy_version: { type: string, example: '1.2' }
         privacy_policy_url: { type: string, format: uri }
         customer_terms_url: { type: string, format: uri }
-        support_url: { type: string, format: uri, example: 'https://wa.me/9639XXXXXXXX', description: 'رابط «تواصل مع الدعم». `""` لحد ما ينحط من اللوحة' }
+        support_url: { type: string, format: uri, example: 'https://wa.me/963991734151', description: 'رابط «تواصل مع الدعم». ممكن يكون `""` إذا انمسح من اللوحة' }
         governorates: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
         business_types: { type: array, items: { $ref: '#/components/schemas/Lookup' } }
     Customer:

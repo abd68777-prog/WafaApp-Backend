@@ -41,11 +41,11 @@ class SettingSeeder extends Seeder
 
             // Policy and links
             'privacy_policy_version' => '1.2',
-            'privacy_policy_url' => '',
-            'customer_terms_url' => '',
-            'merchant_terms_url' => '',
-            // A full link (e.g. https://wa.me/9639XXXXXXXX), set from the dashboard.
-            'support_url' => '',
+            'privacy_policy_url' => 'https://wafacard.app/privacy',
+            'customer_terms_url' => 'https://wafacard.app/terms',
+            'merchant_terms_url' => 'https://wafacard.app/terms',
+            // A full link, changeable from the dashboard.
+            'support_url' => 'https://wa.me/963991734151',
 
             // Merchant app is distributed outside the stores, so the server
             // refuses versions older than this and the app shows an update screen.
