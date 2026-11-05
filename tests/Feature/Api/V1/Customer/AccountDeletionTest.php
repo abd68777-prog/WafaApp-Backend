@@ -100,7 +100,7 @@ class AccountDeletionTest extends TestCase
         $response = $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => self::PHONE,
             'code' => '123456',
-            'policy_version' => '1.2',
+            'policy_version' => '1.0',
         ]);
 
         $response->assertOk()

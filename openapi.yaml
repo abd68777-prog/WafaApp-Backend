@@ -156,7 +156,7 @@ paths:
               properties:
                 phone: { $ref: '#/components/schemas/Phone' }
                 code: { type: string, pattern: '^\d{6}$', example: '123456' }
-                policy_version: { type: string, maxLength: 16, example: '1.2', description: الإصدار يلي شافه الزبون، من `config` }
+                policy_version: { type: string, maxLength: 16, example: '1.0', description: الإصدار يلي شافه الزبون، من `config` }
       responses:
         '200':
           description: دخل الزبون
@@ -178,7 +178,7 @@ paths:
                 OTP_EXPIRED:
                   value: { error: { code: OTP_EXPIRED, message: No valid code for this number; request a new one. } }
                 POLICY_VERSION_OUTDATED:
-                  value: { error: { code: POLICY_VERSION_OUTDATED, message: This is not the current privacy policy., details: { current_version: '1.2' } } }
+                  value: { error: { code: POLICY_VERSION_OUTDATED, message: This is not the current privacy policy., details: { current_version: '1.0' } } }
         '429': { $ref: '#/components/responses/RateLimited' }
 
   /customer/auth/logout:
@@ -286,7 +286,7 @@ paths:
               type: object
               required: [policy_version]
               properties:
-                policy_version: { type: string, maxLength: 16, example: '1.2' }
+                policy_version: { type: string, maxLength: 16, example: '1.0' }
       responses:
         '200': { $ref: '#/components/responses/CustomerData' }
         '401': { $ref: '#/components/responses/Unauthenticated' }
@@ -2988,7 +2988,7 @@ components:
             PROFILE_INCOMPLETE:
               value: { error: { code: PROFILE_INCOMPLETE, message: Enter your name and date of birth first. } }
             POLICY_CONSENT_REQUIRED:
-              value: { error: { code: POLICY_CONSENT_REQUIRED, message: Agree to the current privacy policy first., details: { current_version: '1.2' } } }
+              value: { error: { code: POLICY_CONSENT_REQUIRED, message: Agree to the current privacy policy first., details: { current_version: '1.0' } } }
     RegistrationIncomplete:
       description: '`REGISTRATION_INCOMPLETE`: التاجر ما كمّل خطوات التسجيل'
       content:
@@ -3347,7 +3347,7 @@ components:
       required: [qr_period_seconds, privacy_policy_version, privacy_policy_url, customer_terms_url, support_url, governorates, business_types]
       properties:
         qr_period_seconds: { type: integer, example: 60 }
-        privacy_policy_version: { type: string, example: '1.2' }
+        privacy_policy_version: { type: string, example: '1.0' }
         privacy_policy_url: { type: string, format: uri }
         customer_terms_url: { type: string, format: uri }
         support_url: { type: string, format: uri, example: 'https://wa.me/963991734151', description: 'رابط «تواصل مع الدعم». ممكن يكون `""` إذا انمسح من اللوحة' }
@@ -3364,7 +3364,7 @@ components:
         birthdate: { type: [string, 'null'], format: date, example: '1998-05-20' }
         campaigns_muted: { type: boolean, description: إيقاف عروض كل التجار }
         profile_complete: { type: boolean }
-        consented_policy_version: { type: [string, 'null'], example: '1.2' }
+        consented_policy_version: { type: [string, 'null'], example: '1.0' }
         registered_at: { $ref: '#/components/schemas/DateTime' }
     CustomerSession:
       type: object

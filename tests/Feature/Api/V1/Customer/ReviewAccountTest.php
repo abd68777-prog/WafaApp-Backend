@@ -51,7 +51,7 @@ class ReviewAccountTest extends TestCase
         $response = $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => self::REVIEW_PHONE,
             'code' => self::REVIEW_CODE,
-            'policy_version' => '1.2',
+            'policy_version' => '1.0',
         ]);
 
         $response->assertOk()->assertJsonPath('data.customer.phone', self::REVIEW_PHONE);
@@ -71,7 +71,7 @@ class ReviewAccountTest extends TestCase
         $this->postJson('/api/v1/customer/auth/verify', [
             'phone' => '+963947123456',
             'code' => self::REVIEW_CODE,
-            'policy_version' => '1.2',
+            'policy_version' => '1.0',
         ])->assertUnprocessable()->assertJsonPath('error.code', 'OTP_INVALID');
     }
 

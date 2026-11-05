@@ -20,18 +20,18 @@ class PolicyTest extends TestCase
     public function test_the_account_shows_which_version_the_customer_agreed_to(): void
     {
         $customer = Customer::factory()->create();
-        PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.2']);
+        PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.0']);
 
         $response = $this->withToken($this->customerToken($customer))->getJson('/api/v1/customer/me');
 
-        $response->assertOk()->assertJsonPath('data.consented_policy_version', '1.2');
+        $response->assertOk()->assertJsonPath('data.consented_policy_version', '1.0');
     }
 
     public function test_a_new_version_blocks_the_app_until_the_customer_agrees_to_it(): void
     {
         Setting::write('privacy_policy_version', '1.3');
         $customer = Customer::factory()->create();
-        PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.2']);
+        PolicyConsent::factory()->create(['customer_id' => $customer->id, 'policy_version' => '1.0']);
         $token = $this->customerToken($customer);
 
         $this->withToken($token)->getJson('/api/v1/customer/me/qr')
@@ -53,7 +53,7 @@ class PolicyTest extends TestCase
         $customer = Customer::factory()->create();
 
         $response = $this->withToken($this->customerToken($customer))
-            ->postJson('/api/v1/customer/me/policy-consents', ['policy_version' => '1.2']);
+            ->postJson('/api/v1/customer/me/policy-consents', ['policy_version' => '1.0']);
 
         $response->assertUnprocessable()
             ->assertJsonPath('error.code', 'POLICY_VERSION_OUTDATED')
