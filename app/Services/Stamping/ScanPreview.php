@@ -13,6 +13,8 @@ use App\Models\CardCycle;
 use App\Models\Customer;
 use App\Models\Merchant;
 use App\Services\Customer\CustomerQrCode;
+use App\Support\ReviewAccount;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The confirmation screen after a scan or a typed number (contract
@@ -45,6 +47,8 @@ final class ScanPreview
             ? $this->qrCode->resolve($qr)
             : Customer::query()->where('phone', $phone)->first();
 
+        $this->keepOutOfTheReviewAccount($merchant, $customer?->phone ?? $phone, $qr !== null);
+
         $openCycle = $customer !== null ? $this->openCycle($card, $customer) : null;
         [$action, $blockedReason] = $this->action($merchant, $card, $customer, $openCycle, $method);
 
@@ -61,6 +65,24 @@ final class ScanPreview
             'blocked_reason' => $blockedReason?->toErrorBody(),
             'other_ready_rewards' => $customer !== null ? $this->otherReadyRewards($merchant, $card, $customer) : [],
         ];
+    }
+
+    /**
+     * The store review account belongs to the demo shops only: a real shop
+     * scanning or typing it would stamp it, push to the reviewer's phone and
+     * send it campaigns. To that shop it is simply not a customer.
+     */
+    private function keepOutOfTheReviewAccount(Merchant $merchant, ?string $phone, bool $scanned): void
+    {
+        if (! ReviewAccount::is($phone) || ReviewAccount::isDemoShop($merchant)) {
+            return;
+        }
+
+        if ($scanned) {
+            throw ApiException::of(ErrorCode::QrInvalid, 'This is not a valid customer code.');
+        }
+
+        throw ValidationException::withMessages(['phone' => 'This number cannot be stamped.']);
     }
 
     /**
