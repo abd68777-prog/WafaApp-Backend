@@ -359,7 +359,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
 {
   "data": {
     "qr_period_seconds": 60,
-    "privacy_policy_version": "1.2",
+    "privacy_policy_version": "1.0",
     "privacy_policy_url": "https://wafacard.app/privacy",
     "customer_terms_url": "https://wafacard.app/terms",
     "support_url": "https://wa.me/963991734151",
@@ -415,7 +415,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
       "birthdate": null,
       "campaigns_muted": false,
       "profile_complete": false,
-      "consented_policy_version": "1.2",
+      "consented_policy_version": "1.0",
       "registered_at": "2026-09-29T15:00:51Z"
     },
     "needs_profile": true,
@@ -458,7 +458,7 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
     "birthdate": "1998-05-20",
     "campaigns_muted": false,
     "profile_complete": true,
-    "consented_policy_version": "1.2",
+    "consented_policy_version": "1.0",
     "registered_at": "2026-09-29T15:00:51Z"
   }
 }

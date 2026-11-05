@@ -39,7 +39,7 @@ class Setting extends Model
      */
     public static function currentPolicyVersion(): string
     {
-        return (string) static::read('privacy_policy_version', '1.2');
+        return (string) static::read('privacy_policy_version', '1.0');
     }
 
     public static function write(string $key, mixed $value): void

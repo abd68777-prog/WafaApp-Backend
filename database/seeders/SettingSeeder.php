@@ -40,7 +40,7 @@ class SettingSeeder extends Seeder
             'exchange_rate_syp' => 13000,
 
             // Policy and links
-            'privacy_policy_version' => '1.2',
+            'privacy_policy_version' => '1.0',
             'privacy_policy_url' => 'https://wafacard.app/privacy',
             'customer_terms_url' => 'https://wafacard.app/terms',
             'merchant_terms_url' => 'https://wafacard.app/terms',

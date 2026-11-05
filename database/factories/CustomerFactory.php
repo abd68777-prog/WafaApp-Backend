@@ -65,7 +65,7 @@ class CustomerFactory extends Factory
     {
         return $this->afterCreating(function (Customer $customer): void {
             $customer->policyConsents()->create([
-                'policy_version' => (string) Setting::read('privacy_policy_version', '1.2'),
+                'policy_version' => (string) Setting::read('privacy_policy_version', '1.0'),
                 'consented_at' => now(),
             ]);
         });
