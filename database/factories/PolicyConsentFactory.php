@@ -18,7 +18,7 @@ class PolicyConsentFactory extends Factory
     {
         return [
             'customer_id' => Customer::factory(),
-            'policy_version' => '1.2',
+            'policy_version' => '1.0',
             'consented_at' => now(),
         ];
     }

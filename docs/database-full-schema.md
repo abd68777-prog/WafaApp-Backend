@@ -466,7 +466,7 @@ One row per privacy-policy version a customer agreed to, with the time.
 |---|---|---|---|---|---|
 | `id` | bigint unsigned auto_increment | no |  | PK |  |
 | `customer_id` | bigint unsigned | no |  | FK → `customers.id` |  |
-| `policy_version` | varchar(16) | no |  |  | e.g. `1.2`. Unique per customer. |
+| `policy_version` | varchar(16) | no |  |  | e.g. `1.0`. Unique per customer. |
 | `consented_at` | timestamp | no |  |  |  |
 | `created_at` | timestamp | yes |  |  |  |
 | `updated_at` | timestamp | yes |  |  |  |
@@ -1072,7 +1072,7 @@ Current keys in `settings` (value as stored, JSON):
 | `exchange_rate_syp` | `13000` |
 | `syriatel_cash_number` | `""` |
 | `bank_transfer_details` | `""` |
-| `privacy_policy_version` | `"1.2"` |
+| `privacy_policy_version` | `"1.0"` |
 | `privacy_policy_url` | `"https://wafacard.app/privacy"` |
 | `customer_terms_url` | `"https://wafacard.app/terms"` |
 | `merchant_terms_url` | `"https://wafacard.app/terms"` |

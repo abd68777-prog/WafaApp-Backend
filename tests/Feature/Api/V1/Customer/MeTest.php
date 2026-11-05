@@ -104,7 +104,7 @@ class MeTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.qr_period_seconds', 60)
-            ->assertJsonPath('data.privacy_policy_version', '1.2')
+            ->assertJsonPath('data.privacy_policy_version', '1.0')
             ->assertJsonPath('data.privacy_policy_url', 'https://wafacard.app/privacy')
             ->assertJsonPath('data.customer_terms_url', 'https://wafacard.app/terms')
             ->assertJsonPath('data.support_url', 'https://wa.me/963991734151')

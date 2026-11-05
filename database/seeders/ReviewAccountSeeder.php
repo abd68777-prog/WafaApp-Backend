@@ -106,7 +106,7 @@ class ReviewAccountSeeder extends Seeder
         $customer->save();
 
         $customer->policyConsents()->firstOrCreate(
-            ['policy_version' => (string) Setting::read('privacy_policy_version', '1.2')],
+            ['policy_version' => (string) Setting::read('privacy_policy_version', '1.0')],
             ['consented_at' => now()],
         );
 

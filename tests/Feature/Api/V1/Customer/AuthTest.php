@@ -27,7 +27,7 @@ class AuthTest extends TestCase
     /** The code every OtpCode factory row hashes by default. */
     private const CODE = '123456';
 
-    private const POLICY_VERSION = '1.2';
+    private const POLICY_VERSION = '1.0';
 
     public function test_requesting_a_code_sends_it_through_lightotp_and_stores_only_its_hash(): void
     {
@@ -110,7 +110,7 @@ class AuthTest extends TestCase
         Setting::write('privacy_policy_version', '1.3');
         $otpCode = OtpCode::factory()->create(['phone' => self::PHONE]);
 
-        $response = $this->verify(['policy_version' => '1.2']);
+        $response = $this->verify(['policy_version' => '1.0']);
 
         $response->assertUnprocessable()
             ->assertJsonPath('error.code', 'POLICY_VERSION_OUTDATED')
