@@ -1073,9 +1073,10 @@ Current keys in `settings` (value as stored, JSON):
 | `syriatel_cash_number` | `""` |
 | `bank_transfer_details` | `""` |
 | `privacy_policy_version` | `"1.2"` |
-| `privacy_policy_url` | `""` |
-| `customer_terms_url` | `""` |
-| `merchant_terms_url` | `""` |
+| `privacy_policy_url` | `"https://wafacard.app/privacy"` |
+| `customer_terms_url` | `"https://wafacard.app/terms"` |
+| `merchant_terms_url` | `"https://wafacard.app/terms"` |
+| `support_url` | `"https://wa.me/963991734151"` |
 | `merchant_min_app_version` | `"1.0.0"` |
 | `merchant_app_download_url` | `""` |
 | `pending_customer_retention_months` | `12` |

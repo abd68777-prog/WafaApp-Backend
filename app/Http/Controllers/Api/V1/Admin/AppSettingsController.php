@@ -31,10 +31,10 @@ class AppSettingsController extends Controller
         'campaign_body_max' => 300,
         'merchant_min_app_version' => '',
         'merchant_app_download_url' => '',
-        'privacy_policy_url' => '',
-        'customer_terms_url' => '',
-        'merchant_terms_url' => '',
-        'support_url' => '',
+        'privacy_policy_url' => 'https://wafacard.app/privacy',
+        'customer_terms_url' => 'https://wafacard.app/terms',
+        'merchant_terms_url' => 'https://wafacard.app/terms',
+        'support_url' => 'https://wa.me/963991734151',
         'pin_unlock_hours' => 12,
     ];
 
