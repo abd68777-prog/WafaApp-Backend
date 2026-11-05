@@ -6,7 +6,7 @@ use App\Enums\ErrorCode;
 use App\Exceptions\ApiException;
 use App\Exceptions\OtpDeliveryException;
 use App\Models\OtpCode;
-use App\Support\PhoneNumber;
+use App\Support\ReviewAccount;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -34,10 +34,15 @@ final class OtpService
      */
     public function issue(string $phoneE164, ?string $ipAddress = null): array
     {
-        $this->guardAgainstResend($phoneE164);
+        $reviewCode = $this->reviewCodeFor($phoneE164);
+
+        // Several store reviewers may share the review number; nothing is
+        // sent for it, so there is nothing for the cooldown to protect.
+        if ($reviewCode === null) {
+            $this->guardAgainstResend($phoneE164);
+        }
 
         $ttl = (int) config('otp.ttl');
-        $reviewCode = $this->reviewCodeFor($phoneE164);
         $code = $reviewCode ?? $this->generateCode();
 
         DB::transaction(function () use ($phoneE164, $code, $ipAddress, $ttl, $reviewCode): void {
@@ -138,10 +143,9 @@ final class OtpService
      */
     private function reviewCodeFor(string $phoneE164): ?string
     {
-        $reviewPhone = PhoneNumber::normalize((string) config('otp.review_phone'));
         $reviewCode = (string) config('otp.review_code');
 
-        if ($reviewPhone === null || $reviewPhone !== $phoneE164) {
+        if (! ReviewAccount::is($phoneE164)) {
             return null;
         }
 

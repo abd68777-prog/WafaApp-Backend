@@ -45,6 +45,8 @@ return [
     | written in the review notes; nothing is sent through LightOTP for it.
     | Only this exact number accepts the fixed code. Both empty (the default)
     | switches it off. `php artisan review:prepare` fills its demo data.
+    | The number is never rate limited, only the demo shops can stamp it, and
+    | no push is sent for its demo inbox (App\Support\ReviewAccount).
     |
     */
 

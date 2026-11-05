@@ -23,7 +23,7 @@ use App\Notifications\CardCompleted;
 use App\Notifications\RewardRedeemed;
 use App\Notifications\StampAdded;
 use App\Services\Customer\CustomerQrCode;
-use App\Support\PhoneNumber;
+use App\Support\ReviewAccount;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -50,7 +50,7 @@ class ReviewAccountSeeder extends Seeder
      */
     public function run(): void
     {
-        $phone = PhoneNumber::normalize((string) config('otp.review_phone'));
+        $phone = ReviewAccount::phone();
 
         if ($phone === null) {
             $this->command?->warn('REVIEW_PHONE is not set to a valid Syrian mobile number; skipping the review account.');
@@ -92,9 +92,11 @@ class ReviewAccountSeeder extends Seeder
     {
         $customer = Customer::query()->firstOrNew(['phone' => $phone]);
 
+        // Back to the demo profile, whatever a reviewer typed after deleting
+        // the account; either way the profile stays complete.
         $customer->fill([
-            'name' => $customer->name ?? 'Store Review',
-            'birthdate' => $customer->birthdate ?? '1990-01-01',
+            'name' => 'Store Review',
+            'birthdate' => '1990-01-01',
         ]);
 
         $customer->forceFill([
@@ -251,8 +253,8 @@ class ReviewAccountSeeder extends Seeder
 
     /**
      * Filled once, oldest first, through the app's own notifications so each
-     * entry has the exact shape the app reads. The account has no phones
-     * registered, so no push goes anywhere.
+     * entry has the exact shape the app reads. Only the inbox is written: a
+     * reviewer who signed in before the refill gets no push for demo entries.
      *
      * @param  list<object>  $read
      * @param  list<object>  $unread
@@ -264,13 +266,13 @@ class ReviewAccountSeeder extends Seeder
         }
 
         foreach ($read as $notification) {
-            $reviewer->notify($notification);
+            $reviewer->notifyNow($notification, ['database']);
         }
 
         $reviewer->notifications()->update(['read_at' => now()]);
 
         foreach ($unread as $notification) {
-            $reviewer->notify($notification);
+            $reviewer->notifyNow($notification, ['database']);
         }
     }
 }
