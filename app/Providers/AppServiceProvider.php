@@ -18,6 +18,7 @@ use App\Services\Otp\LogOtpSender;
 use App\Services\Otp\OtpSender;
 use App\Support\Cloudinary\CloudinaryAdapter;
 use App\Support\PhoneNumber;
+use App\Support\ReviewAccount;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
@@ -154,16 +155,18 @@ class AppServiceProvider extends ServiceProvider
                 : 'ip:'.$request->ip()));
 
         // Sending a code costs real money, so it is capped per number and per
-        // source. The per-request cooldown lives in OtpService.
+        // source. The per-request cooldown lives in OtpService. The store
+        // review number is shared by every reviewer and costs nothing, so only
+        // the source cap applies to it.
         RateLimiter::for('otp', fn (Request $request) => [
-            Limit::perHour(5)->by('otp-phone:'.$this->phoneKey($request)),
+            $this->isReviewNumber($request) ? Limit::none() : Limit::perHour(5)->by('otp-phone:'.$this->phoneKey($request)),
             Limit::perHour(20)->by('otp-ip:'.$request->ip()),
         ]);
 
         // Guessing a code is cheap, so the ceiling is per minute; the code also
         // dies after `otp.max_attempts` wrong tries.
         RateLimiter::for('otp-verify', fn (Request $request) => [
-            Limit::perMinute(10)->by('otp-verify-phone:'.$this->phoneKey($request)),
+            $this->isReviewNumber($request) ? Limit::none() : Limit::perMinute(10)->by('otp-verify-phone:'.$this->phoneKey($request)),
             Limit::perMinute(30)->by('otp-verify-ip:'.$request->ip()),
         ]);
     }
@@ -175,5 +178,10 @@ class AppServiceProvider extends ServiceProvider
     private function phoneKey(Request $request): string
     {
         return PhoneNumber::normalize((string) $request->input('phone')) ?? (string) $request->ip();
+    }
+
+    private function isReviewNumber(Request $request): bool
+    {
+        return ReviewAccount::is(PhoneNumber::normalize((string) $request->input('phone')));
     }
 }

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Support\PhoneNumber;
+use App\Support\ReviewAccount;
 use Database\Seeders\ReviewAccountSeeder;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -20,7 +20,7 @@ class PrepareReviewAccount extends Command
 {
     public function handle(): int
     {
-        if (PhoneNumber::normalize((string) config('otp.review_phone')) === null) {
+        if (ReviewAccount::phone() === null) {
             $this->info('REVIEW_PHONE is not set; nothing to prepare.');
 
             return self::SUCCESS;
