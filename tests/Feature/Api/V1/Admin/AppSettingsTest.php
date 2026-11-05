@@ -77,7 +77,7 @@ class AppSettingsTest extends TestCase
 
     public function test_the_support_link_set_from_the_dashboard_reaches_the_customer_app(): void
     {
-        $this->getJson('/api/v1/customer/config')->assertOk()->assertJsonPath('data.support_url', '');
+        $this->getJson('/api/v1/customer/config')->assertOk()->assertJsonPath('data.support_url', 'https://wa.me/963991734151');
 
         $this->asOwner()->patchJson('/api/v1/admin/settings/app', ['support_url' => 'https://wa.me/963933000111'])
             ->assertOk()

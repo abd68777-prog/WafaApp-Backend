@@ -360,9 +360,9 @@ uuid) · `taken` (مستعمل) · `exists` (مو موجود) · `before` · `pr
   "data": {
     "qr_period_seconds": 60,
     "privacy_policy_version": "1.2",
-    "privacy_policy_url": "https://…",
-    "customer_terms_url": "https://…",
-    "support_url": "https://wa.me/9639XXXXXXXX",
+    "privacy_policy_url": "https://wafacard.app/privacy",
+    "customer_terms_url": "https://wafacard.app/terms",
+    "support_url": "https://wa.me/963991734151",
     "governorates": [ { "id": 1, "name": "دمشق" }, { "id": 2, "name": "ريف دمشق" }, … ],
     "business_types": [ { "id": 1, "name": "كافيه" }, { "id": 2, "name": "مطعم" }, … ]
   }
@@ -926,7 +926,7 @@ PUT /merchant/devices
       "stamp_interval_minutes": 60,
       "pin_unlock_hours": 12
     },
-    "links": { "privacy_policy_url": "…", "merchant_terms_url": "…" }
+    "links": { "privacy_policy_url": "https://wafacard.app/privacy", "merchant_terms_url": "https://wafacard.app/terms" }
   }
 }
 ```
@@ -2190,10 +2190,10 @@ PUT /merchant/devices
     "campaign_body_max": 300,
     "merchant_min_app_version": "1.0.0",
     "merchant_app_download_url": "https://…/wafa-merchant.apk",
-    "privacy_policy_url": "https://…",
-    "customer_terms_url": "https://…",
-    "merchant_terms_url": "https://…",
-    "support_url": "https://wa.me/9639XXXXXXXX",
+    "privacy_policy_url": "https://wafacard.app/privacy",
+    "customer_terms_url": "https://wafacard.app/terms",
+    "merchant_terms_url": "https://wafacard.app/terms",
+    "support_url": "https://wa.me/963991734151",
     "pin_unlock_hours": 12
   }
 }

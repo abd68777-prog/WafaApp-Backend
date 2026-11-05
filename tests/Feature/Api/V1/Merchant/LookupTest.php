@@ -76,7 +76,10 @@ class LookupTest extends TestCase
             ->assertJsonPath('data.limits.card_stamps_max', 12)
             ->assertJsonPath('data.limits.stamp_interval_minutes', 30)
             ->assertJsonPath('data.trial_days', 14)
-            ->assertJsonStructure(['data' => ['links' => ['privacy_policy_url', 'merchant_terms_url']]]);
+            ->assertJsonPath('data.links', [
+                'privacy_policy_url' => 'https://wafacard.app/privacy',
+                'merchant_terms_url' => 'https://wafacard.app/terms',
+            ]);
     }
 
     private function lookups(): TestResponse
