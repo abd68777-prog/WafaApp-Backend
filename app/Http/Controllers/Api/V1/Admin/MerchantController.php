@@ -108,7 +108,7 @@ class MerchantController extends Controller
                     $merchant->subscriptionPeriods()->with('package')->orderByDesc('starts_at')->orderByDesc('id')->get()
                 )->resolve(),
                 'payments' => PaymentResource::collection(
-                    $merchant->payments()->with('package')->latest('id')->limit(self::RECENT_PAYMENTS)->get()
+                    $merchant->payments()->with(['package', 'subscriptionPeriod'])->latest('id')->limit(self::RECENT_PAYMENTS)->get()
                 )->resolve(),
                 'cards' => $this->cards($merchant),
                 'stats' => $this->stats($merchant),

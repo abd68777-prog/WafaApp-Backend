@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Storage;
 /**
  * A payment as the merchant sees it (contract Payment). Amounts are decimal
  * strings, and the proof is a short-lived signed link, never a storage path.
- * Needs `package`.
+ * Needs `package` and `subscriptionPeriod`.
  *
  * @mixin Payment
  */
@@ -42,6 +42,9 @@ class PaymentResource extends JsonResource
             'rejection_reason' => $this->rejection_reason?->value,
             'created_at' => $this->created_at->toIso8601ZuluString(),
             'reviewed_at' => $this->reviewed_at?->toIso8601ZuluString(),
+            // The paid period an approval created, read from the period so a
+            // move from the dashboard shows; null until approved.
+            'period_starts_at' => $this->subscriptionPeriod?->starts_at->toIso8601ZuluString(),
         ];
     }
 }

@@ -3566,7 +3566,7 @@ components:
         grace_ends_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
     Payment:
       type: object
-      required: [id, package, duration_months, price_usd, exchange_rate, amount_syp, method, reference, proof_url, status, rejection_reason, created_at, reviewed_at]
+      required: [id, package, duration_months, price_usd, exchange_rate, amount_syp, method, reference, proof_url, status, rejection_reason, created_at, reviewed_at, period_starts_at]
       properties:
         id: { type: integer }
         package: { $ref: '#/components/schemas/PackageSummary' }
@@ -3581,6 +3581,7 @@ components:
         rejection_reason: { oneOf: [{ $ref: '#/components/schemas/PaymentRejectionReason' }, { type: 'null' }] }
         created_at: { $ref: '#/components/schemas/DateTime' }
         reviewed_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }] }
+        period_starts_at: { oneOf: [{ $ref: '#/components/schemas/DateTime' }, { type: 'null' }], description: 'بداية الفترة المدفوعة يلي ولّدتها هالدفعة لما انقبلت. `null` للمعلّقة والمرفوضة' }
     Capabilities:
       type: object
       description: |

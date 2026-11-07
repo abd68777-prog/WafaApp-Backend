@@ -1444,13 +1444,15 @@ PUT /merchant/devices
     "status": "PENDING",
     "rejection_reason": null,
     "created_at": "2026-10-08T12:39:10Z",
-    "reviewed_at": null
+    "reviewed_at": null,
+    "period_starts_at": null
   }
 }
 ```
 
 - **الخادم بينسخ** السعر بالدولار وسعر الصرف والمبلغ بالليرة لحظة الرفع، وما بيقرأ أي مبلغ من الطلب. إذا تغيّر السعر بعدين، الدفعة بتضل على سعرها.
 - `proof_url` رابط موقّع بيعيش 30 دقيقة. اطلبه من جديد إذا بدك تعرض الصورة.
+- `period_starts_at`: بداية الفترة المدفوعة يلي ولّدتها الدفعة لما انقبلت، لسطر «بدأت الفترة» بسجل الدفعات. `null` للمعلّقة والمرفوضة.
 - `status`: `PENDING` ← `APPROVED` أو `REJECTED`. و`rejection_reason`: `transfer_not_received` · `amount_short` · `unclear_image` · `invalid_proof`.
 - **التخفيض:** إذا حد الباقة الجديدة أقل من البطاقات الفعّالة، لازم `keep_card_ids` (لحد الحد الجديد). باقي البطاقات بتتوقف لما تبلّش الفترة الجديدة، مو وقت الرفع.
 

@@ -55,7 +55,8 @@ class PaymentTest extends TestCase
             ->assertJsonPath('data.method', 'haram')
             ->assertJsonPath('data.reference', 'TX123')
             ->assertJsonPath('data.status', 'PENDING')
-            ->assertJsonPath('data.rejection_reason', null);
+            ->assertJsonPath('data.rejection_reason', null)
+            ->assertJsonPath('data.period_starts_at', null);
 
         $payment = Payment::query()->sole();
         Storage::disk('local')->assertExists($payment->proof_path);
@@ -165,7 +166,8 @@ class PaymentTest extends TestCase
 
         $this->withPin()->getJson('/api/v1/merchant/payments?limit=1&cursor='.$firstPage->json('meta.next_cursor'))
             ->assertJsonPath('data.0.id', $older->id)
-            ->assertJsonPath('data.0.rejection_reason', 'transfer_not_received');
+            ->assertJsonPath('data.0.rejection_reason', 'transfer_not_received')
+            ->assertJsonPath('data.0.period_starts_at', null);
 
         $this->withPin()->getJson('/api/v1/merchant/subscription')
             ->assertOk()
@@ -174,6 +176,20 @@ class PaymentTest extends TestCase
             ->assertJsonPath('data.pending_payment.id', $newer->id)
             ->assertJsonCount(2, 'data.periods')
             ->assertJsonPath('data.periods.0.type', 'paid');
+    }
+
+    public function test_an_approved_payment_shows_when_its_period_starts(): void
+    {
+        $period = SubscriptionPeriod::factory()->for($this->merchant)->for($this->medium)->create([
+            'starts_at' => '2026-12-01 00:00:00', 'ends_at' => '2027-01-01 00:00:00',
+        ]);
+        Payment::factory()->for($this->merchant)->for($this->medium)->approved()->create(['subscription_period_id' => $period->id]);
+        Payment::factory()->for($this->merchant)->for($this->medium)->create();
+
+        $this->withPin()->getJson('/api/v1/merchant/payments')
+            ->assertOk()
+            ->assertJsonPath('data.0.period_starts_at', null)
+            ->assertJsonPath('data.1.period_starts_at', '2026-12-01T00:00:00Z');
     }
 
     public function test_payments_are_behind_the_pin(): void

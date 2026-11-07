@@ -34,7 +34,7 @@ class PaymentController extends Controller
         return CursorPage::respond(
             $request,
             Payment::query()
-                ->with(['package', 'merchant', 'reviewedBy'])
+                ->with(['package', 'subscriptionPeriod', 'merchant', 'reviewedBy'])
                 ->where('status', $status)
                 ->orderBy('id', $status === PaymentStatus::Pending ? 'asc' : 'desc'),
             AdminPaymentResource::class,
@@ -43,14 +43,14 @@ class PaymentController extends Controller
 
     public function show(Payment $payment): JsonResponse
     {
-        return (new AdminPaymentResource($payment->load(['package', 'merchant', 'reviewedBy'])))->response();
+        return (new AdminPaymentResource($payment->load(['package', 'subscriptionPeriod', 'merchant', 'reviewedBy'])))->response();
     }
 
     public function approve(Request $request, Payment $payment): JsonResponse
     {
         $payment = $this->review->approve($payment, $this->reviewer($request), $request->ip());
 
-        return (new AdminPaymentResource($payment->refresh()->load(['package', 'merchant', 'reviewedBy'])))->response();
+        return (new AdminPaymentResource($payment->refresh()->load(['package', 'subscriptionPeriod', 'merchant', 'reviewedBy'])))->response();
     }
 
     public function reject(RejectPaymentRequest $request, Payment $payment): JsonResponse
@@ -62,7 +62,7 @@ class PaymentController extends Controller
             $request->ip(),
         );
 
-        return (new AdminPaymentResource($payment->refresh()->load(['package', 'merchant', 'reviewedBy'])))->response();
+        return (new AdminPaymentResource($payment->refresh()->load(['package', 'subscriptionPeriod', 'merchant', 'reviewedBy'])))->response();
     }
 
     private function reviewer(Request $request): AdminUser

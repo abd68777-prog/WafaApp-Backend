@@ -40,7 +40,7 @@ class PaymentController extends Controller
 
         return CursorPage::respond(
             $request,
-            $merchant->payments()->with('package')->orderByDesc('id'),
+            $merchant->payments()->with(['package', 'subscriptionPeriod'])->orderByDesc('id'),
             PaymentResource::class,
         );
     }
@@ -98,7 +98,7 @@ class PaymentController extends Controller
             throw ApiException::of(ErrorCode::PaymentAlreadyPending, 'A payment is already waiting for review.');
         }
 
-        return (new PaymentResource($payment->refresh()->load('package')))->response()->setStatusCode(201);
+        return (new PaymentResource($payment->refresh()->load(['package', 'subscriptionPeriod'])))->response()->setStatusCode(201);
     }
 
     private function ensureNothingPending(Merchant $merchant): void

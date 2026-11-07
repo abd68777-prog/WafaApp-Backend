@@ -35,7 +35,7 @@ class FinanceController extends Controller
         ]);
 
         $payments = Payment::query()
-            ->with(['package', 'merchant', 'reviewedBy'])
+            ->with(['package', 'subscriptionPeriod', 'merchant', 'reviewedBy'])
             ->when(isset($validated['status']), fn ($query) => $query->where('status', $validated['status']))
             ->when(isset($validated['method']), fn ($query) => $query->where('method', $validated['method']))
             ->when(isset($validated['merchant_id']), fn ($query) => $query->where('merchant_id', $validated['merchant_id']))
