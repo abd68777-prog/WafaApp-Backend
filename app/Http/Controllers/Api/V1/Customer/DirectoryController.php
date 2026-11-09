@@ -9,6 +9,7 @@ use App\Http\Resources\CardSummaryResource;
 use App\Http\Resources\MerchantSummaryResource;
 use App\Models\Customer;
 use App\Models\Merchant;
+use App\Support\ReviewAccount;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,7 +31,7 @@ class DirectoryController extends Controller
      */
     public function index(Request $request): JsonResponse|Response
     {
-        $merchants = $this->visible(Merchant::query())
+        $merchants = $this->visible(Merchant::query(), $request->user())
             ->with(['businessType', 'governorate'])
             ->withCount(['cards as active_cards_count' => fn (Builder $cards) => $cards->where('status', CardStatus::Active)])
             ->orderBy('business_name')
@@ -63,7 +64,7 @@ class DirectoryController extends Controller
         $customer = $request->user();
 
         $shop = Merchant::query()->whereNotNull('status')->with(['businessType', 'governorate'])->findOrFail($merchant);
-        $visible = $this->visible(Merchant::query()->whereKey($shop->id))->exists();
+        $visible = $this->visible(Merchant::query()->whereKey($shop->id), $customer)->exists();
 
         abort_unless($visible || $customer->cardCycles()->where('merchant_id', $shop->id)->exists(), 404);
 
@@ -90,11 +91,11 @@ class DirectoryController extends Controller
      * @param  Builder<Merchant>  $merchants
      * @return Builder<Merchant>
      */
-    private function visible(Builder $merchants): Builder
+    private function visible(Builder $merchants, Customer $customer): Builder
     {
         $statuses = array_filter(MerchantStatus::cases(), fn (MerchantStatus $status): bool => $status->appearsInDirectory());
 
-        return $merchants
+        return ReviewAccount::hideDemoShopsFrom($merchants, $customer)
             ->whereIn('status', $statuses)
             ->whereHas('cards', fn (Builder $cards) => $cards->where('status', CardStatus::Active));
     }
