@@ -27,7 +27,7 @@ class MerchantLeaving extends CardNotification
 
     protected function title(): string
     {
-        return "{$this->shopName()} سيغادر وفاء";
+        return "{$this->shopName()} سيغادر وفا";
     }
 
     protected function body(): string

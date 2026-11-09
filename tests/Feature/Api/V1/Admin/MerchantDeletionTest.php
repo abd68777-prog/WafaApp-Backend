@@ -59,7 +59,7 @@ class MerchantDeletionTest extends TestCase
         Notification::assertSentTo($ready->customer, MerchantLeaving::class, function (MerchantLeaving $notification) use ($ready): bool {
             $inbox = $notification->toArray($ready->customer);
 
-            return $inbox['title'] === 'كافيه الياسمين سيغادر وفاء'
+            return $inbox['title'] === 'كافيه الياسمين سيغادر وفا'
                 && $inbox['body'] === 'استلم هديتك قبل 2026/10/31.'
                 && $inbox['data']['cycle_id'] === $ready->id
                 && $inbox['data']['leaves_at'] === '2026-10-31T12:00:00Z';

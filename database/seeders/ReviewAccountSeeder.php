@@ -60,21 +60,21 @@ class ReviewAccountSeeder extends Seeder
 
         $reviewer = $this->reviewer($phone);
 
-        $cafe = $this->shop('review_demo_cafe', 'كافيه وفاء التجريبي', 'كافيه', '+963900000201', 'شارع الحمرا، دمشق', '+963112223301');
+        $cafe = $this->shop('review_demo_cafe', 'كافيه وفا التجريبي', 'كافيه', '+963900000201', 'شارع الحمرا، دمشق', '+963112223301');
         $coffee = $this->card($cafe, 'coffee', CardColor::Coffee, 'بطاقة القهوة', 'قهوة مجانية من اختيارك', 5);
         $collecting = $this->cycle($coffee, $reviewer, 3, CardCycleStatus::Collecting);
 
-        $sweets = $this->shop('review_demo_sweets', 'حلويات وفاء التجريبية', 'حلويات', '+963900000202', 'شارع بغداد، دمشق', '+963112223302');
+        $sweets = $this->shop('review_demo_sweets', 'حلويات وفا التجريبية', 'حلويات', '+963900000202', 'شارع بغداد، دمشق', '+963112223302');
         $cake = $this->card($sweets, 'cake', CardColor::Rose, 'بطاقة الحلويات', 'قطعة كيك مجانية', 5);
         $ready = $this->cycle($cake, $reviewer, 5, CardCycleStatus::RewardReady);
 
-        $bakery = $this->shop('review_demo_bakery', 'فرن وفاء التجريبي', 'مخبز', '+963900000203', 'المزة، دمشق', '+963112223303');
+        $bakery = $this->shop('review_demo_bakery', 'فرن وفا التجريبي', 'مخبز', '+963900000203', 'المزة، دمشق', '+963112223303');
         $bread = $this->card($bakery, 'bread', CardColor::Olive, 'بطاقة الخبز', 'ربطة خبز مجانية', 4);
         $redeemed = $this->cycle($bread, $reviewer, 4, CardCycleStatus::Redeemed);
         $this->cycle($bread, $reviewer, 1, CardCycleStatus::Collecting);
 
         // A shop the reviewer has not joined, to find in the directory.
-        $restaurant = $this->shop('review_demo_restaurant', 'مطعم وفاء التجريبي', 'مطعم', '+963900000204', 'باب توما، دمشق', '+963112223304');
+        $restaurant = $this->shop('review_demo_restaurant', 'مطعم وفا التجريبي', 'مطعم', '+963900000204', 'باب توما، دمشق', '+963112223304');
         $this->card($restaurant, 'hamburger', CardColor::Burgundy, 'بطاقة البرغر', 'وجبة برغر مجانية', 6);
 
         $campaign = $this->campaign($cafe, 'عرض نهاية الأسبوع', 'خصم 20% على كل المشروبات الباردة يومي الجمعة والسبت.');
@@ -120,8 +120,10 @@ class ReviewAccountSeeder extends Seeder
         $existing = Merchant::query()->where('clerk_user_id', $clerkUserId)->first();
 
         if ($existing) {
-            // Shops seeded before addresses were part of the demo get them now.
+            // Shops seeded before addresses were part of the demo get them now,
+            // and every refill puts the demo name back (nobody signs in to edit it).
             $existing->forceFill([
+                'business_name' => $name,
                 'address' => $existing->address ?? $address,
                 'contact_phone' => $existing->contact_phone ?? $contactPhone,
             ])->save();

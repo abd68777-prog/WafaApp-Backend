@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
 info:
-  title: وفاء — Wafa API
+  title: وفا — Wafa API
   version: 1.0.0
   description: |
     كل endpoint شغّال حالياً بالباك إند، مطابق لـ`api.md` ولعقد Deep Code (`1.0.0-draft.1`).

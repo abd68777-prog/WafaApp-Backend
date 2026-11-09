@@ -29,7 +29,7 @@ class PushTest extends Command
 
         $message = CloudMessage::new()
             ->withToken($this->argument('token'))
-            ->withNotification(Notification::create('وفاء', 'إشعار تجريبي من الخادم.'))
+            ->withNotification(Notification::create('وفا', 'إشعار تجريبي من الخادم.'))
             ->withData(['type' => 'test'])
             ->withHighestPossiblePriority()
             ->withDefaultSounds();
