@@ -264,6 +264,28 @@ class ReviewAccountTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_the_demo_shops_are_seen_by_the_review_account_only(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        config(['otp.review_phone' => self::REVIEW_PHONE]);
+        $this->artisan('review:prepare')->assertSuccessful();
+
+        $realShop = Merchant::factory()->create();
+        Card::factory()->for($realShop)->create();
+        $demoShop = Merchant::query()->where('clerk_user_id', 'review_demo_cafe')->sole();
+        $token = Customer::factory()->consented()->create()->createToken('phone', ['customer'])->plainTextToken;
+
+        $this->withToken($token)->getJson('/api/v1/customer/directory')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $realShop->id);
+        $this->withToken($token)->getJson('/api/v1/customer/shop-contacts')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $realShop->id);
+        $this->withToken($token)->getJson('/api/v1/customer/merchants/'.$demoShop->id)->assertNotFound();
+    }
+
     public function test_nothing_is_prepared_while_the_review_number_is_unset(): void
     {
         $this->seed(DatabaseSeeder::class);

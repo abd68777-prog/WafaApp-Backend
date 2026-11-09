@@ -6,6 +6,7 @@ use App\Enums\MerchantStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MerchantSummaryResource;
 use App\Models\Merchant;
+use App\Support\ReviewAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -26,7 +27,7 @@ class ShopContactController extends Controller
     {
         $statuses = array_filter(MerchantStatus::cases(), fn (MerchantStatus $status): bool => $status->appearsInDirectory());
 
-        $data = Merchant::query()
+        $data = ReviewAccount::hideDemoShopsFrom(Merchant::query(), $request->user())
             ->with(['businessType', 'governorate'])
             ->whereIn('status', $statuses)
             ->orderBy('business_name')
