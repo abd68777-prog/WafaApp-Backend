@@ -46,19 +46,21 @@ class DeviceToken extends Model
      * A token identifies a device, not a person: when someone else signs in
      * on the same phone, the token moves to them, so the previous account
      * stops receiving that phone's notifications.
+     *
+     * One atomic upsert on the unique token, so the same token sent twice at
+     * once (an app retrying on a weak network) cannot race into a duplicate.
      */
     public static function register(Customer|Merchant $owner, string $token, DevicePlatform $platform): self
     {
-        $deviceToken = static::query()->firstOrNew(['token' => $token]);
-
-        $deviceToken->fill([
-            'platform' => $platform,
-            'app' => $owner instanceof Merchant ? ClientApp::Merchant : ClientApp::Customer,
+        static::query()->upsert([[
+            'token' => $token,
+            'platform' => $platform->value,
+            'app' => ($owner instanceof Merchant ? ClientApp::Merchant : ClientApp::Customer)->value,
+            'owner_type' => $owner->getMorphClass(),
+            'owner_id' => $owner->getKey(),
             'last_seen_at' => now(),
-        ]);
+        ]], ['token'], ['platform', 'app', 'owner_type', 'owner_id', 'last_seen_at']);
 
-        $deviceToken->owner()->associate($owner)->save();
-
-        return $deviceToken;
+        return static::query()->where('token', $token)->sole();
     }
 }

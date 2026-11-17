@@ -38,6 +38,23 @@ class DeviceTest extends TestCase
         $this->assertSame(ClientApp::Customer, $device->app);
     }
 
+    public function test_the_same_token_sent_again_keeps_one_row_and_succeeds(): void
+    {
+        Merchant::factory()->create(['clerk_user_id' => 'user_shop']);
+        $register = fn () => $this->withToken($this->clerkToken('user_shop'))->putJson('/api/v1/merchant/devices', [
+            'token' => self::FCM_TOKEN,
+            'platform' => 'android',
+        ]);
+
+        $register()->assertNoContent();
+        $this->travel(5)->minutes();
+        $register()->assertNoContent();
+
+        $device = DeviceToken::query()->sole();
+        $this->assertTrue($device->last_seen_at->isSameMinute(now()));
+        $this->assertTrue($device->created_at->lessThan($device->updated_at));
+    }
+
     public function test_a_device_token_moves_to_whoever_signs_in_on_that_phone_next(): void
     {
         $previousOwner = Customer::factory()->create();
