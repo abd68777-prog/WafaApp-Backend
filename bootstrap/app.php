@@ -24,10 +24,18 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Caddy terminates HTTPS in front of the API and is the only way in
-        // (compose binds the port to 127.0.0.1), so its forwarded headers give
-        // the real client IP for rate limits and the https scheme for URLs.
-        $middleware->trustProxies(at: '*');
+        // Caddy terminates HTTPS in front of the API, so its forwarded headers
+        // give the real client IP for rate limits and the https scheme for
+        // URLs. Only a proxy on this machine or the Docker network (where the
+        // published port arrives from) is believed: a client reaching nginx
+        // directly, e.g. with API_BIND=0.0.0.0, cannot forge its IP.
+        $middleware->trustProxies(at: [
+            '127.0.0.1',
+            '::1',
+            '10.0.0.0/8',
+            '172.16.0.0/12',
+            '192.168.0.0/16',
+        ]);
 
         // Every API request is answered as JSON, even when the client
         // forgets to send an Accept header.

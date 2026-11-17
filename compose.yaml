@@ -20,6 +20,11 @@ services:
       APP_ENV: ${APP_ENV:-production}
       APP_DEBUG: ${APP_DEBUG:-false}
       APP_URL: ${APP_URL:-http://localhost:${API_PORT:-8000}}
+      # The encryption key, kept by the server's .env (and a copy off the
+      # server). Passed under another name so the entrypoint writes it for
+      # every PHP process, `docker compose exec` included; when empty it falls
+      # back to the key generated into the storage volume.
+      APP_KEY_FROM_ENV: ${APP_KEY:-}
       # OTP codes and errors go to `docker compose logs app`.
       LOG_CHANNEL: stderr
       LOG_LEVEL: ${LOG_LEVEL:-warning}

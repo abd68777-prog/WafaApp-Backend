@@ -8,25 +8,36 @@ cd /var/www/html
 mkdir -p storage/app storage/framework/cache/data storage/framework/sessions storage/framework/views storage/logs
 chown -R www-data:www-data storage bootstrap/cache
 
-# Generate the application key once and keep it in the storage volume, so it
-# survives container rebuilds. It is written to .env (not exported) so every
-# PHP process sees it, including `docker compose exec app php artisan …`.
-# Only PHP-FPM creates it; the queue worker and the scheduler start alongside
-# and wait for it, so all containers share one key.
-KEY_FILE=storage/app/.docker-app-key
-if [ "$1" = "php-fpm" ] && [ ! -s "$KEY_FILE" ]; then
-    php -r 'echo "base64:".base64_encode(random_bytes(32));' > "$KEY_FILE"
-fi
-waited=0
-until [ -s "$KEY_FILE" ]; do
-    if [ "$waited" -ge 60 ]; then
-        echo "No application key yet; start the app service first." >&2
-        exit 1
+# The application key is written to .env (not exported) so every PHP process
+# sees it, including `docker compose exec app php artisan …`.
+#
+# A server keeps it as APP_KEY in its own .env, which compose passes in as
+# APP_KEY_FROM_ENV, so losing the storage volume never changes it. Without
+# one (a developer machine), a key is generated once into the storage volume:
+# only PHP-FPM creates it, and the queue worker and the scheduler wait for it,
+# so all containers share one key.
+if [ -n "${APP_KEY_FROM_ENV:-}" ]; then
+    printf 'APP_KEY=%s\n' "$APP_KEY_FROM_ENV" > .env
+else
+    KEY_FILE=storage/app/.docker-app-key
+    if [ "${APP_ENV:-production}" != "local" ]; then
+        echo "WARNING: APP_KEY is not set in the server's .env; using the key in the storage volume ($KEY_FILE). Copy it into .env." >&2
     fi
-    sleep 2
-    waited=$((waited + 2))
-done
-printf 'APP_KEY=%s\n' "$(cat "$KEY_FILE")" > .env
+    if [ "$1" = "php-fpm" ] && [ ! -s "$KEY_FILE" ]; then
+        php -r 'echo "base64:".base64_encode(random_bytes(32));' > "$KEY_FILE"
+    fi
+    waited=0
+    until [ -s "$KEY_FILE" ]; do
+        if [ "$waited" -ge 60 ]; then
+            echo "No application key yet; start the app service first." >&2
+            exit 1
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    printf 'APP_KEY=%s\n' "$(cat "$KEY_FILE")" > .env
+fi
+unset APP_KEY_FROM_ENV
 
 # Only the long-running PHP-FPM process prepares the database; one-off
 # commands started with `docker compose run app …` skip it.
